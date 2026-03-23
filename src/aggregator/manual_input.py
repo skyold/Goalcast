@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict, Any, Optional
 from src.aggregator.schema import OddsData
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 def parse_lineup(text: str) -> List[str]:

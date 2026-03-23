@@ -16,7 +16,7 @@ from src.aggregator.schema import (
     SignalDirection,
     SignalStrength,
 )
-from src.utils.logger import logger
+from utils.logger import logger
 from config.settings import settings
 
 

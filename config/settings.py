@@ -8,10 +8,18 @@ load_dotenv(BASE_DIR / ".env")
 
 class Settings:
     FOOTYSTATS_API_KEY: str = ""
+    FOOTBALL_DATA_API_KEY: str = ""
     ODDS_API_KEY: str = ""
     OPENWEATHER_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = ""
     DATABASE_URL: str = ""
+
+    LLM_PROVIDER: str = "deepseek"
+    LLM_MODEL: str = "deepseek-chat"
+    LLM_MAX_TOKENS: int = 4000
+    LLM_TIMEOUT: int = 120
 
     CLAUDE_MODEL: str = "claude-sonnet-4-6"
     CLAUDE_MAX_TOKENS: int = 4000
@@ -97,12 +105,22 @@ class Settings:
 
     def __init__(self):
         self.FOOTYSTATS_API_KEY = self._get_env("FOOTYSTATS_API_KEY", "")
+        self.FOOTBALL_DATA_API_KEY = self._get_env("FOOTBALL_DATA_API_KEY", "")
         self.ODDS_API_KEY = self._get_env("ODDS_API_KEY", "")
         self.OPENWEATHER_API_KEY = self._get_env("OPENWEATHER_API_KEY", "")
         self.ANTHROPIC_API_KEY = self._get_env("ANTHROPIC_API_KEY", "")
+        self.DEEPSEEK_API_KEY = self._get_env("DEEPSEEK_API_KEY", "")
+        self.DEEPSEEK_BASE_URL = self._get_env("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
         self.DATABASE_URL = self._get_env(
             "DATABASE_URL", f"sqlite:///{BASE_DIR / 'data' / 'db' / 'goalcast.db'}"
         )
+
+        if self.DEEPSEEK_API_KEY:
+            self.LLM_PROVIDER = "deepseek"
+            self.LLM_MODEL = "deepseek-chat"
+        elif self.ANTHROPIC_API_KEY:
+            self.LLM_PROVIDER = "anthropic"
+            self.LLM_MODEL = self.CLAUDE_MODEL
 
     def _get_env(self, key: str, default: str = "") -> str:
         import os

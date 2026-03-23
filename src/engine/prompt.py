@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from src.aggregator.schema import AnalysisInput, MatchType
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 PROMPT_VERSION = "v3.0"

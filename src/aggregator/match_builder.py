@@ -24,7 +24,7 @@ from src.aggregator.schema import (
     MatchType,
     DataQualityLevel,
 )
-from src.utils.logger import logger
+from utils.logger import logger
 from config.settings import settings
 
 

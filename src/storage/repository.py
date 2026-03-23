@@ -10,7 +10,7 @@ from src.storage.models import (
     DataQualityLog,
     get_db_manager,
 )
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 class Repository:
