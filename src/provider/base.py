@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 import asyncio
 import httpx
 from utils.logger import logger
+from utils.rate_limiter import get_rate_limiter
 
 
 class BaseProvider(ABC):
@@ -15,6 +16,10 @@ class BaseProvider(ABC):
         self.api_key = api_key
         self.timeout = timeout or self.DEFAULT_TIMEOUT
         self._client: Optional[httpx.AsyncClient] = None
+        self._rate_limiter = None
+
+    def _get_rate_limiter_name(self) -> str:
+        return self.name
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -33,13 +38,18 @@ class BaseProvider(ABC):
         headers: Optional[Dict[str, str]] = None,
         method: str = "GET",
     ) -> Optional[Dict[str, Any]]:
+        limiter_name = self._get_rate_limiter_name()
+        limiter = get_rate_limiter(limiter_name)
+
+        await limiter.acquire(blocking=True)
+
         client = await self._get_client()
         url = f"{self.BASE_URL}{endpoint}"
-        
+
         default_headers = {}
         if headers:
             default_headers.update(headers)
-        
+
         last_error = None
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -47,22 +57,26 @@ class BaseProvider(ABC):
                     response = await client.get(url, params=params, headers=default_headers)
                 else:
                     response = await client.request(method, url, json=params, headers=default_headers)
-                
+
                 if response.status_code == 429:
                     retry_after = float(response.headers.get("Retry-After", self.RETRY_DELAY * (2 ** attempt)))
-                    logger.warning(f"Rate limited, waiting {retry_after}s before retry")
+                    logger.warning(f"Rate limited by {self.name}, waiting {retry_after}s")
                     await asyncio.sleep(retry_after)
                     continue
-                
+
                 if response.status_code >= 500:
                     wait_time = self.RETRY_DELAY * (2 ** attempt)
                     logger.warning(f"Server error {response.status_code}, retrying in {wait_time}s")
                     await asyncio.sleep(wait_time)
                     continue
-                
+
+                if response.status_code >= 400:
+                    logger.error(f"Client error {response.status_code} for {url}")
+                    return None
+
                 response.raise_for_status()
                 return response.json()
-                
+
             except httpx.TimeoutException as e:
                 last_error = e
                 wait_time = self.RETRY_DELAY * (2 ** attempt)
@@ -80,9 +94,9 @@ class BaseProvider(ABC):
                 last_error = e
                 logger.error(f"Request failed: {e}")
                 break
-        
+
         if last_error:
-            logger.error(f"All retries failed: {last_error}")
+            logger.error(f"All retries failed for {self.name}: {last_error}")
         return None
 
     @property
