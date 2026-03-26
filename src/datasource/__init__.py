@@ -9,6 +9,11 @@ from datasource.types import (
     Odds,
     Elo,
     Weather,
+    Injury,
+    InjurySeverity,
+    Lineup,
+    compute_xg_adjustment,
+    classify_player_importance,
 )
 from datasource.registry import DataRegistry, registry
 from datasource.match.match_datasource import MatchDataSource
@@ -17,6 +22,7 @@ from datasource.standings.standings_datasource import StandingsDataSource
 from datasource.odds.odds_datasource import OddsDataSource
 from datasource.elo.elo_datasource import EloDataSource
 from datasource.weather.weather_datasource import WeatherDataSource
+from datasource.injury.injury_datasource import InjuryDataSource
 
 __all__ = [
     "DataSource",
@@ -30,6 +36,11 @@ __all__ = [
     "Odds",
     "Elo",
     "Weather",
+    "Injury",
+    "InjurySeverity",
+    "Lineup",
+    "compute_xg_adjustment",
+    "classify_player_importance",
     "DataRegistry",
     "registry",
     "MatchDataSource",
@@ -38,4 +49,5 @@ __all__ = [
     "OddsDataSource",
     "EloDataSource",
     "WeatherDataSource",
+    "InjuryDataSource",
 ]

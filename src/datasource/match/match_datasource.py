@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from datasource.base import DataSource, DataCapability
-from datasource.types import DataSourceType, Match, MatchType, MatchStatus
+from datasource.types import DataSourceType, Match, MatchType, MatchStatus, Odds
 from provider.base import BaseProvider
 from utils.logger import logger
 
@@ -44,7 +44,7 @@ class MatchDataSource(DataSource[Match]):
         if cached is not None:
             return cached
 
-        raw_data = await self._try_providers("get_match", match_id=match_id)
+        raw_data = await self._try_providers("get_match_details", match_id=match_id)
         if raw_data is None:
             return None
 
@@ -69,27 +69,61 @@ class MatchDataSource(DataSource[Match]):
         date_to = (today + timedelta(days=days)).strftime("%Y-%m-%d")
 
         matches = []
+        errors = []
         
         for provider in self._providers:
             try:
                 if not await provider.is_available():
+                    logger.debug(f"Provider {provider.name} not available, skipping")
                     continue
 
-                if hasattr(provider, "get_matches"):
-                    raw_data = await provider.get_matches(competition, date_from, date_to)
+                raw_data = None
+                method_used = None
+                
+                if hasattr(provider, "get_todays_matches"):
+                    raw_data = await provider.get_todays_matches(date=date_from)
+                    method_used = "get_todays_matches"
                 elif hasattr(provider, "get_league_matches"):
                     raw_data = await provider.get_league_matches(competition)
+                    method_used = "get_league_matches"
                 else:
+                    logger.debug(f"Provider {provider.name} has no suitable method")
                     continue
 
                 if raw_data:
                     parsed = self.parse_list(raw_data, competition)
-                    matches.extend(parsed)
-                    break
+                    if parsed:
+                        matches.extend(parsed)
+                        logger.info(f"Provider {provider.name} ({method_used}) returned {len(parsed)} matches for {competition}")
+                        break
+                    else:
+                        logger.debug(f"Provider {provider.name} returned empty data")
+                        
+                if method_used == "get_todays_matches" and len(matches) == 0:
+                    logger.info(f"Provider {provider.name} returned empty matches, trying extended date range...")
+                    extended_from = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+                    extended_to = (today + timedelta(days=days + 7)).strftime("%Y-%m-%d")
+                    raw_data = await provider.get_todays_matches(date=extended_from)
+                    if raw_data:
+                        parsed = self.parse_list(raw_data, competition)
+                        if parsed:
+                            matches.extend(parsed)
+                            logger.info(f"Provider {provider.name} (extended range) returned {len(parsed)} matches for {competition}")
+                            break
+                else:
+                    logger.debug(f"Provider {provider.name} returned None")
+                    errors.append(f"{provider.name}: no data")
 
             except Exception as e:
-                logger.warning(f"Provider {provider.name} failed: {e}")
+                errors.append(f"{provider.name}: {e}")
+                logger.warning(f"Provider {provider.name} failed for {competition}: {e}")
                 continue
+
+        if not matches:
+            if errors:
+                logger.warning(f"All providers failed for {competition}: {'; '.join(errors)}")
+            else:
+                logger.info(f"No matches found for {competition} in next {days} days")
 
         unique_matches = {m.match_id: m for m in matches}
         result = list(unique_matches.values())
@@ -103,39 +137,39 @@ class MatchDataSource(DataSource[Match]):
             return None
 
         data = raw_data.get("data", raw_data)
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
         
+        if not data:
+            return None
+
         try:
             kickoff_time = None
-            if data.get("start_date"):
-                date_str = data.get("start_date")
-                time_str = data.get("start_time", "")
-                if time_str:
-                    kickoff_time = datetime.fromisoformat(f"{date_str}T{time_str}")
-                else:
-                    kickoff_time = datetime.fromisoformat(date_str)
-            elif data.get("utcDate"):
-                kickoff_time = datetime.fromisoformat(data["utcDate"].replace("Z", "+00:00"))
-
+            if data.get("date_unix"):
+                kickoff_time = datetime.fromtimestamp(data["date_unix"])
+            
             status_str = str(data.get("status", "SCHEDULED")).upper()
+            if status_str in ["COMPLETE", "FINISHED"]:
+                status_str = "FINISHED"
+            elif status_str in ["INCOMPLETE", "IN_PLAY", "LIVE"]:
+                status_str = "LIVE"
             try:
                 status = MatchStatus[status_str]
             except KeyError:
                 status = MatchStatus.SCHEDULED
 
             return Match(
-                match_id=str(data.get("match_id") or data.get("id") or data.get("matchId", "")),
-                home_team=data.get("home_name") or data.get("homeName") or data.get("homeTeam", {}).get("name", ""),
-                away_team=data.get("away_name") or data.get("awayName") or data.get("awayTeam", {}).get("name", ""),
-                home_team_id=str(data.get("home_id") or data.get("homeID") or data.get("homeTeam", {}).get("id", "")),
-                away_team_id=str(data.get("away_id") or data.get("awayID") or data.get("awayTeam", {}).get("id", "")),
-                competition=data.get("competition") or data.get("competition", {}).get("name", ""),
+                match_id=str(data.get("id", "")),
+                home_team=data.get("home_name", ""),
+                away_team=data.get("away_name", ""),
+                home_team_id=str(data.get("homeID", "")) if data.get("homeID") else None,
+                away_team_id=str(data.get("awayID", "")) if data.get("awayID") else None,
+                competition=data.get("league_name", ""),
                 status=status,
                 kickoff_time=kickoff_time,
-                home_score=data.get("home_score"),
-                away_score=data.get("away_score"),
-                odds_home=data.get("odds_home"),
-                odds_draw=data.get("odds_draw"),
-                odds_away=data.get("odds_away"),
+                home_score=data.get("homeGoalCount"),
+                away_score=data.get("awayGoalCount"),
+                venue=data.get("stadium_name"),
             )
         except Exception as e:
             logger.error(f"Error parsing match data: {e}")
@@ -156,3 +190,4 @@ class MatchDataSource(DataSource[Match]):
                 matches.append(match)
 
         return matches
+

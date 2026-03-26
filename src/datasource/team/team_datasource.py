@@ -22,9 +22,7 @@ class TeamDataSource(DataSource[Team]):
             providers=[p.name for p in self._providers],
             params={
                 "team_id": "球队 ID",
-                "team_name": "球队名称",
-                "league": "联赛名称",
-                "season": "赛季",
+                "season_id": "赛季 ID",
             },
             update_freq=3600.0,
             historical=True,
@@ -33,10 +31,9 @@ class TeamDataSource(DataSource[Team]):
 
     async def fetch(self, **params) -> Optional[Team]:
         team_id = params.get("team_id")
-        team_name = params.get("team_name")
         
-        if not team_id and not team_name:
-            logger.error("team_id or team_name is required")
+        if not team_id:
+            logger.error("team_id is required")
             return None
 
         cache_key = self._cache_key(**params)
@@ -44,113 +41,100 @@ class TeamDataSource(DataSource[Team]):
         if cached is not None:
             return cached
 
-        team = None
-        
-        if team_id:
-            raw_data = await self._try_providers("get_team", team_id=team_id)
-            if raw_data:
-                team = self.parse(raw_data)
-        
-        if team is None and team_name:
-            for provider in self._providers:
-                try:
-                    if hasattr(provider, "get_team_stats"):
-                        raw_data = await provider.get_team_stats(
-                            team_name=team_name,
-                            league=params.get("league", "Premier League"),
-                            season=params.get("season", "2024")
-                        )
-                        if raw_data:
-                            team = self.parse_understat(raw_data)
-                            break
-                except Exception as e:
-                    logger.warning(f"Provider {provider.name} failed: {e}")
-                    continue
+        raw_data = await self._try_providers("get_team", team_id=team_id)
+        if raw_data is None:
+            return None
 
+        team = self.parse(raw_data)
         if team:
-            await self._enrich_team_data(team, params)
             self._set_cache(cache_key, team)
         
         return team
 
-    async def _enrich_team_data(self, team: Team, params: Dict[str, Any]) -> None:
+    async def fetch_by_season(self, season_id: int) -> List[Team]:
+        cache_key = self._cache_key(action="season", season_id=season_id)
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            return cached
+
+        teams = []
         for provider in self._providers:
-            if provider.name == "clubelo":
-                try:
-                    elo_data = await provider.get_elo(team.name)
-                    if elo_data and elo_data.get("elo"):
-                        team.elo = elo_data.get("elo")
-                        break
-                except Exception:
-                    pass
+            try:
+                if not await provider.is_available():
+                    continue
+
+                if hasattr(provider, "get_league_teams"):
+                    raw_data = await provider.get_league_teams(season_id)
+                    if raw_data:
+                        teams = self.parse_list(raw_data)
+                        if teams:
+                            break
+            except Exception as e:
+                logger.warning(f"Provider {provider.name} failed: {e}")
+                continue
+
+        self._set_cache(cache_key, teams)
+        return teams
 
     def parse(self, raw_data: Dict[str, Any]) -> Optional[Team]:
         if not raw_data:
             return None
 
         data = raw_data.get("data", raw_data)
-        
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+
+        if not data:
+            return None
+
         try:
             return Team(
                 team_id=str(data.get("team_id") or data.get("id", "")),
-                name=data.get("team_name") or data.get("name") or data.get("teamName", ""),
-                short_name=data.get("short_name") or data.get("shortName") or data.get("tla"),
+                name=data.get("team_name") or data.get("name", ""),
                 
-                xg_home=data.get("season_xg_home") or data.get("seasonXG_home"),
-                xg_away=data.get("season_xg_away") or data.get("seasonXG_away"),
-                xga_home=data.get("season_xga_home") or data.get("seasonXGAgainst_home"),
-                xga_away=data.get("season_xga_away") or data.get("seasonXGAgainst_away"),
+                xg_home=data.get("xg_for_avg_home"),
+                xg_away=data.get("xg_for_avg_away"),
+                xga_home=data.get("xg_against_avg_home"),
+                xga_away=data.get("xg_against_avg_away"),
                 
-                ppg=data.get("ppg_overall") or data.get("ppg"),
-                position=data.get("league_position") or data.get("position"),
-                played=data.get("played") or data.get("games"),
-                won=data.get("won") or data.get("wins"),
-                drawn=data.get("drawn") or data.get("draws"),
-                lost=data.get("lost") or data.get("losses"),
-                goals_for=data.get("goals_for") or data.get("goals_scored") or data.get("scored"),
-                goals_against=data.get("goals_against") or data.get("goals_conceded") or data.get("missed"),
+                shots=data.get("shotsTotal_overall"),
+                shots_on_target=data.get("shotsOnTargetTotal_overall"),
                 
-                possession=data.get("season_possession_home") or data.get("possession"),
+                ppg=data.get("ppg_overall"),
+                position=data.get("league_position"),
+                played=data.get("played"),
+                won=data.get("won"),
+                drawn=data.get("drawn"),
+                lost=data.get("lost"),
+                goals_for=data.get("goalsFor"),
+                goals_against=data.get("goalsAgainst"),
+                goal_difference=data.get("goalDifference"),
+                points=data.get("points"),
                 
-                recent_form=data.get("recent_form", []),
+                recent_xg=data.get("xg_for_avg_overall"),
+                recent_xga=data.get("xg_against_avg_overall"),
+                
+                possession=data.get("possession_overall"),
+                dangerous_attacks=data.get("dangerous_attacks_avg_overall"),
                 
                 country=data.get("country"),
-                venue=data.get("venue"),
+                founded=data.get("founded"),
+                venue=data.get("stadium_name"),
             )
         except Exception as e:
             logger.error(f"Error parsing team data: {e}")
             return None
 
-    def parse_understat(self, raw_data: Dict[str, Any]) -> Optional[Team]:
-        if not raw_data:
-            return None
+    def parse_list(self, raw_data: Dict[str, Any]) -> List[Team]:
+        teams = []
+        
+        data_list = raw_data.get("data", [])
+        if not isinstance(data_list, list):
+            data_list = [data_list] if data_list else []
 
-        try:
-            ppda_data = raw_data.get("ppda", {})
-            ppda_att = ppda_data.get("att", 0) if isinstance(ppda_data, dict) else 0
-            ppda_def = ppda_data.get("def", 0) if isinstance(ppda_data, dict) else 0
-            ppda = ppda_def / ppda_att if ppda_att > 0 else 0
+        for item in data_list:
+            team = self.parse(item)
+            if team:
+                teams.append(team)
 
-            return Team(
-                team_id=str(raw_data.get("id", "")),
-                name=raw_data.get("title", ""),
-                
-                xg_home=float(raw_data.get("xG", 0) or 0) / 2,
-                xg_away=float(raw_data.get("xG", 0) or 0) / 2,
-                xga_home=float(raw_data.get("xGA", 0) or 0) / 2,
-                xga_away=float(raw_data.get("xGA", 0) or 0) / 2,
-                
-                played=raw_data.get("games", 0),
-                won=raw_data.get("wins", 0),
-                drawn=raw_data.get("draws", 0),
-                lost=raw_data.get("loses", 0),
-                goals_for=raw_data.get("scored", 0),
-                goals_against=raw_data.get("missed", 0),
-                points=raw_data.get("pts", 0),
-                position=raw_data.get("position", 0),
-                
-                ppda=round(ppda, 2),
-            )
-        except Exception as e:
-            logger.error(f"Error parsing understat data: {e}")
-            return None
+        return teams

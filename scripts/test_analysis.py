@@ -6,9 +6,11 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
-from src.aggregator.schema import (
+from aggregator.schema import (
     AnalysisInput,
     MatchInfo,
     TeamStats,
@@ -19,11 +21,10 @@ from src.aggregator.schema import (
     MatchType,
     DataQualityLevel,
 )
-from src.engine.prompt import PromptBuilder
-from src.engine.runner import AnalysisRunner
-from src.engine.parser import OutputParser
-from src.utils.formatter import OutputFormatter
-from src.utils.logger import logger
+from engine.prompt import PromptBuilder
+from engine.runner import AnalysisRunner
+from engine.parser import OutputParser
+from utils.logger import logger
 
 
 def create_mock_analysis_input() -> AnalysisInput:

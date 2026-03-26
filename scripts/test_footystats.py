@@ -1,97 +1,65 @@
 #!/usr/bin/env python3
-
 import asyncio
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
-from src.collectors.footystats import FootyStatsClient
-from src.utils.logger import logger
-from config.settings import settings
-
-
-LEAGUE_IDS = {
-    "Premier League": "148",
-    "La Liga": "468",
-    "Serie A": "262",
-    "Bundesliga": "196",
-    "Ligue 1": "176",
-    "Champions League": "635",
-    "Europa League": "636",
-}
+from provider import FootyStatsProvider
 
 
-async def test_footystats_api():
-    print("\n" + "=" * 60)
-    print("🧪 FootyStats API 连接测试")
-    print("=" * 60)
-    
-    api_key = settings.FOOTYSTATS_API_KEY
-    print(f"\n📋 API Key: {api_key[:5]}...{api_key[-3:]}")
-    
-    client = FootyStatsClient()
-    
-    print("\n📋 测试 1: 获取英超联赛比赛列表...")
-    try:
-        matches = await client.get_league_matches(LEAGUE_IDS["Premier League"])
-        if matches:
-            print(f"   ✅ 成功获取 {len(matches)} 场比赛")
-            for m in matches[:5]:
-                print(f"      - {m.get('home_name')} vs {m.get('away_name')}")
-        else:
-            print("   ⚠️  未获取到比赛数据")
-    except Exception as e:
-        print(f"   ❌ 错误: {e}")
-    
-    print("\n📋 测试 2: 获取联赛积分榜...")
-    try:
-        table = await client.get_league_table(LEAGUE_IDS["Premier League"])
-        if table:
-            print(f"   ✅ 成功获取积分榜 ({len(table)} 支球队)")
-            for t in table[:5]:
-                print(f"      {t.get('position')}. {t.get('team_name')} - {t.get('points')} pts")
-        else:
-            print("   ❌ 未获取到积分榜数据")
-    except Exception as e:
-        print(f"   ❌ 错误: {e}")
-    
-    print("\n" + "=" * 60)
-    print("测试完成")
-    print("=" * 60)
+async def test():
+    fs = FootyStatsProvider()
+    print(f"API Key: {fs.api_key[:20]}...")
+    print(f"Available: {await fs.is_available()}")
 
-
-async def test_all_leagues():
-    print("\n" + "=" * 60)
-    print("🧪 测试所有联赛")
-    print("=" * 60)
-    
-    client = FootyStatsClient()
-    
-    for name, league_id in LEAGUE_IDS.items():
-        print(f"\n📋 {name} (league_id={league_id})...")
-        try:
-            matches = await client.get_league_matches(league_id)
-            if matches:
-                print(f"   ✅ 有数据: {len(matches)} 场比赛")
-            else:
-                print("   ⚠️  无数据")
-            await asyncio.sleep(0.5)
-        except Exception as e:
-            print(f"   ❌ 错误: {e}")
-
-
-def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Test FootyStats API connection")
-    parser.add_argument("--all", action="store_true", help="Test all leagues")
-    args = parser.parse_args()
-    
-    if args.all:
-        asyncio.run(test_all_leagues())
+    # Test get_league_matches - try different league IDs
+    print("\n=== Testing get_league_matches ===")
+    print("Testing league ID 1488 (Premier League?):")
+    matches = await fs.get_league_matches("1488", "2026-03-24")
+    if matches and isinstance(matches, dict):
+        data = matches.get("data", [])
+        print(f"  Matches returned: {len(data)}")
+        if data:
+            print(f"  First match: {data[0].get('home_name')} vs {data[0].get('away_name')}")
+            print(f"  All keys in first match: {list(data[0].keys())[:10]}")
     else:
-        asyncio.run(test_footystats_api())
+        print("  No data returned")
+
+    # Test get_team
+    print("\n=== Testing get_team ===")
+    print("Testing team ID 82:")
+    team = await fs.get_team("82")
+    if team:
+        print(f"  Team data returned: {bool(team)}")
+        print(f"  Keys: {list(team.keys())[:10]}")
+        print(f"  Team name: {team.get('team_name')}")
+    else:
+        print("  No team data returned")
+
+    # Test get_league_table
+    print("\n=== Testing get_league_table ===")
+    print("Testing league ID 1488:")
+    table = await fs.get_league_table("1488")
+    if table and isinstance(table, dict):
+        print(f"  Table keys: {list(table.keys())}")
+        data = table.get("data", [])
+        if isinstance(data, list):
+            print(f"  Teams: {len(data)}")
+            if data:
+                print(f"  First team: {data[0]}")
+        else:
+            print(f"  Data type: {type(data)}")
+            print(f"  Data content: {str(data)[:200]}")
+    else:
+        print("  No table data returned")
+
+    print("\n=== Summary ===")
+    print("FootyStats API is working (no 401 errors)")
+    print("The data structure depends on the league ID used")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(test())

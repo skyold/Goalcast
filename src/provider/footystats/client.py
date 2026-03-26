@@ -20,10 +20,11 @@ FootyStats API Provider
 16. Over 2.5 统计 (Over 2.5 Stats)
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from provider.base import BaseProvider
 from utils.logger import logger
 from config.settings import settings
+import json
 
 
 class FootyStatsProvider(BaseProvider):
@@ -32,15 +33,17 @@ class FootyStatsProvider(BaseProvider):
     BASE_URL = "https://api.football-data-api.com"
     DEFAULT_TIMEOUT = 30.0
 
-    def __init__(self, api_key: str = "", timeout: float = None):
+    def __init__(self, api_key: str = "", timeout: float = None, debug: bool = False):
         """
         初始化 FootyStats Provider
         
         Args:
             api_key: API 密钥，如果不传则使用配置文件中的
             timeout: 请求超时时间（秒）
+            debug: 是否打印调试信息
         """
         super().__init__(api_key or settings.FOOTYSTATS_API_KEY, timeout)
+        self.debug = debug
         if not self.api_key:
             logger.warning("FootyStats API key not configured")
 
@@ -79,7 +82,35 @@ class FootyStatsProvider(BaseProvider):
         else:
             params = {"key": self.api_key}
 
-        return await self._request(endpoint, params)
+        if self.debug:
+            print(f"\n[DEBUG] API Request:")
+            print(f"  URL: {url}")
+            print(f"  Params: {json.dumps(params, indent=2, ensure_ascii=False)}")
+
+        result = await self._request(endpoint, params)
+
+        if self.debug:
+            print(f"\n[DEBUG] API Response:")
+            if result:
+                print(f"  Success: {result.get('success')}")
+                if result.get("success"):
+                    data = result.get("data", [])
+                    if isinstance(data, list):
+                        print(f"  Data count: {len(data)}")
+                        if data:
+                            print(f"  First item (full):")
+                            print(json.dumps(data[0], indent=2, ensure_ascii=False))
+                    else:
+                        print(f"  Data (full):")
+                        print(json.dumps(data, indent=2, ensure_ascii=False))
+                else:
+                    print(f"  Error: {result.get('error', 'Unknown error')}")
+                print(f"\n  Full response (first 2000 chars):")
+                print(json.dumps(result, indent=2, ensure_ascii=False)[:2000])
+            else:
+                print(f"  Response: None")
+
+        return result
 
     # ==================== 基础端点 ====================
 
@@ -232,7 +263,7 @@ class FootyStatsProvider(BaseProvider):
             球员列表数据
         """
         logger.debug(f"Provider {self.name}: get_league_players(season_id={season_id}, page={page})")
-        params = {
+        params: Dict[str, Any] = {
             "season_id": season_id,
             "page": page
         }

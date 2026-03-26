@@ -7,21 +7,26 @@ import asyncio
 from pathlib import Path
 from datetime import datetime
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
-from src.aggregator.match_builder import MatchBuilder
-from src.aggregator.manual_input import parse_lineup, parse_injuries, parse_odds
-from src.engine.prompt import PromptBuilder
-from src.engine.runner import AnalysisRunner
-from src.engine.parser import OutputParser
-from src.storage.repository import get_repository
-from src.utils.formatter import OutputFormatter
-from src.utils.logger import logger
+from aggregator.match_builder import MatchBuilder
+from aggregator.manual_input import parse_lineup, parse_injuries, parse_odds
+from engine.prompt import PromptBuilder
+from engine.runner import AnalysisRunner
+from engine.parser import OutputParser
+from storage.repository import get_repository
+from utils.formatter import OutputFormatter
+from utils.logger import logger
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Goalcast AI - Football Match Analysis")
-    parser.add_argument("--match_id", required=True, help="FootyStats match ID")
+    parser.add_argument("--match_id", help="FootyStats match ID")
+    parser.add_argument("--home", help="Home team name (alternative to match_id)")
+    parser.add_argument("--away", help="Away team name (alternative to match_id)")
+    parser.add_argument("--competition", default="", help="Competition name")
     parser.add_argument("--lineup_home", help="Home team lineup (JSON or text)")
     parser.add_argument("--lineup_away", help="Away team lineup (JSON or text)")
     parser.add_argument("--injuries_home", help="Home team injuries (JSON or text)")
@@ -32,7 +37,12 @@ def parse_args():
     parser.add_argument("--output", help="Output file path (JSON)")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    
+    if not args.match_id and not (args.home and args.away):
+        parser.error("Either --match_id or both --home and --away are required")
+    
+    return args
 
 
 def parse_manual_override(value: str):
@@ -84,7 +94,12 @@ async def run_analysis(args):
     logger.info("Building analysis input...")
     builder = MatchBuilder()
 
-    analysis_input = await builder.build(args.match_id, manual_overrides)
+    if args.match_id:
+        analysis_input = await builder.build(args.match_id, manual_overrides)
+    else:
+        analysis_input = await builder.build_from_team_names(
+            args.home, args.away, args.competition, manual_overrides
+        )
 
     if not analysis_input:
         logger.error("Failed to build analysis input")

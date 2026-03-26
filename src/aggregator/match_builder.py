@@ -2,18 +2,31 @@ import asyncio
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from src.collectors.footystats import FootyStatsClient
-from src.collectors.clubelo import ClubEloClient
-from src.collectors.odds_api import OddsAPIClient
-from src.collectors.weather import WeatherClient
-from src.collectors.understat import UnderstatClient, compute_recent_form, compute_ppda_season
-from src.collectors.transfermarkt import (
-    TransfermarktClient,
-    InjuryItem,
-    classify_player_importance,
-    compute_xg_adjustment,
+from provider import (
+    FootyStatsProvider,
+    FootballDataProvider,
+    ClubEloProvider,
+    OddsProvider,
+    WeatherProvider,
+    UnderstatProvider,
+    TransfermarktProvider,
 )
-from src.aggregator.schema import (
+from datasource import (
+    MatchDataSource,
+    TeamDataSource,
+    StandingsDataSource,
+    EloDataSource,
+    OddsDataSource,
+    WeatherDataSource,
+    InjuryDataSource,
+    registry,
+    Injury,
+    InjurySeverity,
+    compute_xg_adjustment,
+    classify_player_importance,
+)
+from datasource.types import DataSourceType, Match, Team, Elo, Odds, Weather
+from aggregator.schema import (
     AnalysisInput,
     MatchInfo,
     TeamStats,
@@ -31,19 +44,40 @@ from config.settings import settings
 class MatchBuilder:
     def __init__(
         self,
-        footystats_client: Optional[FootyStatsClient] = None,
-        clubelo_client: Optional[ClubEloClient] = None,
-        odds_client: Optional[OddsAPIClient] = None,
-        weather_client: Optional[WeatherClient] = None,
-        understat_client: Optional[UnderstatClient] = None,
-        transfermarkt_client: Optional[TransfermarktClient] = None,
+        footystats_provider: Optional[FootyStatsProvider] = None,
+        football_data_provider: Optional[FootballDataProvider] = None,
+        clubelo_provider: Optional[ClubEloProvider] = None,
+        odds_provider: Optional[OddsProvider] = None,
+        weather_provider: Optional[WeatherProvider] = None,
+        understat_provider: Optional[UnderstatProvider] = None,
+        transfermarkt_provider: Optional[TransfermarktProvider] = None,
     ):
-        self.footystats = footystats_client or FootyStatsClient()
-        self.clubelo = clubelo_client or ClubEloClient()
-        self.odds = odds_client or OddsAPIClient()
-        self.weather = weather_client or WeatherClient()
-        self.understat = understat_client or UnderstatClient()
-        self.transfermarkt = transfermarkt_client or TransfermarktClient()
+        self.footystats = footystats_provider or FootyStatsProvider()
+        self.football_data = football_data_provider or FootballDataProvider()
+        self.clubelo = clubelo_provider or ClubEloProvider()
+        self.odds = odds_provider or OddsProvider()
+        self.weather = weather_provider or WeatherProvider()
+        self.understat = understat_provider or UnderstatProvider()
+        self.transfermarkt = transfermarkt_provider or TransfermarktProvider()
+        
+        self._setup_datasources()
+
+    def _setup_datasources(self):
+        self.match_ds = MatchDataSource(providers=[self.footystats, self.football_data])
+        self.team_ds = TeamDataSource(providers=[self.footystats, self.understat, self.clubelo])
+        self.standings_ds = StandingsDataSource(providers=[self.footystats, self.football_data])
+        self.elo_ds = EloDataSource(providers=[self.clubelo])
+        self.odds_ds = OddsDataSource(providers=[self.odds])
+        self.weather_ds = WeatherDataSource(providers=[self.weather])
+        self.injury_ds = InjuryDataSource(providers=[self.transfermarkt])
+        
+        registry.register(self.match_ds)
+        registry.register(self.team_ds)
+        registry.register(self.standings_ds)
+        registry.register(self.elo_ds)
+        registry.register(self.odds_ds)
+        registry.register(self.weather_ds)
+        registry.register(self.injury_ds)
 
     async def build(
         self, match_id: str, manual_overrides: Optional[Dict[str, Any]] = None
@@ -78,9 +112,11 @@ class MatchBuilder:
         weather_data = None
         if weather_coords:
             match_dt = datetime.now()
-            weather_data = await self.weather.get_match_weather(
-                weather_coords["lat"], weather_coords["lon"], match_dt
+            raw_weather = await self.weather.get_weather(
+                weather_coords["lat"], weather_coords["lon"]
             )
+            if raw_weather:
+                weather_data = self.weather.parse_weather_data(raw_weather)
 
         understat_home, understat_away = await self._fetch_understat_data(
             home_team, away_team, competition
@@ -143,6 +179,93 @@ class MatchBuilder:
             data_quality=data_quality,
         )
 
+    async def build_from_team_names(
+        self,
+        home_team: str,
+        away_team: str,
+        competition: str = "",
+        manual_overrides: Optional[Dict[str, Any]] = None,
+    ) -> Optional[AnalysisInput]:
+        logger.info(f"Building analysis input for {home_team} vs {away_team}")
+        manual_overrides = manual_overrides or {}
+
+        home_stats_data, away_stats_data = await self._fetch_team_stats_by_name(
+            home_team, away_team, competition
+        )
+
+        home_elo, away_elo = await asyncio.gather(
+            self.clubelo.get_elo(home_team),
+            self.clubelo.get_elo(away_team),
+        )
+
+        odds_data = await self._fetch_odds_by_teams(home_team, away_team, competition)
+
+        understat_home, understat_away = await self._fetch_understat_data(
+            home_team, away_team, competition
+        )
+
+        injuries_home, injuries_away = await self._fetch_injury_data(home_team, away_team)
+
+        weather_coords = self.weather.get_stadium_coordinates(home_team)
+        weather_data = None
+        if weather_coords:
+            raw_weather = await self.weather.get_weather(
+                weather_coords["lat"], weather_coords["lon"]
+            )
+            if raw_weather:
+                weather_data = self.weather.parse_weather_data(raw_weather)
+
+        data_quality = self._assess_data_quality(
+            {"home_name": home_team, "away_name": away_team, "competition": competition},
+            home_stats_data or {},
+            away_stats_data or {},
+            odds_data,
+            understat_home,
+            understat_away,
+        )
+
+        home_stats = self._build_team_stats(
+            home_stats_data or {}, home_elo, None, understat_home, injuries_home
+        )
+        away_stats = self._build_team_stats(
+            away_stats_data or {}, away_elo, None, understat_away, injuries_away
+        )
+
+        if "injuries_home" in manual_overrides:
+            home_stats.injuries = manual_overrides["injuries_home"]
+        if "injuries_away" in manual_overrides:
+            away_stats.injuries = manual_overrides["injuries_away"]
+
+        match_info = MatchInfo(
+            match_id=f"manual_{home_team}_{away_team}",
+            home_team=home_team,
+            away_team=away_team,
+            competition=competition,
+            match_type=self._classify_match_type({"competition": competition}),
+            missing_data=data_quality.missing_fields,
+            data_quality=data_quality.quality_level,
+        )
+
+        context = ContextData(
+            injuries_home=[i.player_name for i in injuries_home] if injuries_home else [],
+            injuries_away=[i.player_name for i in injuries_away] if injuries_away else [],
+            motivation_notes=None,
+        )
+
+        weather = None
+        if weather_data:
+            weather = WeatherData(**weather_data)
+
+        return AnalysisInput(
+            match_info=match_info,
+            home_stats=home_stats,
+            away_stats=away_stats,
+            odds=odds_data,
+            context=context,
+            weather=weather,
+            data_quality=data_quality,
+        )
+
     async def _fetch_team_stats(
         self, home_id: Optional[str], away_id: Optional[str]
     ) -> tuple:
@@ -166,6 +289,33 @@ class MatchBuilder:
 
         return home_data, away_data
 
+    async def _fetch_team_stats_by_name(
+        self, home_team: str, away_team: str, competition: str
+    ) -> tuple:
+        try:
+            if hasattr(self.footystats, 'get_team_by_name'):
+                home_data, away_data = await asyncio.gather(
+                    self.footystats.get_team_by_name(home_team),
+                    self.footystats.get_team_by_name(away_team),
+                    return_exceptions=True,
+                )
+
+                if isinstance(home_data, Exception):
+                    logger.warning(f"Error fetching home team stats: {home_data}")
+                    home_data = None
+                if isinstance(away_data, Exception):
+                    logger.warning(f"Error fetching away team stats: {away_data}")
+                    away_data = None
+
+                return home_data, away_data
+            else:
+                logger.warning("get_team_by_name not available in FootyStatsProvider")
+                return None, None
+
+        except Exception as e:
+            logger.warning(f"Error fetching team stats by name: {e}")
+            return None, None
+
     async def _fetch_understat_data(
         self, home_team: str, away_team: str, competition: str
     ) -> tuple:
@@ -183,13 +333,13 @@ class MatchBuilder:
 
             if not isinstance(home_matches, Exception) and home_matches:
                 home_data = {
-                    "recent_form": compute_recent_form(home_matches, home_team, 5),
+                    "recent_form": self._compute_recent_form(home_matches, home_team, 5),
                     "matches": home_matches,
                 }
 
             if not isinstance(away_matches, Exception) and away_matches:
                 away_data = {
-                    "recent_form": compute_recent_form(away_matches, away_team, 5),
+                    "recent_form": self._compute_recent_form(away_matches, away_team, 5),
                     "matches": away_matches,
                 }
 
@@ -198,6 +348,45 @@ class MatchBuilder:
         except Exception as e:
             logger.warning(f"Error fetching Understat data: {e}")
             return None, None
+
+    def _compute_recent_form(
+        self, matches: List[Dict[str, Any]], team_name: str, n: int = 5
+    ) -> Dict[str, Any]:
+        form = []
+        total_xg = 0.0
+        total_xga = 0.0
+        count = 0
+
+        for match in matches[:n]:
+            is_home = match.get("home_team", "").lower() == team_name.lower()
+            
+            if is_home:
+                team_goals = match.get("home_goals", 0)
+                opp_goals = match.get("away_goals", 0)
+                xg = match.get("home_xg", 0) or 0
+                xga = match.get("away_xg", 0) or 0
+            else:
+                team_goals = match.get("away_goals", 0)
+                opp_goals = match.get("home_goals", 0)
+                xg = match.get("away_xg", 0) or 0
+                xga = match.get("home_xg", 0) or 0
+
+            if team_goals > opp_goals:
+                form.append("W")
+            elif team_goals < opp_goals:
+                form.append("L")
+            else:
+                form.append("D")
+
+            total_xg += xg
+            total_xga += xga
+            count += 1
+
+        return {
+            "form": form,
+            "xg_avg": total_xg / count if count > 0 else 0,
+            "xga_avg": total_xga / count if count > 0 else 0,
+        }
 
     async def _fetch_injury_data(
         self, home_team: str, away_team: str
@@ -259,6 +448,33 @@ class MatchBuilder:
             logger.warning(f"Error fetching odds: {e}")
             return None
 
+    async def _fetch_odds_by_teams(
+        self, home_team: str, away_team: str, competition: str
+    ) -> Optional[OddsData]:
+        try:
+            if hasattr(self.odds, 'get_odds_by_teams'):
+                odds_result = await self.odds.get_odds_by_teams(home_team, away_team, competition)
+                if not odds_result:
+                    return None
+
+                odds_dict = odds_result
+
+                return OddsData(
+                    opening_home=odds_dict.get("opening_home") or odds_dict.get("home"),
+                    opening_draw=odds_dict.get("opening_draw") or odds_dict.get("draw"),
+                    opening_away=odds_dict.get("opening_away") or odds_dict.get("away"),
+                    current_home=odds_dict.get("current_home") or odds_dict.get("home"),
+                    current_draw=odds_dict.get("current_draw") or odds_dict.get("draw"),
+                    current_away=odds_dict.get("current_away") or odds_dict.get("away"),
+                )
+            else:
+                logger.warning("get_odds_by_teams not available in OddsProvider")
+                return None
+
+        except Exception as e:
+            logger.warning(f"Error fetching odds by teams: {e}")
+            return None
+
     async def _fetch_league_table(self, match_data: Dict[str, Any]) -> Optional[list]:
         season_id = match_data.get("season_id")
         if not season_id:
@@ -294,7 +510,7 @@ class MatchBuilder:
         elo: Optional[float],
         position: Optional[int],
         understat_data: Optional[Dict[str, Any]] = None,
-        injuries: Optional[List[InjuryItem]] = None,
+        injuries: Optional[List[Injury]] = None,
     ) -> TeamStats:
         recent_form = data.get("recent_form", [])
         xg_avg = None
@@ -308,7 +524,7 @@ class MatchBuilder:
 
         injury_names = []
         if injuries:
-            injury_names = [i.player_name for i in injuries if i.severity in ["long_term", "medium_term"]]
+            injury_names = [i.player_name for i in injuries if i.severity in [InjurySeverity.LONG_TERM, InjurySeverity.MEDIUM_TERM]]
 
         return TeamStats(
             team_id=data.get("team_id"),

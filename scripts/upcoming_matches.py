@@ -8,11 +8,13 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
-from src.collectors.footystats import FootyStatsClient
-from src.collectors.odds_api import OddsAPIClient
-from src.utils.logger import logger
+from provider import FootyStatsProvider
+from provider.football_data.client import FootballDataProvider
+from utils.logger import logger
 
 
 LEAGUE_SEASONS = {
@@ -39,8 +41,8 @@ LEAGUE_PRIORITY = [
 
 class UpcomingMatchesFinder:
     def __init__(self):
-        self.footystats = FootyStatsClient()
-        self.odds = OddsAPIClient()
+        self.footystats = FootyStatsProvider()
+        self.football_data = FootballDataProvider()
 
     async def get_matches_for_date(
         self,
@@ -53,16 +55,14 @@ class UpcomingMatchesFinder:
         all_matches = []
 
         for league in leagues:
-            season_id = LEAGUE_SEASONS.get(league)
-            if not season_id:
-                continue
-
             try:
-                matches = await self.footystats.get_league_matches(season_id, date_str)
+                matches = await self.football_data.get_matches(league, date_str, date_str)
                 if matches:
-                    for match in matches:
+                    data_list = matches if isinstance(matches, list) else matches.get("matches", [])
+                    for match in data_list:
                         match["competition"] = league
-                    all_matches.extend(matches)
+                        match["date"] = date_str
+                    all_matches.extend(data_list)
                 await asyncio.sleep(0.3)
             except Exception as e:
                 logger.warning(f"Error fetching matches for {league}: {e}")

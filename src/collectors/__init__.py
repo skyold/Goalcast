@@ -5,12 +5,14 @@ from provider import (
     ClubEloProvider,
     OddsProvider,
     WeatherProvider,
+    TransfermarktProvider,
     FootyStatsClient,
     FootballDataClient,
     UnderstatClient,
     ClubEloClient,
     OddsAPIClient,
     WeatherClient,
+    TransfermarktClient,
 )
 
 from datasource import (
@@ -20,8 +22,17 @@ from datasource import (
     OddsDataSource,
     EloDataSource,
     WeatherDataSource,
+    InjuryDataSource,
+    Injury,
+    InjurySeverity,
+    Lineup,
+    compute_xg_adjustment,
+    classify_player_importance,
     registry,
 )
+
+TransfermarktClient = TransfermarktProvider
+InjuryItem = Injury
 
 __all__ = [
     "FootyStatsProvider",
@@ -30,17 +41,26 @@ __all__ = [
     "ClubEloProvider",
     "OddsProvider",
     "WeatherProvider",
+    "TransfermarktProvider",
     "FootyStatsClient",
     "FootballDataClient",
     "UnderstatClient",
     "ClubEloClient",
     "OddsAPIClient",
     "WeatherClient",
+    "TransfermarktClient",
     "MatchDataSource",
     "TeamDataSource",
     "StandingsDataSource",
     "OddsDataSource",
     "EloDataSource",
     "WeatherDataSource",
+    "InjuryDataSource",
+    "Injury",
+    "InjuryItem",
+    "InjurySeverity",
+    "Lineup",
+    "compute_xg_adjustment",
+    "classify_player_importance",
     "registry",
 ]
