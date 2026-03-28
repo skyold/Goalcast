@@ -105,8 +105,6 @@ class FootyStatsProvider(BaseProvider):
                         print(json.dumps(data, indent=2, ensure_ascii=False))
                 else:
                     print(f"  Error: {result.get('error', 'Unknown error')}")
-                print(f"\n  Full response (first 2000 chars):")
-                print(json.dumps(result, indent=2, ensure_ascii=False)[:2000])
             else:
                 print(f"  Response: None")
 

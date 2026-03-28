@@ -20,9 +20,6 @@ from datasource.match.match_datasource import MatchDataSource
 from datasource.team.team_datasource import TeamDataSource
 from datasource.standings.standings_datasource import StandingsDataSource
 from datasource.odds.odds_datasource import OddsDataSource
-from datasource.elo.elo_datasource import EloDataSource
-from datasource.weather.weather_datasource import WeatherDataSource
-from datasource.injury.injury_datasource import InjuryDataSource
 
 __all__ = [
     "DataSource",
@@ -47,7 +44,4 @@ __all__ = [
     "TeamDataSource",
     "StandingsDataSource",
     "OddsDataSource",
-    "EloDataSource",
-    "WeatherDataSource",
-    "InjuryDataSource",
 ]

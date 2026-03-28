@@ -88,38 +88,40 @@ class TeamDataSource(DataSource[Team]):
             return None
 
         try:
+            stats = data.get("stats", {})
+            
             return Team(
                 team_id=str(data.get("team_id") or data.get("id", "")),
                 name=data.get("team_name") or data.get("name", ""),
                 
-                xg_home=data.get("xg_for_avg_home"),
-                xg_away=data.get("xg_for_avg_away"),
-                xga_home=data.get("xg_against_avg_home"),
-                xga_away=data.get("xg_against_avg_away"),
+                xg_home=stats.get("xg_for_avg_home"),
+                xg_away=stats.get("xg_for_avg_away"),
+                xga_home=stats.get("xg_against_avg_home"),
+                xga_away=stats.get("xg_against_avg_away"),
                 
-                shots=data.get("shotsTotal_overall"),
-                shots_on_target=data.get("shotsOnTargetTotal_overall"),
+                shots=stats.get("shotsTotal_overall"),
+                shots_on_target=stats.get("shotsOnTargetTotal_overall"),
                 
-                ppg=data.get("ppg_overall"),
-                position=data.get("league_position"),
-                played=data.get("played"),
-                won=data.get("won"),
-                drawn=data.get("drawn"),
-                lost=data.get("lost"),
-                goals_for=data.get("goalsFor"),
-                goals_against=data.get("goalsAgainst"),
-                goal_difference=data.get("goalDifference"),
+                ppg=stats.get("ppg_overall"),
+                position=data.get("table_position") or data.get("league_position"),
+                played=stats.get("seasonMatchesPlayed_overall") or data.get("played"),
+                won=stats.get("seasonWinsNum_overall") or data.get("won"),
+                drawn=stats.get("seasonDrawsNum_overall") or data.get("drawn"),
+                lost=stats.get("seasonLossesNum_overall") or data.get("lost"),
+                goals_for=stats.get("seasonGoals_overall") or data.get("goalsFor"),
+                goals_against=stats.get("seasonConceded_overall") or data.get("goalsAgainst"),
+                goal_difference=stats.get("seasonGoalDifference_overall") or data.get("goalDifference"),
                 points=data.get("points"),
                 
-                recent_xg=data.get("xg_for_avg_overall"),
-                recent_xga=data.get("xg_against_avg_overall"),
+                recent_xg=stats.get("xg_for_avg_overall"),
+                recent_xga=stats.get("xg_against_avg_overall"),
                 
-                possession=data.get("possession_overall"),
-                dangerous_attacks=data.get("dangerous_attacks_avg_overall"),
+                possession=stats.get("possession_overall"),
+                dangerous_attacks=stats.get("dangerous_attacks_avg_overall"),
                 
                 country=data.get("country"),
                 founded=data.get("founded"),
-                venue=data.get("stadium_name"),
+                venue=data.get("stadium_name") or raw_data.get("stadium_name"),
             )
         except Exception as e:
             logger.error(f"Error parsing team data: {e}")
