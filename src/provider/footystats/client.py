@@ -20,7 +20,7 @@ FootyStats API Provider
 16. Over 2.5 统计 (Over 2.5 Stats)
 """
 
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional
 from provider.base import BaseProvider
 from utils.logger import logger
 from config.settings import settings
@@ -33,7 +33,7 @@ class FootyStatsProvider(BaseProvider):
     BASE_URL = "https://api.football-data-api.com"
     DEFAULT_TIMEOUT = 30.0
 
-    def __init__(self, api_key: str = "", timeout: float = None, debug: bool = False):
+    def __init__(self, api_key: str = "", timeout: float = DEFAULT_TIMEOUT, debug: bool = False):
         """
         初始化 FootyStats Provider
         
@@ -91,6 +91,7 @@ class FootyStatsProvider(BaseProvider):
 
         if self.debug:
             print(f"\n[DEBUG] API Response:")
+            print(f"  URL: {url}")
             if result:
                 print(f"  Success: {result.get('success')}")
                 if result.get("success"):

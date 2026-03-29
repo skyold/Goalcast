@@ -319,7 +319,6 @@ async def query_date_range(
         return all_matches
 
 
-
 async def format_table(matches: List[Match]) -> str:
     """
     表格格式输出
