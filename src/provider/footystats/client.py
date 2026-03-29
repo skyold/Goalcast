@@ -1,23 +1,82 @@
 """
 FootyStats API Provider
 
-实现 FootyStats API 的所有 16 个端点：
-1. 联赛列表 (League List)
-2. 国家列表 (Country List)
-3. 每日比赛 (Today's Matches)
-4. 联赛统计 (League Stats)
-5. 联赛比赛 (League Matches)
-6. 联赛球队 (League Teams)
-7. 联赛球员 (League Players)
-8. 联赛裁判 (League Referees)
-9. 联赛积分榜 (League Tables)
-10. 比赛详情 (Match Details)
-11. 球队详情 (Team)
-12. 球队近况统计 (Last 5/6/10 Team Stats)
-13. 球员详情 (Player - Individual)
-14. 裁判详情 (Referee - Individual)
-15. BTTS 统计 (BTTS Stats)
-16. Over 2.5 统计 (Over 2.5 Stats)
+实现 FootyStats API 的所有 16 个端点，分为四大类：
+
+一、基础数据端点 (3 个)
+1. 联赛列表 (League List) - /league-list
+   - 获取所有可用联赛列表，支持按国家筛选
+   - 参数：chosen_leagues_only, country
+   
+2. 国家列表 (Country List) - /country-list
+   - 获取所有国家及其 ISO 编号
+   - 无参数
+   
+3. 每日比赛 (Today's Matches) - /todays-matches
+   - 获取指定日期的所有比赛（包括已完赛和未开赛）
+   - 参数：date (YYYY-MM-DD), timezone
+
+二、联赛数据端点 (6 个)
+4. 联赛统计 (League Stats) - /league-season
+   - 获取联赛赛季的详细统计数据和参赛球队信息
+   - 参数：season_id (必需), max_time
+   
+5. 联赛比赛 (League Matches) - /league-matches
+   - 获取联赛的完整比赛赛程（所有比赛）
+   - 参数：season_id (必需), page, max_per_page, max_time
+   - 注意：这是获取联赛赛程的独立 API，与每日比赛不同
+   
+6. 联赛球队 (League Teams) - /league-teams
+   - 获取联赛中所有球队的详细统计数据
+   - 参数：season_id (必需), max_time
+   
+7. 联赛球员 (League Players) - /league-players
+   - 获取联赛中所有球员及其统计数据
+   - 参数：season_id (必需), page, include_stats, max_time
+   
+8. 联赛裁判 (League Referees) - /league-referees
+   - 获取联赛中所有裁判及其统计数据
+   - 参数：season_id (必需), max_time
+   
+9. 联赛积分榜 (League Tables) - /league-tables
+   - 获取联赛赛季的积分榜排名
+   - 参数：season_id (必需), max_time
+
+三、详细数据端点 (4 个)
+10. 比赛详情 (Match Details) - /match
+    - 获取单场比赛的详细统计数据、交锋记录、赔率
+    - 参数：match_id (必需)
+    
+11. 球队详情 (Team) - /team
+    - 获取单个球队的完整统计数据
+    - 参数：team_id (必需)
+    
+12. 球队近况统计 (Last 5/6/10 Team Stats) - /lastx
+    - 获取球队最近 5/6/10 场比赛的详细表现
+    - 参数：team_id (必需)
+    
+13. 球员详情 (Player - Individual) - /player-stats
+    - 获取单个球员的详细统计数据
+    - 参数：player_id (必需)
+    
+14. 裁判详情 (Referee - Individual) - /referee
+    - 获取单个裁判的详细统计数据
+    - 参数：referee_id (必需)
+
+四、统计数据端点 (2 个)
+15. BTTS 统计 (BTTS Stats) - /stats-data-btts
+    - 获取双方进球相关的顶级球队、赛程、联赛数据
+    - 无参数
+    
+16. Over 2.5 统计 (Over 2.5 Stats) - /stats-data-over25
+    - 获取大球（Over 2.5）相关的顶级球队、赛程、联赛数据
+    - 无参数
+
+兼容性方法：
+- get_standings(): 调用 get_league_tables()，用于获取积分榜
+- get_matches(): 调用 get_league_matches()，用于获取联赛比赛赛程
+
+所有端点均需要有效的 API Key，基础 URL: https://api.football-data-api.com
 """
 
 from typing import Dict, Any, Optional
