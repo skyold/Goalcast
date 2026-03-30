@@ -3,7 +3,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional, Any, Dict
+from datetime import date, datetime, timedelta
+from typing import Optional, Any, Dict, List
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -11,18 +12,61 @@ sys.path.insert(0, str(project_root / "src"))
 
 from src.provider.footystats.client import FootyStatsProvider
 from src.datasource.footystats.match_datasource import MatchDataDataSource
+from src.datasource.match.match_datasource import MatchDataSource
+from src.datasource.types import Match
 
 
 class MatchDataCMD:
     def __init__(self, debug: bool = False):
         self.provider = FootyStatsProvider(debug=debug)
         self.datasource = MatchDataDataSource(self.provider, debug=debug)
+        self.schedule_ds = MatchDataSource(providers=[self.provider])
         self.debug = debug
         self._raw_data: Dict[str, Any] = {}
 
-    async def get_schedule(self, days: int = 7):
-        matches = await self.datasource.get_recent_matches(days)
-        self._print_matches(matches)
+    async def get_schedule(
+        self,
+        mode: str = 'next_days',
+        days: int = 7,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        target_date: Optional[date] = None,
+        team: Optional[str] = None,
+        output_format: str = 'table',
+    ):
+        matches: List[Match] = []
+
+        if mode == 'nearest':
+            result = await self.schedule_ds.fetch_nearest_match_day()
+            if result:
+                matches = result.get('matches', [])
+        elif mode == 'next_days':
+            result = await self.schedule_ds.fetch_next_n_days(days)
+            for day_data in result:
+                matches.extend(day_data.get('matches', []))
+        elif mode == 'past_days':
+            today = date.today()
+            for i in range(days):
+                d = today - timedelta(days=i)
+                day_matches = await self.schedule_ds.fetch_for_date(d)
+                matches.extend(day_matches)
+            matches.sort(key=lambda m: m.kickoff_time or datetime.max, reverse=True)
+        elif mode == 'date_range':
+            result = await self.schedule_ds.fetch_in_date_range(start_date, end_date)
+            for day_data in result:
+                matches.extend(day_data.get('matches', []))
+        elif mode == 'date':
+            matches = await self.schedule_ds.fetch_for_date(target_date)
+
+        if team:
+            team_lower = team.lower()
+            matches = [
+                m for m in matches
+                if team_lower in (m.home_team or '').lower()
+                or team_lower in (m.away_team or '').lower()
+            ]
+
+        self._print_schedule(matches, output_format=output_format)
 
     async def get_match_basic(self, match_id: int):
         data = await self.datasource.get_match_basic(match_id)
@@ -89,6 +133,87 @@ class MatchDataCMD:
                     if raw:
                         self._print_raw_data(category, raw)
             self._print_full(data)
+
+    def _print_schedule(self, matches: List[Match], output_format: str = 'table'):
+        """打印日程比赛列表，支持 table/compact/json 格式"""
+        if not matches:
+            print("ℹ️  没有找到符合条件的比赛")
+            return
+
+        if output_format == 'json':
+            data = []
+            for m in matches:
+                data.append({
+                    "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
+                    "match_id": m.match_id,
+                    "competition": m.competition,
+                    "season": m.season,
+                    "game_week": m.game_week,
+                    "home_team": m.home_team,
+                    "home_team_id": m.home_team_id,
+                    "away_team": m.away_team,
+                    "away_team_id": m.away_team_id,
+                    "status": m.status.value if m.status else None,
+                    "home_score": m.home_score,
+                    "away_score": m.away_score,
+                })
+            print(json.dumps(data, indent=2, ensure_ascii=False))
+            return
+
+        if output_format == 'compact':
+            for m in matches:
+                time_str = m.kickoff_time.strftime("%Y-%m-%d %H:%M") if m.kickoff_time else "Unknown"
+                comp = m.competition or ""
+                round_info = f" R{m.game_week}" if m.game_week else ""
+                score_str = ""
+                if m.home_score is not None and m.away_score is not None:
+                    score_str = f" [{m.home_score}-{m.away_score}]"
+                status = m.status.value if m.status else ""
+                print(f"{time_str}  [{comp}{round_info}]  {m.home_team} vs {m.away_team}{score_str}  ({status})")
+            print(f"\n共 {len(matches)} 场比赛")
+            return
+
+        # 表格格式（默认）
+        headers = ["比赛时间", "比赛 ID", "联赛", "轮次", "主队", "客队", "比分", "状态"]
+        rows = []
+        for m in matches:
+            time_str = m.kickoff_time.strftime("%Y-%m-%d\n%H:%M") if m.kickoff_time else ""
+            match_id = str(m.match_id) if m.match_id else ""
+            comp = m.competition or ""
+            round_info = f"R{m.game_week}" if m.game_week else ""
+            home = m.home_team or ""
+            away = m.away_team or ""
+            if m.home_score is not None and m.away_score is not None:
+                score = f"{m.home_score} - {m.away_score}"
+            else:
+                score = "-"
+            status = m.status.value if m.status else ""
+            rows.append([time_str, match_id, comp, round_info, home, away, score, status])
+
+        widths = [len(h) for h in headers]
+        for row in rows:
+            for i, cell in enumerate(row):
+                cell_width = max(len(line) for line in cell.split('\n')) if cell else 0
+                widths[i] = max(widths[i], cell_width)
+
+        def border(left, mid, right):
+            return left + mid.join("─" * w for w in widths) + right
+
+        print(border("┌", "┬", "┐"))
+        print("│" + "│".join(h.center(w) for h, w in zip(headers, widths)) + "│")
+        print(border("├", "┼", "┤"))
+
+        for row in rows:
+            line_count = max(len(cell.split('\n')) for cell in row)
+            for li in range(line_count):
+                parts = []
+                for cell, w in zip(row, widths):
+                    lines = cell.split('\n')
+                    parts.append(lines[li].ljust(w) if li < len(lines) else " " * w)
+                print("│" + "│".join(parts) + "│")
+
+        print(border("└", "┴", "┘"))
+        print(f"\n共 {len(matches)} 场比赛")
 
     def _print_raw_data(self, category: str, raw_data: Any):
         """打印原始 API 数据"""
@@ -451,8 +576,30 @@ async def main():
 
     subparsers = parser.add_subparsers(dest='command', help='可用命令')
 
-    p_schedule = subparsers.add_parser('get_schedule', help='获取最近N天比赛列表')
-    p_schedule.add_argument('--days', type=int, default=7, help='天数 (默认: 7)')
+    p_schedule = subparsers.add_parser(
+        'get_schedule',
+        help='查询比赛日程（支持多种时间模式和球队过滤）',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例：
+  python3 -m cmd.match_data_cmd get_schedule --nearest
+  python3 -m cmd.match_data_cmd get_schedule --next-days 7
+  python3 -m cmd.match_data_cmd get_schedule --past-days 3
+  python3 -m cmd.match_data_cmd get_schedule --date 2026-04-01
+  python3 -m cmd.match_data_cmd get_schedule --date-range 2026-03-28 2026-04-05
+  python3 -m cmd.match_data_cmd get_schedule --next-days 7 --team "Arsenal"
+  python3 -m cmd.match_data_cmd get_schedule --nearest --format compact
+  python3 -m cmd.match_data_cmd get_schedule --next-days 3 --format json
+        """
+    )
+    mode_group = p_schedule.add_mutually_exclusive_group()
+    mode_group.add_argument('--nearest', action='store_true', help='最近有比赛的一天')
+    mode_group.add_argument('--next-days', type=int, metavar='N', help='未来 N 天（默认: 7）')
+    mode_group.add_argument('--past-days', type=int, metavar='N', help='过去 N 天')
+    mode_group.add_argument('--date', type=str, metavar='YYYY-MM-DD', help='指定某天')
+    mode_group.add_argument('--date-range', nargs=2, metavar=('START', 'END'), help='指定日期范围')
+    p_schedule.add_argument('--team', type=str, metavar='TEAM_NAME', help='球队名称（模糊匹配，不区分大小写）')
+    p_schedule.add_argument('--format', choices=['table', 'compact', 'json'], default='table', help='输出格式（默认: table）')
     add_debug_arg(p_schedule)
 
     p_basic = subparsers.add_parser('get_match_basic', help='获取比赛基础信息')
@@ -497,7 +644,47 @@ async def main():
     cmd = MatchDataCMD(debug=debug)
 
     if args.command == 'get_schedule':
-        await cmd.get_schedule(args.days)
+        # 解析查询模式
+        mode = 'next_days'
+        days = 7
+        start_date = end_date = target_date = None
+
+        if args.nearest:
+            mode = 'nearest'
+        elif args.next_days is not None:
+            mode = 'next_days'
+            days = args.next_days
+        elif args.past_days is not None:
+            mode = 'past_days'
+            days = args.past_days
+        elif args.date is not None:
+            try:
+                target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
+            except ValueError:
+                print(f"❌ 日期格式无效：{args.date}，请使用 YYYY-MM-DD 格式")
+                sys.exit(1)
+            mode = 'date'
+        elif args.date_range is not None:
+            try:
+                start_date = datetime.strptime(args.date_range[0], '%Y-%m-%d').date()
+                end_date = datetime.strptime(args.date_range[1], '%Y-%m-%d').date()
+            except ValueError as e:
+                print(f"❌ 日期格式无效：{e}，请使用 YYYY-MM-DD 格式")
+                sys.exit(1)
+            if start_date > end_date:
+                print(f"❌ 起始日期不能晚于结束日期：{start_date} > {end_date}")
+                sys.exit(1)
+            mode = 'date_range'
+
+        await cmd.get_schedule(
+            mode=mode,
+            days=days,
+            start_date=start_date,
+            end_date=end_date,
+            target_date=target_date,
+            team=getattr(args, 'team', None),
+            output_format=args.format,
+        )
     elif args.command == 'get_match_basic':
         await cmd.get_match_basic(args.match_id)
     elif args.command == 'get_match_stats':
