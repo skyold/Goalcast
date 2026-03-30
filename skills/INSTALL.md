@@ -16,14 +16,14 @@ Goalcast 系统包含两部分：
 #### 方式 A：从 PyPI 安装（推荐）
 
 ```bash
-pip install goalcast[ai]
+pip install football-datakit[ai]
 ```
 
 #### 方式 B：从源代码安装（开发模式）
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-org/Goalcast.git
+git clone https://github.com/skyold/Goalcast.git
 cd Goalcast
 
 # 创建虚拟环境
@@ -37,7 +37,7 @@ pip install -e .[ai]
 #### 方式 C：从 wheel 文件安装
 
 ```bash
-pip install dist/goalcast-1.0.0-py3-none-any.whl
+pip install dist/football_datakit-1.0.0-py3-none-any.whl
 ```
 
 ### 步骤 2：配置环境变量
@@ -165,7 +165,7 @@ Skills 会自动：
 **解决方案：**
 ```bash
 # 确认已安装包
-pip show goalcast
+pip show football-datakit
 
 # 确认 PATH 包含 pip 安装目录
 which goalcast-match
@@ -185,7 +185,7 @@ which goalcast-match
 1. 检查 `.env` 文件存在且包含正确的 API 密钥
 2. 测试 API 连接：
    ```bash
-   python -c "from src.provider.footystats.client import FootyStatsProvider; print(FootyStatsProvider().health_check())"
+   python -c "from goalcast.provider.footystats.client import FootyStatsProvider; print(FootyStatsProvider().health_check())"
    ```
 
 ## 📚 相关文档

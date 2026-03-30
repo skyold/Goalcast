@@ -20,28 +20,28 @@ description: "查看足球赛程和比赛日程安排，并引导进入分析流
 cd /Users/zhengningdai/workspace/skyold/Goalcast
 
 # 最近有比赛的一天（默认推荐，用于"哪些比赛可以分析"）
-.venv/bin/python -m cmd.match_data_cmd get_schedule --nearest
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --nearest
 
 # 未来 N 天
-.venv/bin/python -m cmd.match_data_cmd get_schedule --next-days 7
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --next-days 7
 
 # 过去 N 天
-.venv/bin/python -m cmd.match_data_cmd get_schedule --past-days 3
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --past-days 3
 
 # 指定某天
-.venv/bin/python -m cmd.match_data_cmd get_schedule --date 2026-03-30
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --date 2026-03-30
 
 # 日期范围
-.venv/bin/python -m cmd.match_data_cmd get_schedule --date-range 2026-03-28 2026-04-05
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --date-range 2026-03-28 2026-04-05
 
 # 球队过滤（模糊匹配，不区分大小写）
-.venv/bin/python -m cmd.match_data_cmd get_schedule --next-days 14 --team "Arsenal"
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --next-days 14 --team "Arsenal"
 
 # 紧凑格式（快速浏览）
-.venv/bin/python -m cmd.match_data_cmd get_schedule --nearest --format compact
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --nearest --format compact
 
 # JSON 格式（批量处理时获取 match_id 列表）
-.venv/bin/python -m cmd.match_data_cmd get_schedule --nearest --format json
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_schedule --nearest --format json
 ```
 
 ## Query Mode Selection

@@ -13,12 +13,12 @@ metadata:
 
 ## Purpose
 
-获取指定比赛 ID 的完整数据，为 8 层量化分析做准备。调用 `python -m cmd.match_data_cmd get_match_analysis <match_id>` 并将输出文本直接传递给 `goalcast-analyze`。
+获取指定比赛 ID 的完整数据，为 8 层量化分析做准备。调用 `python -m goalcast.cmd.match_data_cmd get_match_analysis <match_id>` 并将输出文本直接传递给 `goalcast-analyze`。
 
 ## Workflow
 
 1. 接收 `match_id` 参数
-2. 执行命令：`.venv/bin/python -m cmd.match_data_cmd get_match_analysis <match_id>`
+2. 执行命令：`.venv/bin/python -m goalcast.cmd.match_data_cmd get_match_analysis <match_id>`
 3. 将命令输出的文本报告**原文**传递给 `goalcast-analyze`，不需要 JSON 解析
 4. 如命令失败（非零退出码），返回错误信息
 
@@ -31,13 +31,13 @@ goalcast-match get_match_analysis <match_id>
 
 **方式 2：Python 模块（开发模式）**
 ```bash
-python -m cmd.match_data_cmd get_match_analysis <match_id>
+python -m goalcast.cmd.match_data_cmd get_match_analysis <match_id>
 ```
 
 **方式 3：项目目录运行**
 ```bash
 cd ${GOALCAST_PROJECT_DIR:-.}
-python -m cmd.match_data_cmd get_match_analysis <match_id>
+python -m goalcast.cmd.match_data_cmd get_match_analysis <match_id>
 ```
 
 ## Environment Variables
@@ -146,7 +146,7 @@ python -m cmd.match_data_cmd get_match_analysis <match_id>
 
 ## Notes
 
-- 确保已安装 goalcast 包：`pip install goalcast`
+- 确保已安装 football-datakit 包：`pip install football-datakit[ai]`
 - 确保已配置环境变量文件：`.env`（包含 API 密钥）
 - 如果比赛不存在或 API 不可用，返回适当的错误信息
 - 数据质量由调用方（goalcast-analyze）评估
@@ -160,7 +160,7 @@ match_id: "8469819"
 
 **Command:**
 ```bash
-.venv/bin/python -m cmd.match_data_cmd get_match_analysis 8469819
+.venv/bin/python -m goalcast.cmd.match_data_cmd get_match_analysis 8469819
 ```
 
 **Output:**
