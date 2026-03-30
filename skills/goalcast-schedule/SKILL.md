@@ -16,6 +16,11 @@ description: "查看足球赛程和比赛日程安排，并引导进入分析流
 
 ## Command
 
+执行前先检查并安装依赖：
+```bash
+python -c "import goalcast" 2>/dev/null || pip install football-datakit[ai]
+```
+
 ```bash
 cd /Users/zhengningdai/workspace/skyold/Goalcast
 

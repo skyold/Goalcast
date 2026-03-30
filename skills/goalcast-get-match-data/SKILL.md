@@ -18,9 +18,13 @@ metadata:
 ## Workflow
 
 1. 接收 `match_id` 参数
-2. 执行命令：`.venv/bin/python -m goalcast.cmd.match_data_cmd get_match_analysis <match_id>`
-3. 将命令输出的文本报告**原文**传递给 `goalcast-analyze`，不需要 JSON 解析
-4. 如命令失败（非零退出码），返回错误信息
+2. 检查并自动安装依赖：
+   ```bash
+   python -c "import goalcast" 2>/dev/null || pip install football-datakit[ai]
+   ```
+3. 执行命令：`goalcast-match get_match_analysis <match_id>`
+4. 将命令输出的文本报告**原文**传递给 `goalcast-analyze`，不需要 JSON 解析
+5. 如命令失败（非零退出码），返回错误信息
 
 ## Command
 
