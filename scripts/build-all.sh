@@ -33,14 +33,14 @@ echo -e "${BLUE}📂 项目目录：$(pwd)${NC}"
 echo ""
 
 # 清理旧的构建文件
-echo -e "${YELLOW}🧹 步骤 1/5: 清理旧的构建文件...${NC}"
+echo -e "${YELLOW}🧹 步骤 1/4: 清理旧的构建文件...${NC}"
 rm -rf dist/ build/ *.egg-info
-rm -rf skills-dist/ skills/build/ skills/dist/ skills/*.egg-info
+rm -rf skills-dist/
 echo -e "${GREEN}   ✓ 清理完成${NC}"
 echo ""
 
 # 安装构建工具（如果需要）
-echo -e "${YELLOW}📦 步骤 2/5: 检查构建工具...${NC}"
+echo -e "${YELLOW}📦 步骤 2/4: 检查构建工具...${NC}"
 if ! command -v python -m build &> /dev/null; then
     echo -e "${YELLOW}   安装构建工具...${NC}"
     pip install build wheel twine --quiet
@@ -49,49 +49,40 @@ echo -e "${GREEN}   ✓ 构建工具就绪${NC}"
 echo ""
 
 # 构建 Python 包
-echo -e "${YELLOW}🔨 步骤 3/5: 构建 Python 包 (goalcast)...${NC}"
+echo -e "${YELLOW}🔨 步骤 3/4: 构建 Python 包 (goalcast)...${NC}"
 python -m build
 echo -e "${GREEN}   ✓ Python 包构建完成${NC}"
 echo ""
 
-# 构建 Skills 包
-echo -e "${YELLOW}🔨 步骤 4/5: 构建 Skills 包 (goalcast-skills)...${NC}"
-cd skills
-python -m build
-cd ..
-echo -e "${GREEN}   ✓ Skills 包构建完成${NC}"
-echo ""
-
-# 创建 skills 分发包（tar.gz 和 zip）
-echo -e "${YELLOW}📦 步骤 5/5: 创建 Skills 分发包...${NC}"
+# 单独打包每个 skill
+echo -e "${YELLOW}📦 步骤 4/4: 单独打包每个 Skill...${NC}"
 
 # 创建 skills 分发目录
 mkdir -p skills-dist
 
 # 获取版本
-SKILLS_VERSION=$(grep "^version" skills/pyproject.toml | head -1 | cut -d'"' -f2)
-SKILLS_TAR="skills-dist/goalcast-skills-${SKILLS_VERSION}.tar.gz"
-SKILLS_ZIP="skills-dist/goalcast-skills-${SKILLS_VERSION}.zip"
+SKILLS_VERSION=$(grep "^version" pyproject.toml | head -1 | cut -d'"' -f2)
 
-# 从 skills/dist 复制构建好的包
-cp skills/dist/goalcast_skills-${SKILLS_VERSION}-py3-none-any.whl dist/
-echo -e "${GREEN}   ✓ 复制 Skills wheel 到 dist/ 目录${NC}"
-
-# 创建源码包的分发版本
-tar -czf "${SKILLS_TAR}" skills/
-echo -e "${GREEN}   ✓ 创建 tar.gz: ${SKILLS_TAR}${NC}"
-
-# 创建 zip 格式（Windows 友好）
-cd skills/
-zip -r "../${SKILLS_ZIP}" ./*
-cd ..
-echo -e "${GREEN}   ✓ 创建 zip: ${SKILLS_ZIP}${NC}"
+# 遍历每个 skill 目录并单独打包
+for skill_dir in skills/goalcast-* skills/footystats; do
+    if [ -d "$skill_dir" ]; then
+        skill_name=$(basename "$skill_dir")
+        echo -e "${BLUE}   打包：${skill_name}${NC}"
+        
+        # 创建 zip 包
+        cd "$skill_dir"
+        zip -r "../../skills-dist/${skill_name}-${SKILLS_VERSION}.zip" ./*
+        cd ../..
+        
+        echo -e "${GREEN}   ✓ ${skill_name}-${SKILLS_VERSION}.zip${NC}"
+    fi
+done
 
 # 生成 checksums
 cd skills-dist
-sha256sum goalcast-skills-${SKILLS_VERSION}.tar.gz > SHA256SUMS
-sha256sum goalcast-skills-${SKILLS_VERSION}.zip >> SHA256SUMS
+sha256sum *.zip > SHA256SUMS
 cd ..
+
 echo -e "${GREEN}   ✓ 生成校验和${NC}"
 echo ""
 
@@ -101,11 +92,10 @@ echo -e "${GREEN}✅ 构建完成！${NC}"
 echo "======================================"
 echo ""
 echo -e "${BLUE}📦 Python 包 (goalcast):${NC}"
-ls -lh dist/*.whl dist/*.tar.gz 2>/dev/null | grep -v skills || true
+ls -lh dist/*.whl dist/*.tar.gz 2>/dev/null || true
 echo ""
-echo -e "${BLUE}📦 Skills 包 (goalcast-skills):${NC}"
-ls -lh dist/*skills*.whl 2>/dev/null || echo "   (Skills wheel 已复制到 dist/)"
-ls -lh skills-dist/
+echo -e "${BLUE}📦 独立 Skills 包:${NC}"
+ls -lh skills-dist/*.zip
 echo ""
 echo "======================================"
 echo -e "${YELLOW}📋 分发说明:${NC}"
@@ -114,14 +104,16 @@ echo ""
 echo "1. Python 包安装 (goalcast):"
 echo "   pip install dist/goalcast-${SKILLS_VERSION}-py3-none-any.whl[ai]"
 echo ""
-echo "2. Skills 包安装 (goalcast-skills):"
-echo "   pip install dist/goalcast_skills-${SKILLS_VERSION}-py3-none-any.whl"
-echo "   # 或从源码包安装"
-echo "   pip install skills-dist/goalcast-skills-${SKILLS_VERSION}.tar.gz"
+echo "2. Skills 安装 (OpenClaw):"
+echo "   每个 skill 都是独立的 zip 包，可以单独安装："
+ls skills-dist/*.zip | while read zip; do
+    name=$(basename "$zip")
+    echo "   - ${name}"
+done
 echo ""
-echo "3. 或者一起分发："
+echo "3. 分发文件："
 echo "   - dist/goalcast-${SKILLS_VERSION}-py3-none-any.whl"
-echo "   - dist/goalcast_skills-${SKILLS_VERSION}-py3-none-any.whl"
+echo "   - skills-dist/*.zip (每个 skill 单独一个 zip)"
 echo ""
 echo "======================================"
 echo ""
