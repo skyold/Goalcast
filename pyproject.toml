@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "goalcast"
-version = "1.0.3"
-description = "Goalcast Football Prediction Engine - 8-layer quantitative analysis system"
+name = "football-datakit"
+version = "1.0.0"
+description = "Football data aggregation toolkit - multi-provider datasource layer for match, odds, standings and team data"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -51,9 +51,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/Goalcast"
-Documentation = "https://github.com/your-org/Goalcast#readme"
-Repository = "https://github.com/your-org/Goalcast.git"
+Homepage = "https://github.com/skyold/Goalcast"
+Documentation = "https://github.com/skyold/Goalcast#readme"
+Repository = "https://github.com/skyold/Goalcast.git"
 
 [project.scripts]
 goalcast-match = "goalcast.cmd.match_data_cmd:main"
