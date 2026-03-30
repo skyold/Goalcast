@@ -24,10 +24,26 @@ metadata:
 
 ## Command
 
+**方式 1：已安装包（推荐）**
 ```bash
-cd /Users/zhengningdai/workspace/skyold/Goalcast
-.venv/bin/python -m cmd.match_data_cmd get_match_analysis <match_id>
+goalcast-match get_match_analysis <match_id>
 ```
+
+**方式 2：Python 模块（开发模式）**
+```bash
+python -m cmd.match_data_cmd get_match_analysis <match_id>
+```
+
+**方式 3：项目目录运行**
+```bash
+cd ${GOALCAST_PROJECT_DIR:-.}
+python -m cmd.match_data_cmd get_match_analysis <match_id>
+```
+
+## Environment Variables
+
+- `GOALCAST_PROJECT_DIR`: Goalcast 项目安装路径（可选，默认当前目录）
+- `GOALCAST_PYTHON`: Python 解释器路径（可选，默认 `python`）
 
 ## Input
 
@@ -197,7 +213,8 @@ cd /Users/zhengningdai/workspace/skyold/Goalcast
 
 ## Notes
 
-- 使用 `.venv/bin/python` 确保使用正确的虚拟环境
+- 确保已安装 goalcast 包：`pip install goalcast`
+- 确保已配置环境变量文件：`.env`（包含 API 密钥）
 - 如果比赛不存在或 API 不可用，返回适当的错误信息
 - 数据质量由调用方（goalcast-analyze）评估
 

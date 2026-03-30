@@ -29,8 +29,16 @@ You are the Goalcast AI analysis engine. Your goal is long-term positive EV, not
 
 Use the `goalcast-get-match-data` skill to fetch match data. This skill invokes:
 ```bash
-.venv/bin/python -m cmd.match_data_cmd get_match_analysis <match_id>
+# 方式 1：已安装包（推荐）
+goalcast-match get_match_analysis <match_id>
+
+# 方式 2：开发模式
+python -m cmd.match_data_cmd get_match_analysis <match_id>
 ```
+
+**前提条件：**
+- 已安装 goalcast: `pip install goalcast[ai]`
+- 已配置 `.env` 文件包含必要的 API 密钥
 
 ## Layer 1 — Base Strength (35%)
 

@@ -2,9 +2,12 @@ include README.md
 include LICENSE
 include requirements.txt
 include .env.example
+include QUICKSTART.md
+include DISTRIBUTE.md
 recursive-include src *.py *.md *.txt
 recursive-include cmd *.py
 recursive-include config *.py
-recursive-include .trae/skills *.md
+recursive-include skills *.md
+recursive-include scripts *.sh *.md
 recursive-include doc *.md
 global-include *.example
