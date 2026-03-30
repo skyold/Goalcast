@@ -20,4 +20,4 @@ echo "📦 生成的文件："
 ls -lh dist/
 echo ""
 echo "💡 安装命令："
-echo "   pip install dist/goalcast-*.whl[ai]"
+echo "   pip install dist/football_datakit-*.whl[ai]"
