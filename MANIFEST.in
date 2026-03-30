@@ -11,3 +11,18 @@ recursive-include skills *.md
 recursive-include scripts *.sh *.md
 recursive-include doc *.md
 global-include *.example
+
+# 排除不必要的目录
+prune .claude
+prune build
+prune dist
+prune *.egg-info
+prune __pycache__
+prune .venv
+prune venv
+prune .pytest_cache
+prune .mypy_cache
+prune logs
+prune cache
+prune data
+prune tests
