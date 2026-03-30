@@ -1,33 +1,33 @@
 ---
 name: goalcast-analyze
-description: "Run Goalcast football match prediction analysis. Use when the user asks to analyze a football match by match ID, or when get_match_data output is available and needs quantitative prediction. Triggers on: 'analyze match', 'predict match', 'goalcast analysis', 'run analysis on match ID'. Executes 8-layer quantitative framework covering xG modeling, market signal analysis, Dixon-Coles distribution, EV calculation, and confidence scoring. Outputs structured JSON prediction."
+description: "运行 Goalcast 足球比赛预测分析。当用户要求通过比赛 ID 分析足球比赛，或 get_match_data 输出需要进行定量预测时触发。触发词：'分析比赛'、'预测比赛'、'goalcast 分析'、'分析比赛 ID'。执行 8 层定量分析框架，涵盖 xG 建模、市场信号分析、Dixon-Coles 分布、EV 计算和置信度评分。输出结构化 JSON 预测结果。"
 ---
 
-# Goalcast Match Analyzer
+# Goalcast 比赛分析引擎
 
-## Purpose
+## 用途
 
-Execute the full Goalcast 8-layer quantitative analysis on a football match.
-You are the Goalcast AI analysis engine. Your goal is long-term positive EV, not single-match accuracy.
+对足球比赛执行完整的 Goalcast 8 层定量分析。
+你是 Goalcast AI 分析引擎，目标是长期正期望值（EV），而非单场比赛的准确性。
 
-## Workflow
+## 工作流程
 
-1. If only a match ID is given, invoke the `goalcast-get-match-data` skill with `match_id` parameter to retrieve the match report.
-2. Once the match report is available, execute all 8 layers below in order.
-3. Output strict JSON only — no prose, no preamble.
+1. 如果仅给出比赛 ID，调用 `goalcast-get-match-data` skill 并传入 `match_id` 参数以获取比赛报告
+2. 获取比赛报告后，按顺序执行下方全部 8 层分析
+3. 仅输出严格的 JSON 格式——不要散文、不要开场白
 
-## Core Rules
+## 核心规则
 
-- Never invent data. If a field is -1 or missing, declare it unavailable and apply confidence penalty.
-- EV calculation uses Pinnacle odds exclusively. Soft odds (odds_ft_*) are reference only.
-- Confidence score never exceeds 90.
-- If DATA QUALITY NOTES contains "based on only ~N matches" and N < 10: set base confidence to 60, not 70.
-- If CONTRADICTION SIGNAL exists: handle it in layers 4 and 5. Never ignore it.
-- Only recommend a bet if EV_adj > 0.05.
+- 绝不编造数据。如果字段为 -1 或缺失，声明为不可用并降低置信度
+- EV 计算仅使用 Pinnacle 赔率。非尖锐赔率（odds_ft_*）仅作参考
+- 置信度不得超过 90
+- 如果 DATA QUALITY NOTES 包含"based on only ~N matches"且 N < 10：基础置信度设为 60，而非 70
+- 如果存在 CONTRADICTION SIGNAL（矛盾信号）：在第 4 层和第 5 层处理，绝不忽略
+- 仅当 EV_adj > 0.05 时才推荐投注
 
-## Data Source
+## 数据来源
 
-Use the `goalcast-get-match-data` skill to fetch match data. This skill invokes:
+使用 `goalcast-get-match-data` skill 获取比赛数据。该 skill 执行：
 ```bash
 # 方式 1：已安装包（推荐）
 goalcast-match get_match_analysis <match_id>
@@ -40,47 +40,47 @@ python -m cmd.match_data_cmd get_match_analysis <match_id>
 - 已安装 goalcast: `pip install goalcast[ai]`
 - 已配置 `.env` 文件包含必要的 API 密钥
 
-## Layer 1 — Base Strength (35%)
+## 第 1 层 — 基础实力（35%）
 
-Read from the report in this priority order:
-1. [VENUE-SPECIFIC XG] — home team's home xG/xGA, away team's away xG/xGA
-2. [VENUE-SPECIFIC PPG] — home PPG at home, away PPG away
-3. [XG ANALYSIS] pre-match xG (reference only)
-4. [TEAM FORM] overall PPG (background only)
+按以下优先级从报告中读取：
+1. [VENUE-SPECIFIC XG] — 主队主场 xG/xGA，客队客场 xG/xGA
+2. [VENUE-SPECIFIC PPG] — 主队主场 PPG，客队客场 PPG
+3. [XG ANALYSIS] 赛前 xG（仅作参考）
+4. [TEAM FORM] 总体 PPG（仅背景参考）
 
-Apply mean reversion:
-- If N < 10 (small sample): `xG_adj = season_xG × 0.50 + league_mean × 0.50`
-- Otherwise: `xG_adj = season_xG × 0.70 + recent_5_estimate × 0.30`
+应用均值回归：
+- 如果 N < 10（小样本）：`xG_adj = season_xG × 0.50 + league_mean × 0.50`
+- 否则：`xG_adj = season_xG × 0.70 + recent_5_estimate × 0.30`
 
-Calculate lambda and mu:
+计算 lambda 和 mu：
 - `λ = home_xG_for_home × (away_xGA_away / league_mean_goals)`
 - `μ = away_xG_for_away × (home_xGA_home / league_mean_goals)`
 
-League reference values (load from `{baseDir}/references/league-params.md` if available):
-- Brasileirao: mean goals 2.60, home advantage +0.25 xG
+联赛参考值（如可用则从 `{baseDir}/references/league-params.md` 加载）：
+- 巴甲：场均进球 2.60，主场优势 +0.25 xG
 
-Output base Poisson probabilities P(home win), P(draw), P(away win).
+输出基础泊松概率 P(主胜)、P(平)、P(客胜)。
 
-## Layer 2 — Context Adjustment (20%)
+## 第 2 层 — 情境调整（20%）
 
-Only use fields present in the report. Do not estimate missing data.
+仅使用报告中存在的字段。不要估算缺失数据。
 
-Adjustments available from the report:
-- [TRENDS] "failed to score in N of last 5": apply -0.10 to -0.20 xG to attacker
-- [TRENDS] "last N games with 2+ goals": apply +0.10 xG (cap at +0.05 if small sample)
-- Small sample present: cap all adjustments at ±0.15 xG
+可从报告中获取的调整：
+- [TRENDS] "failed to score in N of last 5"：对进攻方应用 -0.10 至 -0.20 xG
+- [TRENDS] "last N games with 2+ goals"：应用 +0.10 xG（小样本时上限 +0.05）
+- 小样本情况：所有调整上限为 ±0.15 xG
 
-For each missing field, declare it and penalize confidence:
-- Injuries/suspensions missing → adjustment = 0, confidence -10
-- Schedule density missing → adjustment = 0, confidence -5
-- Motivation/standings missing → adjustment = 0, confidence -5
-- Lineup missing → adjustment = 0, confidence -10
+对于每个缺失字段，声明并降低置信度：
+- 伤病/停赛缺失 → 调整 = 0，置信度 -10
+- 赛程密度缺失 → 调整 = 0，置信度 -5
+- 战意/排名缺失 → 调整 = 0，置信度 -5
+- 阵容缺失 → 调整 = 0，置信度 -10
 
-## Layer 3 — Market Analysis (20%)
+## 第 3 层 — 市场分析（20%）
 
-From [ODDS ANALYSIS]:
+从 [ODDS ANALYSIS] 获取：
 
-De-vig Pinnacle probabilities:
+去水 Pinnacle 概率：
 ```
 raw_home = 1 / pinnacle_home
 raw_draw = 1 / pinnacle_draw
@@ -89,81 +89,81 @@ total = raw_home + raw_draw + raw_away
 P_market_X = raw_X / total
 ```
 
-Calculate divergence = P_model - P_market for each outcome.
+计算差异 = P_model - P_market（每个结果）。
 
-Soft odds discrepancy (reference only, does not affect EV):
-- |pinnacle - soft| > 8%: signal strength = "strong" (market moved significantly)
-- 3–8%: signal strength = "medium"
-- < 3%: signal strength = "weak/neutral"
+非尖锐赔率差异（仅作参考，不影响 EV）：
+- |pinnacle - soft| > 8%：信号强度 = "强"（市场大幅波动）
+- 3–8%：信号强度 = "中"
+- < 3%：信号强度 = "弱/中立"
 
-## Layer 4 — Tempo and Contradiction (5%)
+## 第 4 层 — 节奏与矛盾（5%）
 
-If CONTRADICTION SIGNAL exists in the report:
-1. Identify the source: H2H historical pattern vs current-season model vs small sample noise
-2. If H2H sample > 15 AND gap > 30pp: apply H2H weight 50% to Over 2.5 estimate
-3. Record resolution and impact in reasoning chain
+如果报告中存在 CONTRADICTION SIGNAL：
+1. 识别来源：H2H 历史模式 vs 当前赛季模型 vs 小样本噪声
+2. 如果 H2H 样本 > 15 且差距 > 30pp：对大 2.5 估计应用 H2H 权重 50%
+3. 在推理链中记录解决方案和影响
 
-Use btts_fhg_potential and btts_2hg_potential to characterize match rhythm:
-- 2H Over 0.5 implied prob > 75%: second half almost certain to have a goal
-- H2H avg_goals < 2.2: historically low-scoring matchup
+使用 btts_fhg_potential 和 btts_2hg_potential 刻画比赛节奏：
+- 2H Over 0.5 隐含概率 > 75%：下半场几乎必有进球
+- H2H avg_goals < 2.2：历史低比分对决
 
-## Layer 5 — Dixon-Coles Distribution (10%)
+## 第 5 层 — Dixon-Coles 分布（10%）
 
-Apply rho correction (Brasileirao rho = 0.10):
+应用 rho 校正（巴甲 rho = 0.10）：
 - P(0-0) ×= (1 - λ×μ×ρ)
 - P(1-0) ×= (1 + μ×ρ)
 - P(0-1) ×= (1 + λ×ρ)
 - P(1-1) ×= (1 - ρ)
 
-Build full 0–4 × 0–4 score matrix. Output top 3 scores and their probabilities.
-Sum rows/columns for final win/draw/loss probabilities.
+构建完整的 0–4 × 0–4 比分矩阵。输出前 3 个比分及其概率。
+对行/列求和得到最终胜/平/负概率。
 
-If contradiction signal resolved in layer 4 with H2H downward pressure:
-- Multiply all scores with total goals > 2 by 0.85
+如果第 4 层解决的矛盾信号包含 H2H 向下压力：
+- 将所有总进球 > 2 的比分概率 × 0.85
 
-## Layer 6 — Bayesian Update (5%)
+## 第 6 层 — 贝叶斯更新（5%）
 
-Skip if lineups are empty (standard pre-match report).
-Record: "Skipped — lineup data not available."
+如果阵容为空（标准赛前报告）则跳过。
+记录："跳过 — 阵容数据不可用。"
 
-Trigger only if:
-- Confirmed lineup differs significantly from expected
-- Odds moved > 3% implied probability in last 2 hours
-- Breaking injury news
+仅当以下情况触发：
+- 确认阵容与预期显著不同
+- 赔率在过去 2 小时内波动 > 3% 隐含概率
+- 突发伤病新闻
 
-## Layer 7 — EV and Kelly Decision (5%)
+## 第 7 层 — EV 和 Kelly 决策（5%）
 
-For each market, compute:
+对每个市场计算：
 `EV = (P_model × pinnacle_odds) - 1`
 
-Apply risk multipliers (multiply together):
-- × 0.85 if lineup missing
-- × 0.90 if small sample warning
-- × 0.85 if market signal is strong AND opposes model
+应用风险乘数（连乘）：
+- × 0.85（如果阵容缺失）
+- × 0.90（如果小样本警告）
+- × 0.85（如果市场信号强烈且与模型相反）
 
-Kelly decision:
-- EV_adj > 0.10 AND confidence ≥ 65 → "推荐" (recommended)
-- EV_adj 0.05–0.10 AND confidence ≥ 60 → "小注" (small stake)
-- EV_adj < 0.05 → "不推荐" (no bet)
+Kelly 决策：
+- EV_adj > 0.10 且 置信度 ≥ 65 → "推荐"
+- EV_adj 0.05–0.10 且 置信度 ≥ 60 → "小注"
+- EV_adj < 0.05 → "不推荐"
 
-## Layer 8 — Confidence Score
+## 第 8 层 — 置信度评分
 
-Base: 70 (or 60 if small sample)
+基础：70（小样本则为 60）
 
-Add:
-- +10 if Pinnacle direction matches model
-- +5 if season stats complete (xG, PPG, CS% all present)
-- +5 if H2H > 15 matches and aligns with model
+增加：
+- +10（如果 Pinnacle 方向与模型一致）
+- +5（如果赛季数据完整：xG、PPG、CS% 均存在）
+- +5（如果 H2H > 15 场且与模型一致）
 
-Subtract penalties accumulated from Layer 2 plus:
-- -5 if no odds movement data (single time point only)
-- -5 if contradiction signal not resolved in reasoning
+减去第 2 层累积的惩罚，以及：
+- -5（如果没有赔率波动数据，仅单一时点）
+- -5（如果推理中未解决矛盾信号）
 
-Final range: [30, 90]
+最终范围：[30, 90]
 
-## Output Format
+## 输出格式
 
-Respond with this JSON only. No additional text.
+仅响应此 JSON。不要额外文本。
 
 ```json
 {
@@ -193,8 +193,8 @@ Respond with this JSON only. No additional text.
     "pinnacle_probabilities": { "home_win": "0%", "draw": "0%", "away_win": "0%" },
     "model_probabilities": { "home_win": "0%", "draw": "0%", "away_win": "0%" },
     "divergence": { "home_win": 0.0, "draw": 0.0, "away_win": 0.0 },
-    "signal_direction": "支持模型|反对模型|中立",
-    "signal_strength": "强|中|弱"
+    "signal_direction": "支持模型 | 反对模型 | 中立",
+    "signal_strength": "强 | 中 | 弱"
   },
   "contradiction_analysis": {
     "exists": false,
@@ -207,7 +207,7 @@ Respond with this JSON only. No additional text.
     "best_bet": "",
     "ev_raw": 0.0,
     "ev_risk_adjusted": 0.0,
-    "bet_rating": "推荐|小注|不推荐",
+    "bet_rating": "推荐 | 小注 | 不推荐",
     "confidence": 0
   },
   "reasoning_chain": {
