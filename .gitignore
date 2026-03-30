@@ -56,3 +56,6 @@ data/exports/
 # OS
 .DS_Store
 Thumbs.db
+/skills-dist
+/.trae
+/.claude
