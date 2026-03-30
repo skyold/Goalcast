@@ -18,13 +18,45 @@ metadata:
 ## Workflow
 
 1. 接收 `match_id` 参数
+
 2. 检查并自动安装依赖：
    ```bash
    python -c "import goalcast" 2>/dev/null || pip install football-datakit[ai]
    ```
-3. 执行命令：`goalcast-match get_match_analysis <match_id>`
-4. 将命令输出的文本报告**原文**传递给 `goalcast-analyze`，不需要 JSON 解析
-5. 如命令失败（非零退出码），返回错误信息
+
+3. 检查 FOOTYSTATS_API_KEY 是否已配置：
+   ```bash
+   python -c "from goalcast.config.settings import settings; exit(0 if settings.FOOTYSTATS_API_KEY else 1)"
+   ```
+   - 若返回非零退出码，**停止执行**，向用户说明：
+     > ⚠️ 未检测到 FOOTYSTATS_API_KEY，请先完成配置。
+     >
+     > 选择一种方式：
+     >
+     > **方式 A（当前目录 .env，推荐）：**
+     > ```bash
+     > echo 'FOOTYSTATS_API_KEY=你的key' > .env
+     > ```
+     > **方式 B（全局配置，所有目录生效）：**
+     > ```bash
+     > mkdir -p ~/.config/football-datakit
+     > echo 'FOOTYSTATS_API_KEY=你的key' > ~/.config/football-datakit/.env
+     > ```
+     >
+     > 获取 API Key：https://footystats.org/api
+     >
+     > 配置完成后请告诉我，我继续帮你获取比赛数据。
+   - 若用户提供了 key，帮助执行：
+     ```bash
+     echo 'FOOTYSTATS_API_KEY=<用户提供的key>' > .env
+     ```
+     然后继续步骤 4。
+
+4. 执行命令：`goalcast-match get_match_analysis <match_id>`
+
+5. 将命令输出的文本报告**原文**传递给 `goalcast-analyze`，不需要 JSON 解析
+
+6. 如命令失败（非零退出码），返回错误信息
 
 ## Command
 

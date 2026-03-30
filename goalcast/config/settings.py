@@ -1,9 +1,22 @@
+import os
 from pathlib import Path
 from typing import Dict
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
+# 查找 .env 的优先级：
+# 1. 当前工作目录及其父目录（find_dotenv 向上搜索）
+# 2. 用户全局配置 ~/.config/football-datakit/.env
+# 3. 直接读取环境变量（兜底）
+_dotenv_path = find_dotenv(usecwd=True)
+if _dotenv_path:
+    load_dotenv(_dotenv_path)
+else:
+    _user_config = Path.home() / ".config" / "football-datakit" / ".env"
+    if _user_config.exists():
+        load_dotenv(_user_config)
+
+# BASE_DIR 指向包所在目录，用于数据库等本地文件路径
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
 
 
 class Settings:
@@ -105,6 +118,7 @@ class Settings:
 
     def __init__(self):
         self.FOOTYSTATS_API_KEY = self._get_env("FOOTYSTATS_API_KEY", "")
+        self._warn_if_missing()
         self.FOOTBALL_DATA_API_KEY = self._get_env("FOOTBALL_DATA_API_KEY", "")
         self.ODDS_API_KEY = self._get_env("ODDS_API_KEY", "")
         self.OPENWEATHER_API_KEY = self._get_env("OPENWEATHER_API_KEY", "")
@@ -123,8 +137,30 @@ class Settings:
             self.LLM_MODEL = self.CLAUDE_MODEL
 
     def _get_env(self, key: str, default: str = "") -> str:
-        import os
         return os.getenv(key, default)
+
+    def _warn_if_missing(self) -> None:
+        if self.FOOTYSTATS_API_KEY:
+            return
+        user_config = Path.home() / ".config" / "football-datakit" / ".env"
+        print(
+            "\n"
+            "⚠️  未检测到 FOOTYSTATS_API_KEY\n"
+            "\n"
+            "请通过以下任意方式配置：\n"
+            "\n"
+            "方式 A — 当前目录创建 .env（推荐）：\n"
+            "    echo 'FOOTYSTATS_API_KEY=your_key_here' > .env\n"
+            "\n"
+            "方式 B — 全局配置（所有目录均生效）：\n"
+            f"    mkdir -p {user_config.parent}\n"
+            f"    echo 'FOOTYSTATS_API_KEY=your_key_here' > {user_config}\n"
+            "\n"
+            "方式 C — 临时环境变量：\n"
+            "    export FOOTYSTATS_API_KEY=your_key_here\n"
+            "\n"
+            "获取 API Key：https://footystats.org/api\n"
+        )
 
     def get_league_params(self, league: str) -> Dict:
         return self.LEAGUE_PARAMS.get(

@@ -14,12 +14,38 @@ description: "查看足球赛程和比赛日程安排，并引导进入分析流
 
 使用 `match_data_cmd get_schedule` 查询比赛日程，展示结果后引导用户进入单场或批量分析流程。
 
-## Command
+## Setup Check
 
-执行前先检查并安装依赖：
+执行前依次完成以下检查：
+
+**1. 安装依赖：**
 ```bash
 python -c "import goalcast" 2>/dev/null || pip install football-datakit[ai]
 ```
+
+**2. 检查 API Key：**
+```bash
+python -c "from goalcast.config.settings import settings; exit(0 if settings.FOOTYSTATS_API_KEY else 1)"
+```
+若未配置，**停止执行**并提示用户：
+> ⚠️ 未检测到 FOOTYSTATS_API_KEY，请先完成配置。
+>
+> **方式 A（当前目录 .env，推荐）：**
+> ```bash
+> echo 'FOOTYSTATS_API_KEY=你的key' > .env
+> ```
+> **方式 B（全局配置）：**
+> ```bash
+> mkdir -p ~/.config/football-datakit
+> echo 'FOOTYSTATS_API_KEY=你的key' > ~/.config/football-datakit/.env
+> ```
+> 获取 API Key：https://footystats.org/api
+>
+> 配置完成后请告诉我，我继续查询赛程。
+
+若用户直接提供了 key，帮助执行写入后继续。
+
+## Command
 
 ```bash
 cd /Users/zhengningdai/workspace/skyold/Goalcast
