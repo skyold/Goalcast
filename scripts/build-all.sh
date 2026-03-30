@@ -60,22 +60,14 @@ echo -e "${YELLOW}📦 步骤 4/4: 单独打包每个 Skill...${NC}"
 # 创建 skills 分发目录
 mkdir -p skills-dist
 
-# Python 包版本（用于兜底）
-PKG_VERSION=$(grep "^version" pyproject.toml | head -1 | cut -d'"' -f2)
+# 获取版本
+SKILLS_VERSION=$(grep "^version" pyproject.toml | head -1 | cut -d'"' -f2)
 
 # 遍历每个 skill 目录并单独打包
 for skill_dir in skills/goalcast-* skills/footystats; do
     if [ -d "$skill_dir" ]; then
         skill_name=$(basename "$skill_dir")
-
-        # 优先从 SKILL.md frontmatter 读取 version，否则回退到 Python 包版本
-        SKILL_VERSION=""
-        if [ -f "$skill_dir/SKILL.md" ]; then
-            SKILL_VERSION=$(grep -m1 '^version:' "$skill_dir/SKILL.md" | sed 's/version:[[:space:]]*"\(.*\)"/\1/' | tr -d ' ')
-        fi
-        SKILLS_VERSION="${SKILL_VERSION:-$PKG_VERSION}"
-
-        echo -e "${BLUE}   打包：${skill_name} @ ${SKILLS_VERSION}${NC}"
+        echo -e "${BLUE}   打包：${skill_name}${NC}"
 
         # 创建 zip 包
         cd "$skill_dir"
