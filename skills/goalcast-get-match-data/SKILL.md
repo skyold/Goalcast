@@ -13,14 +13,14 @@ metadata:
 
 ## Purpose
 
-获取指定比赛 ID 的完整数据，为 8 层量化分析做准备。调用 `python -m cmd.match_data_cmd get_match_analysis <match_id>` 并解析输出。
+获取指定比赛 ID 的完整数据，为 8 层量化分析做准备。调用 `python -m cmd.match_data_cmd get_match_analysis <match_id>` 并将输出文本直接传递给 `goalcast-analyze`。
 
 ## Workflow
 
 1. 接收 `match_id` 参数
-2. 执行命令：`python -m cmd.match_data_cmd get_match_analysis <match_id>`
-3. 解析命令输出为结构化数据
-4. 返回完整的比赛数据报告
+2. 执行命令：`.venv/bin/python -m cmd.match_data_cmd get_match_analysis <match_id>`
+3. 将命令输出的文本报告**原文**传递给 `goalcast-analyze`，不需要 JSON 解析
+4. 如命令失败（非零退出码），返回错误信息
 
 ## Command
 
@@ -53,163 +53,96 @@ python -m cmd.match_data_cmd get_match_analysis <match_id>
 
 ## Output
 
-返回结构化 JSON，包含以下字段：
+命令输出为**人类可读的文本报告**，不是 JSON。报告由多个节段组成，每节以 `[节名]` 为标题。`goalcast-analyze` 直接按节名定位所需字段读取数据。
 
-```json
-{
-  "match_info": {
-    "home_team": "主队名称",
-    "away_team": "客队名称",
-    "competition": "联赛名称",
-    "match_time": "比赛时间",
-    "status": "比赛状态"
-  },
-  "basic": {
-    "home_team_name": "",
-    "away_team_name": "",
-    "match_time": "",
-    "home_score": null,
-    "away_score": null,
-    "status": ""
-  },
-  "stats": {
-    "has_valid_stats": true,
-    "home_possession": 50,
-    "away_possession": 50,
-    "home_total_shots": 10,
-    "away_total_shots": 8,
-    "home_shots_on_target": 4,
-    "away_shots_on_target": 3,
-    "home_corners": 5,
-    "away_corners": 4,
-    "home_yellow_cards": 1,
-    "away_yellow_cards": 2,
-    "btts": true,
-    "over_25": true
-  },
-  "advanced": {
-    "has_xg_prematch": true,
-    "home_xg_prematch": 1.5,
-    "away_xg_prematch": 1.2,
-    "total_xg_prematch": 2.7,
-    "has_xg": true,
-    "home_xg": 1.8,
-    "away_xg": 1.1,
-    "home_attacks": 85,
-    "away_attacks": 72,
-    "home_dangerous_attacks": 45,
-    "away_dangerous_attacks": 38,
-    "has_lineups": true,
-    "home_lineup": ["player1", "player2"],
-    "away_lineup": ["player1", "player2"],
-    "home_trends": ["趋势1", "趋势2"],
-    "away_trends": ["趋势1", "趋势2"],
-    "btts_potential": 65,
-    "btts_fhg_potential": 35,
-    "btts_2hg_potential": 45,
-    "o25_potential": 60,
-    "matches_completed_minimum": 15
-  },
-  "odds": {
-    "odds_home": 2.1,
-    "odds_draw": 3.4,
-    "odds_away": 3.5,
-    "implied_prob_home": 0.452,
-    "implied_prob_draw": 0.279,
-    "implied_prob_away": 0.269,
-    "has_pinnacle_odds": true,
-    "pinnacle_odds": {
-      "home": 2.05,
-      "draw": 3.50,
-      "away": 3.60,
-      "implied_prob_home": 0.465,
-      "implied_prob_draw": 0.272,
-      "implied_prob_away": 0.263
-    },
-    "has_full_1x2_odds": true
-  },
-  "teams": {
-    "home_form": {
-      "last_5_wins": 3,
-      "last_5_draws": 1,
-      "last_5_losses": 1,
-      "last_5_ppg": 2.0
-    },
-    "away_form": {
-      "last_5_wins": 2,
-      "last_5_draws": 2,
-      "last_5_losses": 1,
-      "last_5_ppg": 1.6
-    },
-    "h2h_total": 10,
-    "h2h_home_wins": 5,
-    "h2h_away_wins": 3,
-    "h2h_draws": 2,
-    "h2h_avg_goals": 2.4,
-    "h2h_btts_percentage": 60,
-    "h2h_over_25_percentage": 55,
-    "home_season_stats": {
-      "position": 3,
-      "points": 45,
-      "ppg": 1.8,
-      "wins": 14,
-      "draws": 3,
-      "losses": 5,
-      "goals_scored": 42,
-      "goals_conceded": 25,
-      "avg_goals_scored": 1.68,
-      "avg_goals_conceded": 1.0,
-      "xg_for_avg_home": 1.65,
-      "xg_against_avg_home": 0.95,
-      "clean_sheet_percentage_overall": 35,
-      "clean_sheet_percentage_home": 42,
-      "clean_sheet_percentage_away": 28,
-      "btts_percentage_overall": 58,
-      "btts_percentage_home": 62,
-      "btts_percentage_away": 54,
-      "over_25_percentage_overall": 55,
-      "over_25_percentage_home": 58,
-      "over_25_percentage_away": 52
-    },
-    "away_season_stats": {
-      "position": 8,
-      "points": 35,
-      "ppg": 1.4,
-      "wins": 10,
-      "draws": 5,
-      "losses": 8,
-      "goals_scored": 32,
-      "goals_conceded": 30,
-      "avg_goals_scored": 1.28,
-      "avg_goals_conceded": 1.2,
-      "xg_for_avg_away": 1.15,
-      "xg_against_avg_away": 1.35,
-      "clean_sheet_percentage_overall": 30,
-      "clean_sheet_percentage_home": 35,
-      "clean_sheet_percentage_away": 25,
-      "btts_percentage_overall": 52,
-      "btts_percentage_home": 55,
-      "btts_percentage_away": 49,
-      "over_25_percentage_overall": 48,
-      "over_25_percentage_home": 50,
-      "over_25_percentage_away": 46
-    },
-    "strength_difference": 0.4
-  }
-}
+节段列表：
+
+| 节名 | 内容 |
+|------|------|
+| `[BASIC INFO]` | 对阵、时间、状态、比分 |
+| `[XG ANALYSIS]` | 赛前预期进球 xG，主客队差值 |
+| `[VENUE-SPECIFIC PPG]` | 主队主场 PPG / 客队客场 PPG |
+| `[HOME ADVANTAGE]` | 主场进攻/防守/整体优势值 |
+| `[H2H RECORD]` | 历史交锋场次、胜平负、BTTS%、Over 2.5% |
+| `[POTENTIALS & CONTRADICTIONS]` | BTTS/O25/O35 概率，矛盾信号 |
+| `[HOME TEAM DETAILED STATS]` | 主队净胜球%、BTTS%、Over 2.5%（含主客场拆分） |
+| `[AWAY TEAM DETAILED STATS]` | 客队对应统计 |
+| `[VENUE-SPECIFIC XG]` | 主队主场 xG For/Against，客队客场 xG For/Against |
+| `[ODDS ANALYSIS]` | Pinnacle 赔率、Soft 赔率、差异、特殊盘 |
+| `[TRENDS]` | 主客队近期趋势文字描述 |
+| `[SUMMARY - KEY SIGNALS]` | 关键信号汇总 |
+| `[2ND HALF ODDS]` | 下半场赔率 |
+| `[DATA QUALITY NOTES]` | 小样本警告、赔率使用说明 |
+
+## Output Example
+
+```
+============================================================
+=== MATCH ANALYSIS: 8469819 ===
+============================================================
+
+[BASIC INFO]
+  TeamA vs TeamB
+  Time: 2026-03-30 20:00:00
+  Status: incomplete
+
+[XG ANALYSIS]
+  Pre-match xG (system estimate): Home 1.45 / Away 1.12
+  Total xG: 2.57
+  xG Difference: +0.33 (positive=home advantage)
+
+[TEAM FORM]
+  Home Team (Position: 3)
+    PPG: 1.80 | Win%: 56.0%
+    Goals: 42 | Conceded: 25
+  Away Team (Position: 8)
+    PPG: 1.40 | Win%: 43.0%
+  PPG Difference (overall): +0.40
+
+[VENUE-SPECIFIC PPG] (Home team at home / Away team away)
+  Home team HOME PPG: 2.10
+  Away team AWAY PPG: 1.20
+  Venue PPG Difference: +0.90
+
+[H2H RECORD]
+  Total Matches: 12
+  Home Wins: 6 (50.0%)
+  Away Wins: 3 (25.0%)
+  Draws: 3 (25.0%)
+  H2H BTTS %: 58.3%
+  H2H Over 2.5 %: 50.0%
+
+[POTENTIALS & CONTRADICTIONS]
+  BTTS Potential (full match): 65%
+  Over 2.5 Potential: 60%
+
+[ODDS ANALYSIS]
+  *** PINNACLE ODDS (Smart Money Benchmark) ***
+  Pinnacle: Home 2.05 | Draw 3.50 | Away 3.60
+  Pinnacle Implied Prob: Home 46.5% | Draw 27.2% | Away 26.3%
+
+============================================================
+[SUMMARY - KEY SIGNALS]
+============================================================
+  Pinnacle odds show Home 2.05 / Away 3.60
+  -> Market favors HOME strongly
+
+============================================================
+[DATA QUALITY NOTES]
+============================================================
+  ODDS USAGE NOTE:
+  - Pinnacle: Use for EV calculation (smart money benchmark)
+  - Soft odds (odds_ft_*): Reference only, may be outdated
+============================================================
 ```
 
 ## Error Handling
 
-如果命令执行失败，返回错误信息：
+命令执行失败时输出错误信息到 stderr，退出码非零。常见原因：
 
-```json
-{
-  "error": true,
-  "message": "比赛数据获取失败",
-  "details": "命令返回码或错误信息"
-}
-```
+- 比赛 ID 不存在：`Failed to get match details for <match_id>`
+- API Key 未配置或无效：检查 `.env` 文件中的 `FOOTYSTATS_API_KEY`
+- 网络错误：检查网络连接
 
 ## Notes
 
