@@ -1,13 +1,16 @@
 ---
 name: footystats
-description: "获取足球比赛数据、联赛信息、球队/球员统计。当用户询问足球相关数据时主动触发：
-- 提及比赛、联赛、球队、球员、比分、赔率等
-- 请求分析某球队/球员的表现或历史数据
-- 查询今日比赛、赛程安排
-- 获取足球统计数据（BTTS、Over 2.5等）"
+description: "【仅用于调试和原始 API 探索】直接通过 curl 调用 FootyStats API 获取原始数据。正式赛程查询请使用 goalcast-schedule，正式比赛分析请使用 goalcast-analyze。仅在以下场景触发：
+- 调试 API 响应或探索原始数据结构
+- 查看球队/球员/裁判的原始历史数据
+- 获取联赛积分榜、BTTS、Over 2.5 等统计原始值
+- 用户明确要求'直接调 API'或'查原始数据'"
 ---
 
 # FootyStats Skill
+
+> **注意**：本技能仅适用于 API 调试和原始数据探索。
+> 查看赛程请使用 `goalcast-schedule` 技能；进行比赛量化分析请使用 `goalcast-analyze` 技能。
 
 基于 FootyStats API，通过 curl 直接调用，无需 Python 依赖。
 
