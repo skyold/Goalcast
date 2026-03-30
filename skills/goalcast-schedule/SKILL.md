@@ -39,20 +39,20 @@ except ImportError:
 退出码 `1` 表示 Key 缺失，**停止执行**并提示用户：
 > ⚠️ 未检测到 FOOTYSTATS_API_KEY，请先完成配置。
 >
-> **方式 A（当前目录 .env，推荐）：**
-> ```bash
-> echo 'FOOTYSTATS_API_KEY=你的key' > .env
-> ```
-> **方式 B（全局配置）：**
+> **方式 A — 全局配置（推荐，所有目录均生效）：**
 > ```bash
 > mkdir -p ~/.config/football-datakit
-> echo 'FOOTYSTATS_API_KEY=你的key' > ~/.config/football-datakit/.env
+> echo 'FOOTYSTATS_API_KEY=你的key' >> ~/.config/football-datakit/.env
 > ```
 > 获取 API Key：https://footystats.org/api
 >
 > 配置完成后请告诉我，我继续查询赛程。
 
-若用户直接提供了 key，帮助执行写入后继续。
+若用户直接提供了 key，**默认写入全局配置**（避免 CWD 不一致问题）：
+```bash
+mkdir -p ~/.config/football-datakit
+echo 'FOOTYSTATS_API_KEY=<用户提供的key>' >> ~/.config/football-datakit/.env
+```
 
 ## Command
 

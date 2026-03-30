@@ -3,17 +3,18 @@ from pathlib import Path
 from typing import Dict
 from dotenv import load_dotenv, find_dotenv
 
-# 查找 .env 的优先级：
-# 1. 当前工作目录及其父目录（find_dotenv 向上搜索）
-# 2. 用户全局配置 ~/.config/football-datakit/.env
-# 3. 直接读取环境变量（兜底）
-_dotenv_path = find_dotenv(usecwd=True)
-if _dotenv_path:
-    load_dotenv(_dotenv_path)
-else:
-    _user_config = Path.home() / ".config" / "football-datakit" / ".env"
-    if _user_config.exists():
-        load_dotenv(_user_config)
+# .env 加载优先级（低 → 高，后加载的覆盖先加载的）：
+# 1. 用户全局配置 ~/.config/football-datakit/.env（始终尝试）
+# 2. 当前工作目录及其父目录的 .env（本地覆盖全局）
+# 注意：find_dotenv(usecwd=True) 从 CWD 向上搜索，不向下，
+#       因此全局配置对所有工作目录均生效，本地 .env 仅在同目录树下生效。
+_user_config = Path.home() / ".config" / "football-datakit" / ".env"
+if _user_config.exists():
+    load_dotenv(_user_config)
+
+_local_dotenv = find_dotenv(usecwd=True)
+if _local_dotenv:
+    load_dotenv(_local_dotenv, override=True)
 
 # BASE_DIR 指向包所在目录，用于数据库等本地文件路径
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -149,12 +150,12 @@ class Settings:
             "\n"
             "请通过以下任意方式配置：\n"
             "\n"
-            "方式 A — 当前目录创建 .env（推荐）：\n"
-            "    echo 'FOOTYSTATS_API_KEY=your_key_here' > .env\n"
-            "\n"
-            "方式 B — 全局配置（所有目录均生效）：\n"
+            "方式 A — 全局配置（推荐，所有目录均生效）：\n"
             f"    mkdir -p {user_config.parent}\n"
-            f"    echo 'FOOTYSTATS_API_KEY=your_key_here' > {user_config}\n"
+            f"    echo 'FOOTYSTATS_API_KEY=your_key_here' >> {user_config}\n"
+            "\n"
+            "方式 B — 当前目录 .env（仅在该目录及其父目录下运行时生效）：\n"
+            "    echo 'FOOTYSTATS_API_KEY=your_key_here' >> .env\n"
             "\n"
             "方式 C — 临时环境变量：\n"
             "    export FOOTYSTATS_API_KEY=your_key_here\n"

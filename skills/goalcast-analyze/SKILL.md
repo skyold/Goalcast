@@ -46,22 +46,25 @@ pip install football-datakit[ai]
 
 > ⚠️ 未检测到 FOOTYSTATS_API_KEY，请先完成配置。
 >
-> **方式 A（当前目录 .env，推荐）：**
-> ```bash
-> echo 'FOOTYSTATS_API_KEY=你的key' > .env
-> ```
-> **方式 B（全局配置，所有目录生效）：**
+> **方式 A — 全局配置（推荐，所有目录均生效）：**
 > ```bash
 > mkdir -p ~/.config/football-datakit
-> echo 'FOOTYSTATS_API_KEY=你的key' > ~/.config/football-datakit/.env
+> echo 'FOOTYSTATS_API_KEY=你的key' >> ~/.config/football-datakit/.env
 > ```
+>
+> **方式 B — 当前目录 .env（仅在该目录及其父目录下运行命令时生效）：**
+> ```bash
+> echo 'FOOTYSTATS_API_KEY=你的key' >> .env
+> ```
+>
 > 获取 API Key：https://footystats.org/api
 >
 > 配置完成后告诉我，我继续分析。
 
-若用户直接提供 Key，帮助写入后继续：
+若用户直接提供 Key，**默认写入全局配置**（避免 CWD 不一致问题）：
 ```bash
-echo 'FOOTYSTATS_API_KEY=<用户提供的key>' > .env
+mkdir -p ~/.config/football-datakit
+echo 'FOOTYSTATS_API_KEY=<用户提供的key>' >> ~/.config/football-datakit/.env
 ```
 
 ---
