@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include requirements.txt
+include .env.example
+recursive-include src *.py *.md *.txt
+recursive-include cmd *.py
+recursive-include config *.py
+recursive-include .trae/skills *.md
+recursive-include doc *.md
+global-include *.example
