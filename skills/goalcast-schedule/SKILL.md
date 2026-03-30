@@ -109,18 +109,15 @@ cd /Users/zhengningdai/workspace/skyold/Goalcast
 用户说"分析第 N 场"或给出具体 `match_id`：
 
 1. 从日程表取对应 `match_id`
-2. 调用 `goalcast-get-match-data` 获取比赛报告
-3. 调用 `goalcast-analyze` 执行 8 层量化分析
-4. 调用 `goalcast-report` 输出可读报告
+2. 调用 `goalcast-analyze` 完成数据获取、8 层量化分析、报告输出
 
 ### 场景 B：批量分析
 
 用户说"分析全部"或"分析今天所有比赛"：
 
 对日程中每场比赛**依次**执行：
-1. `goalcast-get-match-data(match_id)` → 获取文本报告
-2. `goalcast-analyze(report)` → 获取分析 JSON
-3. 从 JSON 提取：`decision.best_bet` / `decision.ev_risk_adjusted` / `decision.confidence` / `decision.bet_rating`
+1. 调用 `goalcast-analyze(match_id)` → 完成数据获取、分析并输出报告
+2. 从报告提取：推荐方向 / EV（风险调整后）/ 置信度 / 评级
 
 全部完成后，输出汇总表：
 
