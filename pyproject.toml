@@ -56,12 +56,11 @@ Documentation = "https://github.com/your-org/Goalcast#readme"
 Repository = "https://github.com/your-org/Goalcast.git"
 
 [project.scripts]
-goalcast-match = "cmd.match_data_cmd:main"
-goalcast-schedule = "cmd.get_schedule:main"
-goalcast-get-matches = "cmd.get_matches:main"
+goalcast-match = "goalcast.cmd.match_data_cmd:main"
+goalcast-get-matches = "goalcast.cmd.get_matches:main"
 
 [tool.setuptools.packages.find]
-include = ["src*", "cmd*", "config*"]
+include = ["goalcast*"]
 exclude = ["tests*", "scripts*", "*.tests"]
 
 [tool.setuptools.package-data]
