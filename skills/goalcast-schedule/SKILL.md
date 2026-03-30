@@ -1,5 +1,6 @@
 ---
 name: goalcast-schedule
+version: "1.1.0"
 description: "查看足球赛程和比赛日程安排，并引导进入分析流程。触发词：
 - 今天/明天/本周/最近有什么比赛
 - 查赛程、查日程、看比赛安排
