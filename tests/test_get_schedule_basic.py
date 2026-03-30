@@ -23,7 +23,7 @@ from get_schedule import (
     format_compact,
     ScheduleError
 )
-from src.datasource.types import Match, MatchStatus
+from goalcast.datasource.types import Match, MatchStatus
 from datetime import datetime
 
 
