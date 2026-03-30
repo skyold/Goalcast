@@ -14,17 +14,35 @@ description: "完整的足球比赛量化分析。输入比赛 ID，自动获取
 
 ## 第 0 步 — 环境检查
 
-**安装依赖：**
+**安装依赖（若尚未安装）：**
 ```bash
 python -c "import goalcast" 2>/dev/null || pip install football-datakit[ai]
 ```
 
-**检查 API Key：**
+**检查 API Key（含包安装状态）：**
 ```bash
-python -c "from goalcast.config.settings import settings; exit(0 if settings.FOOTYSTATS_API_KEY else 1)"
+python -c "
+import sys
+try:
+    from goalcast.config.settings import settings
+    sys.exit(0 if settings.FOOTYSTATS_API_KEY else 1)
+except ImportError:
+    print('ERR_NOT_INSTALLED', file=sys.stderr)
+    sys.exit(2)
+"
 ```
 
-若 Key 缺失，**停止执行**，提示用户：
+退出码含义：
+- `0` — 正常，继续执行
+- `1` — 包已安装但 Key 缺失，提示用户配置
+- `2` — 包未安装，先执行 `pip install football-datakit[ai]` 后重试
+
+若退出码为 `2`，执行安装后**重新**运行本步检查：
+```bash
+pip install football-datakit[ai]
+```
+
+若 Key 缺失（退出码 `1`），**停止执行**，提示用户：
 
 > ⚠️ 未检测到 FOOTYSTATS_API_KEY，请先完成配置。
 >

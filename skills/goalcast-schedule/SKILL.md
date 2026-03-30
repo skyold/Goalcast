@@ -23,11 +23,20 @@ description: "查看足球赛程和比赛日程安排，并引导进入分析流
 python -c "import goalcast" 2>/dev/null || pip install football-datakit[ai]
 ```
 
-**2. 检查 API Key：**
+**2. 检查 API Key（含包安装状态）：**
 ```bash
-python -c "from goalcast.config.settings import settings; exit(0 if settings.FOOTYSTATS_API_KEY else 1)"
+python -c "
+import sys
+try:
+    from goalcast.config.settings import settings
+    sys.exit(0 if settings.FOOTYSTATS_API_KEY else 1)
+except ImportError:
+    print('ERR_NOT_INSTALLED', file=sys.stderr)
+    sys.exit(2)
+"
 ```
-若未配置，**停止执行**并提示用户：
+退出码 `2` 表示包未安装，先执行 `pip install football-datakit[ai]` 后重试。
+退出码 `1` 表示 Key 缺失，**停止执行**并提示用户：
 > ⚠️ 未检测到 FOOTYSTATS_API_KEY，请先完成配置。
 >
 > **方式 A（当前目录 .env，推荐）：**
