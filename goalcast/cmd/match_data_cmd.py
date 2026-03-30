@@ -558,7 +558,7 @@ def add_debug_arg(subparser):
     subparser.add_argument('--debug', action='store_true', help='显示原始 API 数据')
 
 
-async def main():
+async def _main():
     parser = argparse.ArgumentParser(
         description="Match Data 命令行工具 - 按类别获取比赛数据",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -700,5 +700,9 @@ async def main():
         await cmd.get_match_analysis(args.match_id)
 
 
-if __name__ == '__main__':
-    asyncio.run(main())
+def main():
+    asyncio.run(_main())
+
+
+if __name__ == "__main__":
+    main()

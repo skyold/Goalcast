@@ -328,7 +328,7 @@ async def run_date(provider: FootyStatsProvider, target_date: date, debug: bool 
         print(f"\n日期 {target_date.strftime('%Y-%m-%d')} 没有比赛或请求失败")
 
 
-async def main():
+async def _main():
     parser = argparse.ArgumentParser(
         description="FootyStats 比赛日程查询工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -382,5 +382,9 @@ async def main():
         await run_date(provider, date.today())
 
 
+def main():
+    asyncio.run(_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
