@@ -21,4 +21,4 @@ EXPOSE 8000
 
 # Run the MCP server using SSE (Server-Sent Events) transport
 # Default to running as a web server on port 8000
-CMD ["python", "goalcast/mcp/server.py", "sse"]
+CMD ["python", "mcp_server/server.py", "sse"]

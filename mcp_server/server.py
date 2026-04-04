@@ -2,9 +2,9 @@ import asyncio
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
 
-from goalcast.provider.footystats.client import FootyStatsProvider
-from goalcast.provider.sportmonks.client import SportmonksProvider
-from goalcast.utils.logger import logger
+from provider.footystats.client import FootyStatsProvider
+from provider.sportmonks.client import SportmonksProvider
+from utils.logger import logger
 
 # Initialize FastMCP server
 mcp = FastMCP("Goalcast Data Providers")

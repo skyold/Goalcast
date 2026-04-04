@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 import asyncio
 import httpx
-from goalcast.utils.logger import logger
-from goalcast.utils.rate_limiter import get_rate_limiter
+from utils.logger import logger
+from utils.rate_limiter import get_rate_limiter
 
 
 class BaseProvider(ABC):

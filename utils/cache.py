@@ -2,7 +2,7 @@ import json
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
-from goalcast.config.settings import BASE_DIR
+from config.settings import BASE_DIR
 
 CACHE_DIR = BASE_DIR / "data" / "cache"
 

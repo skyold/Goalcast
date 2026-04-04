@@ -80,9 +80,9 @@ FootyStats API Provider
 """
 
 from typing import Dict, Any, Optional
-from goalcast.provider.base import BaseProvider
-from goalcast.utils.logger import logger
-from goalcast.config.settings import settings
+from provider.base import BaseProvider
+from utils.logger import logger
+from config.settings import settings
 import json
 
 

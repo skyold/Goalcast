@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from loguru import logger
-from goalcast.config.settings import BASE_DIR
+from config.settings import BASE_DIR
 
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)

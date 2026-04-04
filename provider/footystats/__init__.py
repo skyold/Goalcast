@@ -8,7 +8,7 @@ FootyStats API Provider
 - 统计数据：BTTS、Over 2.5
 """
 
-from goalcast.provider.footystats.client import FootyStatsProvider
+from provider.footystats.client import FootyStatsProvider
 
 # 导出主要类
 __all__ = ["FootyStatsProvider"]

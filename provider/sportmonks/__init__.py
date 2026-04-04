@@ -9,7 +9,7 @@ Sportmonks API v3 Football Provider
 - 预测数据：获取官方胜平负概率预测及价值投注建议 (Value Bets)
 """
 
-from goalcast.provider.sportmonks.client import SportmonksProvider
+from provider.sportmonks.client import SportmonksProvider
 
 # 导出主要类
 __all__ = ["SportmonksProvider"]
