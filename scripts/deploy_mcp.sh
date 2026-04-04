@@ -4,8 +4,12 @@
 
 set -e
 
+# 获取项目根目录（scripts 的父目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# 切换到项目根目录
+cd "$PROJECT_ROOT"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -154,6 +158,11 @@ EOF
   }
 }
 EOF
+    echo ""
+    echo "💡 注意："
+    echo "  - 如果 MCP 服务器在 Docker 中，客户端在宿主机，使用："
+    echo "    http://host.docker.internal:8000/sse"
+    echo ""
     echo ""
 }
 
