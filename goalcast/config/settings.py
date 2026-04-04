@@ -119,6 +119,7 @@ class Settings:
 
     def __init__(self):
         self.FOOTYSTATS_API_KEY = self._get_env("FOOTYSTATS_API_KEY", "")
+        self.SPORTMONKS_API_KEY = self._get_env("SPORTMONKS_API_KEY", "")
         self._warn_if_missing()
         self.FOOTBALL_DATA_API_KEY = self._get_env("FOOTBALL_DATA_API_KEY", "")
         self.ODDS_API_KEY = self._get_env("ODDS_API_KEY", "")
