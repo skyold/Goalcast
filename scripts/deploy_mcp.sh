@@ -131,9 +131,8 @@ services:
     env_file:
       - .env
     environment:
-      - HOST=0.0.0.0
-      - PORT=8000
-      - FASTMCP_TRANSPORT=sse
+      - FASTMCP_HOST=0.0.0.0
+      - FASTMCP_PORT=8000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
