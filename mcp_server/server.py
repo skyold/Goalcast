@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
 
@@ -6,8 +7,14 @@ from provider.footystats.client import FootyStatsProvider
 from provider.sportmonks.client import SportmonksProvider
 from utils.logger import logger
 
-# Initialize FastMCP server
-mcp = FastMCP("Goalcast Data Providers")
+# Initialize FastMCP server.
+# FASTMCP_HOST defaults to 127.0.0.1 (local) but can be overridden via env var,
+# e.g. set FASTMCP_HOST=0.0.0.0 in docker-compose.yml for remote access.
+mcp = FastMCP(
+    "Goalcast Data Providers",
+    host=os.environ.get("FASTMCP_HOST", "127.0.0.1"),
+    port=int(os.environ.get("FASTMCP_PORT", "8000")),
+)
 
 # Initialize providers
 # Using lazy initialization to ensure the providers are only created when needed
@@ -217,8 +224,6 @@ if __name__ == "__main__":
     # FastMCP reads host/port from FASTMCP_HOST / FASTMCP_PORT env vars.
     # Defaults: FASTMCP_HOST=0.0.0.0, FASTMCP_PORT=8000 for SSE mode.
     if len(sys.argv) > 1 and sys.argv[1] == "sse":
-        os.environ.setdefault("FASTMCP_HOST", "0.0.0.0")
-        os.environ.setdefault("FASTMCP_PORT", "8000")
         mcp.run(transport="sse")
     else:
         mcp.run()
