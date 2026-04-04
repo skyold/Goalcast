@@ -19,6 +19,10 @@ if _local_dotenv:
 # BASE_DIR 指向包所在目录，用于数据库等本地文件路径
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# 数据文件目录
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)  # 确保目录存在
+
 
 class Settings:
     FOOTYSTATS_API_KEY: str = ""
