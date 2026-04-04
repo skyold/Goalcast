@@ -211,9 +211,14 @@ async def sportmonks_get_value_bets() -> Any:
     return await handle_api_call("Sportmonks", get_sportmonks().get_value_bets())
 
 if __name__ == "__main__":
+    import os
     import sys
-    # Default to stdio for local use, but support SSE for remote
+    # Default to stdio for local use, but support SSE for remote/Docker.
+    # FastMCP reads host/port from FASTMCP_HOST / FASTMCP_PORT env vars.
+    # Defaults: FASTMCP_HOST=0.0.0.0, FASTMCP_PORT=8000 for SSE mode.
     if len(sys.argv) > 1 and sys.argv[1] == "sse":
+        os.environ.setdefault("FASTMCP_HOST", "0.0.0.0")
+        os.environ.setdefault("FASTMCP_PORT", "8000")
         mcp.run(transport="sse")
     else:
         mcp.run()
