@@ -7,8 +7,14 @@ WORKDIR /app
 # Copy the requirements file into the container
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt mcp uvicorn
+# Install only core dependencies (skip optional ones)
+# Core: httpx, loguru, python-dotenv
+RUN pip install --no-cache-dir \
+    httpx[asyncio]==0.27.0 \
+    loguru==0.7.2 \
+    python-dotenv==1.0.1 \
+    mcp \
+    uvicorn
 
 # Copy the rest of the application code into the container
 COPY . .

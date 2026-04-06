@@ -1,13 +1,22 @@
+# Core dependencies
 httpx[asyncio]==0.27.0
-pydantic==2.9.0
 loguru==0.7.2
 python-dotenv==1.0.1
-sqlalchemy>=2.0.0
-pandas==2.2.3
-numpy>=1.26.0
+
+# Optional: Database support (future use)
+# sqlalchemy>=2.0.0
+
+# Optional: LLM integration (future use)
+# anthropic>=0.38.0
+# openai>=1.54.0
+
+# Optional: Data analysis (future use)
+# pandas==2.2.3
+# numpy>=1.26.0
+
+# Optional: Task scheduling (future use)
+# apscheduler==3.10.4
+
+# Development dependencies
 pytest>=8.2.0
 pytest-asyncio==0.24.0
-anthropic==0.38.0
-openai==1.54.0
-apscheduler==3.10.4
-aiohttp==3.13.3
