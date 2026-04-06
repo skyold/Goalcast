@@ -80,13 +80,35 @@ async def footystats_get_country_list() -> Any:
     return await handle_api_call("FootyStats", get_footystats().get_country_list())
 
 @mcp.tool()
-async def footystats_get_todays_matches(date: Optional[str] = None, timezone: Optional[str] = None) -> Any:
+async def footystats_get_todays_matches(
+    date: Optional[str] = None,
+    timezone: Optional[str] = None,
+    league_filter: Optional[str] = None,
+) -> Any:
     """Get matches for a specific date from FootyStats.
+
+    WARNING: Global fixture weekends can return 200+ matches (>1MB response).
+    Use league_filter to reduce data volume and avoid timeouts.
+
+    Recommended workflow:
+      1. Call this tool with league_filter to get match_ids for your target league.
+      2. Call get_match_details(match_id) for per-match deep analysis.
+
     Args:
         date: Date in YYYY-MM-DD format. Defaults to today.
         timezone: Timezone for match times (e.g. 'Europe/London').
+        league_filter: Optional league name substring to filter results
+            (e.g. 'Premier League', 'Champions League'). Case-insensitive.
+            Greatly reduces response size when only one league is needed.
     """
-    return await handle_api_call("FootyStats", get_footystats().get_todays_matches(date, timezone))
+    result = await handle_api_call("FootyStats", get_footystats().get_todays_matches(date, timezone))
+    if league_filter and isinstance(result, dict) and isinstance(result.get("data"), list):
+        filtered = [
+            m for m in result["data"]
+            if league_filter.lower() in str(m.get("competition_name", "")).lower()
+        ]
+        return {**result, "data": filtered}
+    return result
 
 @mcp.tool()
 async def footystats_get_league_stats(season_id: int) -> Any:
@@ -95,7 +117,18 @@ async def footystats_get_league_stats(season_id: int) -> Any:
 
 @mcp.tool()
 async def footystats_get_league_matches(season_id: int, page: int = 1) -> Any:
-    """Get all matches for a specific league season from FootyStats."""
+    """Get all matches for a specific league season from FootyStats.
+
+    WARNING: Each match contains extensive statistical fields. Even page=1
+    can exceed 1MB and cause timeouts for large leagues.
+
+    Recommended alternative for daily analysis:
+      get_todays_matches(league_filter=...) → get_match_details(match_id)
+
+    Args:
+        season_id: League season ID.
+        page: Page number for pagination (default: 1).
+    """
     return await handle_api_call("FootyStats", get_footystats().get_league_matches(season_id, page))
 
 @mcp.tool()
