@@ -1,5 +1,6 @@
 # Environment variables (DO NOT COMMIT)
 .env
+mcporter.json
 
 # Python
 __pycache__/
@@ -49,9 +50,10 @@ data/cache/
 logs/
 *.log
 
-# Exports
+# Data files (keep directory, ignore generated files)
+data/*.json
+data/cache/
 data/exports/
-*.json
 
 # OS
 .DS_Store
@@ -59,3 +61,4 @@ Thumbs.db
 /skills-dist
 /.trae
 /.claude
+/.github
