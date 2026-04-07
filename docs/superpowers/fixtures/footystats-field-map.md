@@ -1,8 +1,8 @@
 # FootyStats 真实字段映射
 
 > 探索日期：2026-04-07
-> 测试比赛：Sporting CP vs Arsenal（match_id: 8494534）
-> 联赛：UEFA Champions League（competition_id: 14924）
+> 测试比赛：Arsenal vs AFC Bournemouth（match_id: 8223599）
+> 联赛：England Premier League（competition_id: 15050）
 
 ---
 
@@ -10,14 +10,14 @@
 
 返回结构：`{ success, pager, metadata, data: [...], message }`，`data` 是比赛对象数组。
 
-- match ID：`id`（示例值：8494534）
-- 主队 ID：`homeID`（示例值：114，Sporting CP）
-- 客队 ID：`awayID`（示例值：59，Arsenal）
-- 主队名称：`home_name`（示例值："Sporting CP"）
-- 客队名称：`away_name`（示例值："Arsenal"）
+- match ID：`id`（示例值：8223599）
+- 主队 ID：`homeID`（示例值：59，Arsenal）
+- 客队 ID：`awayID`（示例值：148，AFC Bournemouth）
+- 主队名称：`home_name`（示例值："Arsenal"）
+- 客队名称：`away_name`（示例值："AFC Bournemouth"）
 - season（赛季字符串）：`season`（示例值："2025/2026"，**字符串，不是数字 ID**）
-- 联赛/赛季 ID（用于 league_tables/league_matches）：`competition_id`（示例值：14924）
-- 比赛日期（Unix 时间戳）：`date_unix`（示例值：1775588400，对应 2026-04-07 19:00 UTC）
+- 联赛/赛季 ID（用于 league_tables/league_matches）：`competition_id`（示例值：15050）
+- 比赛日期（Unix 时间戳）：`date_unix`（示例值：1775907000，对应 2026-04-11 11:30 UTC）
 
 > 注：`get_todays_matches` 返回的比赛对象**已包含完整赔率字段**（与 `get_match_details` 相同）。
 > **没有独立的数字 season_id 字段**，联赛/积分榜查询使用 `competition_id`。
@@ -30,14 +30,14 @@
 
 赔率字段直接在 `data` 顶层，**无嵌套**：
 
-- 主队赔率（主场胜）：`data.odds_ft_1`（示例值：4.65，Sporting CP 主场胜）
-- 平局赔率：`data.odds_ft_x`（示例值：3.5）
-- 客队赔率（客场胜）：`data.odds_ft_2`（示例值：1.59，Arsenal 客场胜）
+- 主队赔率（主场胜）：`data.odds_ft_1`（示例值：1.34，Arsenal 主场胜）
+- 平局赔率：`data.odds_ft_x`（示例值：5.78）
+- 客队赔率（客场胜）：`data.odds_ft_2`（示例值：10.4，AFC Bournemouth 客场胜）
 - 赔率可用：**是**（字段存在且有值，为 float 类型）
 
 其他赔率字段（同在顶层）：
-- `data.odds_ft_over25`：大于 2.5 球（示例值：1.9）
-- `data.odds_btts_yes`：双方都进球（示例值：1.82）
+- `data.odds_ft_over25`：大于 2.5 球（示例值：1.6）
+- `data.odds_btts_yes`：双方都进球（部分比赛为 0，表示暂未开放）
 - `data.odds_1st_half_result_1/x/2`：半场结果赔率
 - `data.odds_comparison`：多家博彩公司赔率对比（嵌套 dict，键如 "FT Result"、"Goals Over/Under" 等）
 
@@ -49,27 +49,27 @@
 
 ```
 data.h2h = {
-  "team_a_id": 114,
-  "team_b_id": 59,
+  "team_a_id": 59,
+  "team_b_id": 148,
   "previous_matches_results": {  # 汇总统计，不是比赛列表
-    "team_a_win_home": 0,
-    "team_a_win_away": 0,
-    "team_b_win_home": 0,
-    "team_b_win_away": 2,
+    "team_a_win_home": 7,
+    "team_a_win_away": 6,
+    "team_b_win_home": 2,
+    "team_b_win_away": 1,
     "draw": 3,
-    "team_a_wins": 0,
-    "team_b_wins": 2,
-    "totalMatches": 5,
-    "team_a_win_percent": 0,
-    "team_b_win_percent": 40
+    "team_a_wins": 13,
+    "team_b_wins": 3,
+    "totalMatches": 19,
+    "team_a_win_percent": 68,
+    "team_b_win_percent": 16
   },
   "betting_stats": {  # H2H 投注统计
     "over05", "over15", "over25", ...,
     "btts", "avg_goals", "total_goals", ...
   },
   "previous_matches_ids": [  # 历史比赛 ID 列表（含进球数）
-    {"id": 7666979, "date_unix": ..., "team_a_id": 114, "team_b_id": 59,
-     "team_a_goals": 1, "team_b_goals": 5},
+    {"id": 8223544, "date_unix": 1767461400, "team_a_id": 148, "team_b_id": 59,
+     "team_a_goals": 2, "team_b_goals": 3},
     ...
   ]
 }
@@ -96,6 +96,8 @@ data.h2h = {
 - `data[0]`：`last_x_match_num: 5`（近 5 场，overall）
 - `data[1]`：`last_x_match_num: 6`（近 6 场，overall）
 - `data[2]`：`last_x_match_num: 10`（近 10 场，overall）
+
+> ⚠️ 建议按 `last_x_match_num` 值遍历匹配目标对象，不要依赖数组下标（API 不保证返回顺序）
 
 每个对象结构：
 ```
@@ -133,27 +135,29 @@ data.h2h = {
 
 ## get_league_tables → 积分榜字段
 
-**调用方式**：`get_league_tables(season_id=14924)`（使用 `competition_id`）
+**调用方式**：`get_league_tables(season_id=15050)`（使用 `competition_id`）
 
 返回结构：`{ success, pager, metadata, data: {...}, message }`
 
 `data` 包含多个表：
-- `data.league_table`：值为 null（此联赛无标准积分榜）
-- `data.all_matches_table_overall`：**主要积分榜**，82 支参赛队排名（list）
+- `data.league_table`：**主要积分榜**，20 支球队（英超等常规联赛有值；UCL 等杯赛为 null）
+- `data.all_matches_table_overall`：全部比赛积分榜，与 `league_table` 内容相同（英超为 20 队）
 - `data.all_matches_table_home`：主场成绩榜（list）
 - `data.all_matches_table_away`：客场成绩榜（list）
 - `data.specific_tables`：分轮次/组别的专项榜（list）
 
-### all_matches_table_overall 中每支球队的字段
+> ℹ️ 对于英超等常规联赛，优先使用 `data.league_table`（有值）。UCL 等杯赛 `league_table` 为 null，需回退到 `all_matches_table_overall`。
 
-- 球队积分：`points`（示例：Arsenal 28 分）
+### league_table 中每支球队的字段
+
+- 球队积分：`points`（示例：Arsenal 70 分）
 - 排名：`position`（示例：Arsenal position=1，第 1 名）
 - 球队名称：`name`（示例："Arsenal FC"）
 - 球队 ID：`id`（示例：59）
-- 场均积分：`ppg_overall`（示例：2.8）
-- 总进球：`seasonGoals`（示例：26）
-- 总失球：`seasonConceded`（示例：5）
-- 出场数：`matchesPlayed`（示例：10）
+- 场均积分：`ppg_overall`（示例：2.26）
+- 总进球：`seasonGoals`（示例：61）
+- 总失球：`seasonConceded`（示例：22）
+- 出场数：`matchesPlayed`（示例：31）
 - 胜/平/负：`seasonWins_overall`、`seasonDraws_overall`、`seasonLosses_overall`
 
 ---
@@ -162,15 +166,15 @@ data.h2h = {
 
 | 字段 | 值 |
 |------|----|
-| 主队名 | Sporting CP |
-| 客队名 | Arsenal |
-| match_id | 8494534 |
-| home_team_id（homeID） | 114 |
-| away_team_id（awayID） | 59 |
-| competition_id（用于 league_tables） | 14924 |
+| 主队名 | Arsenal |
+| 客队名 | AFC Bournemouth |
+| match_id | 8223599 |
+| home_team_id（homeID） | 59 |
+| away_team_id（awayID） | 148 |
+| competition_id（用于 league_tables） | 15050 |
 | season（字符串） | "2025/2026" |
-| 联赛 | UEFA Champions League |
-| 日期（Unix） | 1775588400（2026-04-07 19:00 UTC） |
+| 联赛 | England Premier League |
+| 日期（Unix） | 1775907000（2026-04-11 11:30 UTC） |
 
 ---
 
@@ -178,6 +182,6 @@ data.h2h = {
 
 1. **无独立数字 season_id**：`get_todays_matches` 的 `season` 字段是字符串（"2025/2026"），`competition_id` 才是传给 `get_league_tables` 和 `get_league_matches` 的整数 ID。
 2. **赔率字段平铺在顶层**：`data.odds_ft_1/x/2` 无需嵌套路径，直接读取。
-3. **get_team_last_x_stats 返回数组**：通过 `last_x_match_num` 区分 5/6/10 场数据，索引 [0]=5场，[1]=6场，[2]=10场。
-4. **league_table 为 null（UCL 特有）**：欧冠使用 `all_matches_table_overall` 而非 `league_table`，国内联赛可能不同。
+3. **get_team_last_x_stats 返回数组**：通过 `last_x_match_num` 区分 5/6/10 场数据；**不要依赖数组下标**，应遍历数组匹配 `last_x_match_num` 目标值。
+4. **league_table 因联赛类型而异**：英超等常规联赛 `data.league_table` 有值（20 队），UCL 等杯赛为 null，此时应回退使用 `all_matches_table_overall`。
 5. **get_match_details 已包含赔率**：无需额外调用，`get_todays_matches` 返回的比赛对象也已含完整赔率字段。
