@@ -45,6 +45,8 @@ mcp__goalcast__footystats_get_match_details(match_id=<id>)
 mcp__goalcast__footystats_get_team_last_x_stats(team_id=<homeID>)
 mcp__goalcast__footystats_get_team_last_x_stats(team_id=<awayID>)
 mcp__goalcast__footystats_get_league_tables(season_id=<competition_id>)
+# 注意：工具参数名为 season_id，值来自 Step 1 提取的 competition_id 字段
+# FootyStats 中 season 与 competition 指同一实体
 ```
 
 记录每个调用是否成功。失败项列入 missing_data。
