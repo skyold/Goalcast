@@ -36,45 +36,70 @@
 
 如果找不到比赛：回复"未找到符合条件的比赛，请确认日期和联赛名称"，停止执行。
 
+### Step 1.5：查找 Sportmonks fixture_id（可选增强）
+
+调用 `mcp__goalcast__sportmonks_get_fixtures_by_date(date=<YYYY-MM-DD>)`
+
+从返回结果中按主队名/客队名匹配（模糊匹配，忽略大小写），提取 `fixture_id`。
+
+- 匹配成功 → 记录 `sportmonks_fixture_id`，继续 Step 2 的增强调用
+- 匹配失败或工具报错（如 API Key 缺失）→ 记录 `sportmonks_fixture_id=null`，跳过所有 Sportmonks 调用，Step 2 仅执行 FootyStats 部分
+
 ### Step 2：并行采集数据
 
-同时调用以下4个工具：
-
+**FootyStats（必须执行）：**
 ```
 mcp__goalcast__footystats_get_match_details(match_id=<id>)
 mcp__goalcast__footystats_get_team_last_x_stats(team_id=<homeID>)
 mcp__goalcast__footystats_get_team_last_x_stats(team_id=<awayID>)
 mcp__goalcast__footystats_get_league_tables(season_id=<competition_id>)
 # 注意：工具参数名为 season_id，值来自 Step 1 提取的 competition_id 字段
-# FootyStats 中 season 与 competition 指同一实体
 ```
 
-记录每个调用是否成功。失败项列入 missing_data。
+**Sportmonks（仅当 Step 1.5 成功时并行追加）：**
+```
+mcp__goalcast__sportmonks_get_lineups(fixture_id=<sportmonks_fixture_id>)
+mcp__goalcast__sportmonks_get_odds_movement(fixture_id=<sportmonks_fixture_id>)
+mcp__goalcast__sportmonks_get_expected_goals(fixture_id=<sportmonks_fixture_id>)
+```
+
+每个 Sportmonks 调用失败时：将该项加入 missing_data，使用对应降级规则，不中断分析。
 
 ### Step 3：零层数据检查
 
 分析前，检查并记录每项数据的可用性：
 
-| 数据项 | 检查方式 | 降级处理 |
-|--------|----------|----------|
-| 主队近况（last_x） | data 数组非空 | 不可用 → 使用联赛均值，data_quality=low |
-| 客队近况（last_x） | data 数组非空 | 不可用 → 使用联赛均值，data_quality=low |
-| 赔率（odds_ft_1/x/2） | 值 > 0 | 不可用 → L3 跳过，market信号=中立 |
-| 积分榜（league_table） | league_table 非 null | 不可用 → L2 动力因素跳过 |
-| 阵容（首发） | **预期缺失** | 置信度 -10，L2 调整幅度上限 ±0.2 xG |
-| xG 直接数据 | **预期缺失** | L1 使用进球数代理（xG_proxy） |
+| 数据项 | 来源 | 检查方式 | 可用时 | 不可用时 |
+|--------|------|----------|--------|----------|
+| 主队近况 | FootyStats | data 数组非空 | 正常使用 | 联赛均值，data_quality=low |
+| 客队近况 | FootyStats | data 数组非空 | 正常使用 | 联赛均值，data_quality=low |
+| 静态赔率 | FootyStats | odds_ft_1/x/2 > 0 | 正常使用 | L3 跳过，信号=中立 |
+| 积分榜 | FootyStats | league_table 非 null | 正常使用 | L2 动力因素跳过 |
+| 首发阵容 | Sportmonks | lineups 数据非空 | 置信度不扣分 | 置信度 -10，L2 调整上限 ±0.2 xG |
+| 真实 xG | Sportmonks | xG 数据非空 | L1 使用真实 xG，不扣分 | L1 使用进球数代理，置信度 -5 |
+| 赔率走势 | Sportmonks | odds_movement 非空 | L3 信号可信度提升 | 仅用静态赔率，无额外扣分 |
 
-将所有预期和实际缺失的数据写入 missing_data 列表。
+将所有不可用项写入 missing_data 列表。
 
 ### Step 4：v2.5 五层分析
 
 **【第一层 — 基础实力（权重 40%）】**
+
+**若 Sportmonks 真实 xG 可用：**
+```
+base_xg_home = sportmonks_xg_home（赛前预测值）+ 主场修正
+base_xg_away = sportmonks_xg_away（赛前预测值）
+标注：使用真实 xG（Sportmonks）
+```
+
+**若真实 xG 不可用，使用代理值：**
 
 从 `get_team_last_x_stats` 提取场均进球数（字段：`stats.seasonScoredAVG_overall`，按 `last_x_match_num` 遍历匹配 5 和 10）：
 
 ```
 xG_proxy_home = 近10场场均进球 × 0.7 + 近5场场均进球 × 0.3
 xG_proxy_away = 近10场场均进球 × 0.7 + 近5场场均进球 × 0.3
+标注：使用 xG_proxy（进球数代理）
 ```
 
 主场优势修正（联赛参数）：
@@ -94,7 +119,7 @@ base_xg_home = xG_proxy_home + 主场修正
 base_xg_away = xG_proxy_away
 ```
 
-如近况数据不可用：使用联赛均值（英超：主 1.5 / 客 1.2），标注 data_quality=low，注明"基于联赛均值估算"。
+如近况数据不可用：使用联赛均值（英超：主 1.5 / 客 1.2），标注 data_quality=low。
 
 ---
 
@@ -107,12 +132,12 @@ base_xg_away = xG_proxy_away
    - 主队积分与降级区差距 ≤3 分（保级压力）：主队 +0.15 xG
    - 客队同理
 
-2. **阵容不确定性**（预期触发）：
-   - 所有调整幅度上限压缩为 ±0.2 xG（硬性约束）
-   - 本次调整将置信度 -10
+2. **阵容因素**：
+   - 阵容可用（Sportmonks 成功）：检查关键球员是否在首发，核心缺阵者 xG -0.10~-0.15
+   - 阵容不可用：所有调整幅度上限压缩为 ±0.2 xG（硬性约束），置信度 -10
 
 3. **无法获取的因素**（明确标注，不估算）：
-   - 伤病/停赛：标注"数据不可用，跳过"
+   - 伤病/停赛（无 Sportmonks 时）：标注"数据不可用，跳过"
    - 赛程疲劳：标注"数据不可用，跳过"
 
 ```
@@ -124,6 +149,16 @@ adjusted_xg_away = base_xg_away + L2_adjustment_away（受 ±0.2 上限约束）
 
 **【第三层 — 市场行为（权重 20%）】**
 
+**若赔率走势可用（Sportmonks odds_movement）：**
+```
+分析开盘赔率 → 当前赔率的变动方向和幅度
+变动 >5% 视为强信号；3~5% 为中等信号
+结合静态赔率归一化，得出市场概率
+标注："市场信号基于赔率走势（高可信度）"
+```
+
+**若仅有静态赔率（FootyStats）：**
+
 使用 `match_details` 中的赔率字段（`odds_ft_1` / `odds_ft_x` / `odds_ft_2`）：
 
 ```
@@ -132,6 +167,7 @@ adjusted_xg_away = base_xg_away + L2_adjustment_away（受 ±0.2 上限约束）
   P_market_home = (1/odds_ft_1) / 超售率
   P_market_draw = (1/odds_ft_x) / 超售率
   P_market_away = (1/odds_ft_2) / 超售率
+标注："市场信号仅基于静态赔率（低可信度）"
 ```
 
 模型与市场分歧 = 模型概率 - 市场概率（各方向）
@@ -191,10 +227,11 @@ EV 计算（v2.5 简化版）：
 加分：
 +8   市场方向与模型一致（signal_direction 含"支持模型"）
 +5   近况数据完整（主客队均有 last_x 数据）
++5   赔率走势可用（Sportmonks odds_movement 成功）
 
 扣分：
--10  阵容不可用（预期触发，必扣）
--5   xG 使用代理值（预期触发，必扣）
+-10  阵容不可用（Sportmonks lineups 失败或缺失）
+-5   xG 使用代理值（Sportmonks xG 失败，使用 xG_proxy）
 -5   赔率方向与模型相反
 -8   近况数据不可用（data_quality=low）
 
@@ -213,8 +250,8 @@ EV 计算（v2.5 简化版）：
     "away_team": "<客队名>",
     "competition": "<联赛名>",
     "match_type": "A",
-    "data_quality": "medium",
-    "missing_data": ["lineup", "xG_direct"]
+    "data_quality": "medium | high",
+    "missing_data": ["<实际缺失项，如 lineup、xG_direct、odds_movement>"]
   },
   "probabilities": {
     "home_win": "<X%>",
@@ -242,7 +279,7 @@ EV 计算（v2.5 简化版）：
     "bet_rating": "推荐 | 小注 | 不推荐",
     "confidence": 0
   },
-  "reasoning_summary": "<各层关键结论，须包含：xG_proxy 数值、市场信号方向、EV 计算依据、置信度扣分项>"
+  "reasoning_summary": "<各层关键结论，须包含：xG来源（真实/代理）及数值、Sportmonks数据可用性、市场信号方向、EV计算依据、置信度加减分明细>"
 }
 ```
 
@@ -250,5 +287,5 @@ EV 计算（v2.5 简化版）：
 - [ ] home_win% + draw% + away_win% = 100%（±0.5%）
 - [ ] confidence ∈ [30, 90]
 - [ ] ev ∈ [-1, +2]
-- [ ] missing_data 包含 "lineup" 和 "xG_direct"
-- [ ] reasoning_summary 非空且提及数据降级
+- [ ] missing_data 反映实际缺失（Sportmonks 可用时不应包含对应项）
+- [ ] reasoning_summary 非空且注明 xG 来源
