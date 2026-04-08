@@ -10,9 +10,7 @@ COPY requirements.txt .
 # Install dependencies using Tsinghua mirror for better speed in China
 RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    httpx[asyncio]==0.27.0 \
-    loguru==0.7.2 \
-    python-dotenv==1.0.1 \
+    -r requirements.txt \
     mcp \
     uvicorn
 
