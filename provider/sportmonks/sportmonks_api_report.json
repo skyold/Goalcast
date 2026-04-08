@@ -1,0 +1,124 @@
+{
+  "test_time": "2026-04-08T21:00:29.423299",
+  "api_key_prefix": "Y4Q4Lr04PZS7WLz",
+  "available_endpoints": [
+    {
+      "name": "fixtures (all)",
+      "endpoint": "/fixtures",
+      "data_count": 25,
+      "description": "✓ 可用，返回 25 条数据"
+    },
+    {
+      "name": "fixtures/between",
+      "endpoint": "/fixtures/between/2026-04-08/2026-04-15",
+      "data_count": 12,
+      "description": "✓ 可用，返回 12 条数据"
+    },
+    {
+      "name": "leagues",
+      "endpoint": "/leagues",
+      "data_count": 4,
+      "description": "✓ 可用，返回 4 条数据"
+    },
+    {
+      "name": "seasons",
+      "endpoint": "/seasons",
+      "data_count": 25,
+      "description": "✓ 可用，返回 25 条数据"
+    },
+    {
+      "name": "teams",
+      "endpoint": "/teams",
+      "data_count": 25,
+      "description": "✓ 可用，返回 25 条数据"
+    },
+    {
+      "name": "players",
+      "endpoint": "/players",
+      "data_count": 25,
+      "description": "✓ 可用，返回 25 条数据"
+    }
+  ],
+  "unavailable_endpoints": [
+    {
+      "name": "livescores",
+      "endpoint": "/livescores",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "livescores/inplay",
+      "endpoint": "/livescores/inplay",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "livescores/latest",
+      "endpoint": "/livescores/latest",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "fixtures/date",
+      "endpoint": "/fixtures/date/2026-04-08",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "leagues/countries/11",
+      "endpoint": "/leagues/countries/11",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "leagues/search/Bundesliga",
+      "endpoint": "/leagues/search/Bundesliga",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "standings/seasons/14968",
+      "endpoint": "/standings/seasons/14968",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "teams/seasons/14968",
+      "endpoint": "/teams/seasons/14968",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "fixtures/seasons/14968",
+      "endpoint": "/fixtures/seasons/14968",
+      "description": "✗ HTTP 404"
+    },
+    {
+      "name": "odds/markets",
+      "endpoint": "/odds/markets",
+      "description": "✗ HTTP 404"
+    },
+    {
+      "name": "odds/bookmakers",
+      "endpoint": "/odds/bookmakers",
+      "description": "✗ HTTP 404"
+    },
+    {
+      "name": "predictions/value-bets",
+      "endpoint": "/predictions/value-bets",
+      "description": "✗ HTTP 403"
+    },
+    {
+      "name": "topscorers/seasons/14968",
+      "endpoint": "/topscorers/seasons/14968",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "schedules/seasons/14968",
+      "endpoint": "/schedules/seasons/14968",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "rounds/seasons/14968",
+      "endpoint": "/rounds/seasons/14968",
+      "description": "✗ 无数据或订阅不包含"
+    },
+    {
+      "name": "stages/seasons/14968",
+      "endpoint": "/stages/seasons/14968",
+      "description": "✗ 无数据或订阅不包含"
+    }
+  ]
+}
