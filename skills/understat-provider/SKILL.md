@@ -1,3 +1,8 @@
+---
+name: understat-provider
+description: Use this skill when the user needs Understat API guidance, asks about xG/xA statistics, wants to use the understatapi library, or needs advanced football analytics data from Understat.
+---
+
 # Understat Provider Skill
 
 ## 📋 概述

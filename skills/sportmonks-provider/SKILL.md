@@ -1,3 +1,8 @@
+---
+name: sportmonks-provider
+description: Use this skill when the user needs SportMonks API v3 guidance, asks about free plan endpoints, fixtures/leagues/seasons data, or how to configure and use SportMonks API.
+---
+
 # SportMonks Provider Skill
 
 ## 📋 概述

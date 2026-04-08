@@ -1,3 +1,8 @@
+---
+name: footystats-provider
+description: Use this skill when the user needs FootyStats API guidance, asks about league tables, team statistics, match details, BTTS/Over 2.5 stats, or how to use any of the 16 FootyStats endpoints.
+---
+
 # FootyStats Provider Skill
 
 ## 📋 概述
