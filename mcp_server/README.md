@@ -1,8 +1,51 @@
 # Goalcast MCP Server
 
-Goalcast MCP Server 提供足球数据 API 接口，支持 SportMonks 和 FootyStats 两个数据源。
+Goalcast MCP Server 提供足球数据 API 接口，支持 **SportMonks**、**FootyStats** 和 **Understat** 三个数据源。
 
 ## 📊 数据源状态
+
+### Understat API ⭐ **新增**
+
+**配置状态：** ✅ 已配置  
+**计划类型：** 完全免费  
+**可用性：** ✅ 完全可用  
+**API Key：** 不需要
+
+#### 主要功能
+
+Understat 提供**高级足球统计数据**，专注于 xG（期望进球）和 xA（期望助攻）等指标。
+
+- ✅ **联赛球员数据** - 完整球员统计（xG, xA, 进球，助攻等）
+- ✅ **联赛球队数据** - 球队列表和历史数据
+- ✅ **联赛比赛数据** - 比赛结果和 xG 数据
+- ✅ **比赛详细统计** - 射门数据、球员表现
+- ✅ **球队详细统计** - 赛季统计和球员列表
+- ✅ **球员详细统计** - 多赛季数据和职业生涯总和
+- ✅ **球员射门数据** - 每次射门的详细分析
+
+#### 支持的联赛
+
+| 联赛代码 | 联赛名称 |
+|---------|---------|
+| `EPL` | 英格兰超级联赛 |
+| `La_liga` | 西班牙甲级联赛 |
+| `Bundesliga` | 德国甲级联赛 |
+| `Serie_A` | 意大利甲级联赛 |
+| `Ligue_1` | 法国甲级联赛 |
+| `RFPL` | 俄罗斯超级联赛 |
+
+#### 使用建议
+
+**推荐场景：**
+- ✅ 获取 xG、xA 等高级统计数据
+- ✅ 球员表现分析
+- ✅ 射门质量评估
+- ✅ 无 API Key 需求
+
+**不推荐场景：**
+- ❌ 实时比分（使用 FootyStats）
+- ❌ 积分榜（使用 FootyStats）
+- ❌ 球队详细统计（FootyStats 更全面）
 
 ### SportMonks API v3
 
@@ -78,6 +121,16 @@ FASTMCP_HOST=0.0.0.0 FASTMCP_PORT=8000 python mcp_server/server.py
 
 ## 🛠️ 可用工具
 
+### Understat 工具（⭐ 新增 - 高级统计）
+
+1. **understat_get_league_players** - 获取联赛球员统计数据（xG, xA 等）
+2. **understat_get_league_teams** - 获取联赛球队列表
+3. **understat_get_league_matches** - 获取联赛比赛结果
+4. **understat_get_match_stats** - 获取比赛详细统计（射门数据）
+5. **understat_get_team_stats** - 获取球队赛季统计
+6. **understat_get_player_stats** - 获取球员完整统计
+7. **understat_get_player_shots** - 获取球员射门数据
+
 ### FootyStats 工具（推荐用于完整数据）
 
 1. **footystats_get_league_list** - 获取联赛列表
@@ -102,7 +155,76 @@ FASTMCP_HOST=0.0.0.0 FASTMCP_PORT=8000 python mcp_server/server.py
 
 ## 📖 使用示例
 
-### 示例 1：获取本周德国甲级联赛比赛
+### 示例 1：获取 xG 数据（⭐ Understat 推荐）
+
+```python
+# 使用 Understat 获取球员 xG 数据
+players = await understat_get_league_players("Bundesliga", "2024")
+
+# 按 xG 排序
+top_scorers = sorted(players, key=lambda x: float(x.get('xG', 0)), reverse=True)
+
+print("Top 10 by xG:")
+for i, player in enumerate(top_scorers[:10], 1):
+    print(f"{i}. {player['player_name']}: {player['xG']:.2f} xG, {player['goals']} goals")
+```
+
+### 示例 2：分析比赛射门数据
+
+```python
+# 使用 Understat 获取比赛射门数据
+stats = await understat_get_match_stats(match_id=12345)
+
+print(f"总射门数：{stats['total_shots']}")
+print(f"总 xG: {stats['total_xg']:.3f}")
+print(f"主队射门：{stats['home_shots']}, xG: {stats['home_xg']:.3f}")
+print(f"客队射门：{stats['away_shots']}, xG: {stats['away_xg']:.3f}")
+
+# 分析前 5 次射门
+for i, shot in enumerate(stats['shots'][:5], 1):
+    player = shot.get('player_name', 'Unknown')
+    xg = float(shot.get('xG', 0))
+    result = shot.get('result', 'N/A')
+    minute = shot.get('minute', 0)
+    print(f"  {i}. {player} - {minute}' - xG: {xg:.3f} - {result}")
+```
+
+### 示例 3：获取球员完整职业生涯统计
+
+```python
+# 使用 Understat 获取球员完整统计
+stats = await understat_get_player_stats(player_id=12345)
+
+print(f"球员：{stats.get('player_name', 'Unknown')}")
+print(f"\n职业生涯总和:")
+print(f"  - 总进球：{stats['career_totals']['goals']}")
+print(f"  - 总 xG: {stats['career_totals']['xG']:.2f}")
+print(f"  - 总助攻：{stats['career_totals']['assists']}")
+print(f"  - 总 xA: {stats['career_totals']['xA']:.2f}")
+
+print(f"\n最新赛季:")
+print(f"  - 进球：{stats['latest_season']['goals']}")
+print(f"  - xG: {stats['latest_season']['xG']:.2f}")
+```
+
+### 示例 4：分析球员射门质量
+
+```python
+# 使用 Understat 获取球员射门数据
+shots = await understat_get_player_shots(player_id=12345)
+
+goals = sum(1 for s in shots if s.get('is_goal', False))
+total_xg = sum(float(s.get('xG', 0)) for s in shots)
+
+print(f"射门分析:")
+print(f"  - 总射门：{len(shots)}")
+print(f"  - 进球数：{goals}")
+print(f"  - 总 xG: {total_xg:.2f}")
+print(f"  - 射门转化率：{goals/len(shots)*100:.1f}%")
+print(f"  - 平均每次射门 xG: {total_xg/len(shots):.3f}")
+```
+
+### 示例 5：获取本周德国甲级联赛比赛
 
 #### 使用 SportMonks（基础数据）
 
@@ -205,12 +327,15 @@ lineups = await footystats_get_lineups(match_id=8227534)
 
 | 需求 | 推荐 API | 原因 |
 |------|---------|------|
+| **xG/xA高级统计** | **Understat** ⭐ | 免费提供完整 xG 数据 |
 | 实时比分 | FootyStats | SportMonks 免费计划不可用 |
 | 积分榜 | FootyStats | SportMonks 免费计划不可用 |
 | 历史比赛 | SportMonks | 基础数据足够 |
 | 球队统计 | FootyStats | 数据更详细 |
 | 联赛赛程 | FootyStats | 完整的赛季数据 |
 | 球员信息 | SportMonks | 基础信息可用 |
+| **射门质量分析** | **Understat** ⭐ | 每次射门的详细 xG |
+| **球员表现评估** | **Understat** ⭐ | 多赛季数据对比 |
 
 ### 2. 错误处理
 
@@ -337,6 +462,8 @@ FASTMCP_PORT=8000
 
 ## 📚 相关文档
 
+- [Understat Provider 优化总结](../test/OBSIDIAN_SYNC_SUMMARY.md)
+- [Understat Skill 文档](../skills/understat-provider/SKILL.md)
 - [SportMonks 使用指南](../docs/SPORTMONKS_USAGE.md)
 - [FootyStats 使用指南](../provider/footystats/README.md)
 - [MCP 迁移指南](../docs/MCP_MIGRATION_GUIDE.md)

@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 
 from provider.footystats.client import FootyStatsProvider
 from provider.sportmonks.client import SportmonksProvider
+from provider.understat.client import UnderstatProvider
 from utils.logger import logger
 
 # Initialize FastMCP server.
@@ -21,6 +22,7 @@ mcp = FastMCP(
 # or during the server startup.
 _footystats = None
 _sportmonks = None
+_understat = None
 
 def get_footystats():
     global _footystats
@@ -33,6 +35,12 @@ def get_sportmonks():
     if _sportmonks is None:
         _sportmonks = SportmonksProvider()
     return _sportmonks
+
+def get_understat():
+    global _understat
+    if _understat is None:
+        _understat = UnderstatProvider(use_library=True)
+    return _understat
 
 # Helper to handle API errors and key issues
 async def handle_api_call(provider_name: str, coro):
@@ -172,6 +180,165 @@ async def footystats_get_btts_stats() -> Any:
 async def footystats_get_over25_stats() -> Any:
     """Get top teams and fixtures for Over 2.5 Goals from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_over_2_5_stats())
+
+
+# --- Understat Tools ---
+# Advanced football statistics (xG, xA) - Free, no API key required
+
+@mcp.tool()
+async def understat_get_league_players(league: str, season: str) -> Any:
+    """Get player statistics for a league season from Understat.
+    
+    Provides advanced metrics including xG (Expected Goals), xA (Expected Assists),
+    shots, key passes, and more.
+    
+    Args:
+        league: League code. Options: EPL, La_liga, Bundesliga, Serie_A, Ligue_1, RFPL
+        season: Season year (e.g. "2024")
+    
+    Returns:
+        List of players with statistics including:
+        - player_name, team_title, games, time
+        - goals, xG, xA, shots, shots_on_target
+        - key_passes, yellow_cards, red_cards
+        - xG_chain, xGBuildup
+    
+    Example:
+        # Get Bundesliga 2024 players
+        players = await understat_get_league_players("Bundesliga", "2024")
+        
+        # Sort by xG
+        top_scorers = sorted(players, key=lambda x: float(x.get('xG', 0)), reverse=True)
+    """
+    return await handle_api_call("Understat", get_understat().get_league_players(league, season))
+
+
+@mcp.tool()
+async def understat_get_league_teams(league: str, season: str) -> Any:
+    """Get team list for a league season from Understat.
+    
+    Args:
+        league: League code. Options: EPL, La_liga, Bundesliga, Serie_A, Ligue_1, RFPL
+        season: Season year (e.g. "2024")
+    
+    Returns:
+        List of teams with basic info (id, title, history)
+    
+    Example:
+        # Get Bundesliga teams
+        teams = await understat_get_league_teams("Bundesliga", "2024")
+    """
+    return await handle_api_call("Understat", get_understat().get_league_teams(league, season))
+
+
+@mcp.tool()
+async def understat_get_league_matches(league: str, season: str) -> Any:
+    """Get match results for a league season from Understat.
+    
+    Args:
+        league: League code. Options: EPL, La_liga, Bundesliga, Serie_A, Ligue_1, RFPL
+        season: Season year (e.g. "2024")
+    
+    Returns:
+        List of matches with basic info (id, teams, scores, xG)
+    
+    Example:
+        # Get Bundesliga matches
+        matches = await understat_get_league_matches("Bundesliga", "2024")
+    """
+    return await handle_api_call("Understat", get_understat().get_league_matches(league, season))
+
+
+@mcp.tool()
+async def understat_get_match_stats(match_id: int) -> Any:
+    """Get detailed match statistics including shots and player performance.
+    
+    Args:
+        match_id: Match ID from understat_get_league_matches
+    
+    Returns:
+        Match statistics including:
+        - shots: List of all shots with xG values
+        - players: Player performance data
+        - total_shots, total_xg
+        - home_shots, home_xg, away_shots, away_xg
+    
+    Example:
+        # Get match shots data
+        stats = await understat_get_match_stats(match_id=12345)
+        print(f"Total shots: {stats['total_shots']}, Total xG: {stats['total_xg']:.2f}")
+    """
+    return await handle_api_call("Understat", get_understat().get_match_stats(match_id))
+
+
+@mcp.tool()
+async def understat_get_team_stats(team_id: int, season: str) -> Any:
+    """Get team statistics for a specific season.
+    
+    Args:
+        team_id: Team ID from understat_get_league_teams
+        season: Season year (e.g. "2024")
+    
+    Returns:
+        Team statistics including:
+        - Basic team info (id, title)
+        - Season performance data
+        - players: List of team players with stats
+    
+    Example:
+        # Get Bayern Munich 2024 stats
+        stats = await understat_get_team_stats(team_id=117, season="2024")
+    """
+    return await handle_api_call("Understat", get_understat().get_team_stats(team_id, season))
+
+
+@mcp.tool()
+async def understat_get_player_stats(player_id: int) -> Any:
+    """Get detailed player statistics across all seasons.
+    
+    Args:
+        player_id: Player ID from understat_get_league_players
+    
+    Returns:
+        Player statistics including:
+        - player_id
+        - latest_season: Most recent season data
+        - seasons: List of all season data
+        - career_totals: Career summary (goals, xG, assists, xA)
+        - Individual season stats merged at top level
+    
+    Example:
+        # Get player career stats
+        stats = await understat_get_player_stats(player_id=12345)
+        print(f"Career goals: {stats['career_totals']['goals']}")
+        print(f"Latest season xG: {stats['latest_season']['xG']:.2f}")
+    """
+    return await handle_api_call("Understat", get_understat().get_player_stats(player_id))
+
+
+@mcp.tool()
+async def understat_get_player_shots(player_id: int) -> Any:
+    """Get all shots for a specific player.
+    
+    Args:
+        player_id: Player ID from understat_get_league_players
+    
+    Returns:
+        List of shots with details:
+        - xG value for each shot
+        - Shot type (head, foot, etc.)
+        - Situation (open play, set piece, etc.)
+        - Result (goal, miss, save, etc.)
+        - Minute of shot
+    
+    Example:
+        # Analyze player shooting
+        shots = await understat_get_player_shots(player_id=12345)
+        goals = sum(1 for s in shots if s.get('is_goal', False))
+        total_xg = sum(float(s.get('xG', 0)) for s in shots)
+        print(f"Goals: {goals}, Total xG: {total_xg:.2f}")
+    """
+    return await handle_api_call("Understat", get_understat().get_player_shots(player_id))
 
 # --- Sportmonks Tools ---
 
