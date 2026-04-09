@@ -62,3 +62,6 @@ Thumbs.db
 /.trae
 /.claude
 /.github
+data/backtests/
+.accio/cron/jobs.json
+data/predictions/
