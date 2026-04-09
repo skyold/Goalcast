@@ -47,8 +47,15 @@ description: Use this skill when the user wants a Goalcast multi-method comparis
 - 联赛：[联赛名]
 - 日期：[YYYY-MM-DD]
 
-请完整执行 skill 的所有步骤（定位比赛 → 采集数据 → 零层检查 → 五层分析 → 输出），
-最终输出完整的 AnalysisResult JSON。
+请完整执行 skill 的所有步骤：
+1. 定位比赛（FootyStats）
+2. 采集数据（FootyStats + Understat 补充）
+3. 零层检查
+4. 五层分析
+5. 输出 AnalysisResult JSON
+
+注意：如果联赛在 Understat 支持范围内（EPL/La_liga/Bundesliga/Serie_A/Ligue_1），
+请确保 Step 2.5 执行以获取 xG 数据。
 ```
 
 **Sub-agent B - v3.0 分析：**
@@ -61,8 +68,15 @@ description: Use this skill when the user wants a Goalcast multi-method comparis
 - 联赛：[联赛名]
 - 日期：[YYYY-MM-DD]
 
-请完整执行 skill 的所有步骤（定位比赛 → 采集数据 → 零层检查 → 八层分析 → 输出），
-最终输出完整的 AnalysisResult JSON。
+请完整执行 skill 的所有步骤：
+1. 定位比赛（FootyStats）
+2. 采集数据（FootyStats + Understat 补充）
+3. 零层检查
+4. 八层分析
+5. 输出 AnalysisResult JSON
+
+注意：如果联赛在 Understat 支持范围内（EPL/La_liga/Bundesliga/Serie_A/Ligue_1），
+请确保 Step 2.5 执行以获取 xG 数据。
 ```
 
 等待两个 sub-agent **均**完成后，继续下一步。
@@ -93,6 +107,7 @@ description: Use this skill when the user wants a Goalcast multi-method comparis
 
 | 维度 | v2.5 | v3.0 | 差异 |
 |------|------|------|------|
+| 数据来源 | understat_direct / proxy | understat_direct / proxy | ✓一致 / ✗分歧 |
 | 主队胜率 | X% | X% | ±X% |
 | 平局概率 | X% | X% | ±X% |
 | 客队胜率 | X% | X% | ±X% |
@@ -103,8 +118,12 @@ description: Use this skill when the user wants a Goalcast multi-method comparis
 ### 主要分歧点
 
 [分析两方法结论差异的原因。如无明显分歧，写"两个方法结论基本一致"。
-常见分歧原因：v3.0 有更多降权项（L3 降级、双重 EV 调整），导致置信度和 EV 系统性偏低；
-v3.0 用 Dixon-Coles 修正低比分，可能与 v2.5 泊松分布在具体比分概率上有差异。]
+
+常见分歧原因：
+1. **数据来源差异**：如果一个方法使用 Understat xG，另一个使用 proxy，会导致基础实力评估不同
+2. **v3.0 有更多降权项**（L3 降级、双重 EV 调整），导致置信度和 EV 系统性偏低
+3. **分布模型差异**：v3.0 用 Dixon-Coles 修正低比分，可能与 v2.5 泊松分布在具体比分概率上有差异
+4. **权重分配不同**：v2.5 基础实力 40%，v3.0 为 35%]
 
 ---
 

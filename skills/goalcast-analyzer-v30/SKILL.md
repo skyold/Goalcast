@@ -42,7 +42,7 @@ description: Use this skill when the user wants a single-match Goalcast football
 
 如未找到：回复"未找到符合条件的比赛，请确认日期和联赛名称"，停止。
 
-### Step 2：并行采集数据
+### Step 2：并行采集数据（FootyStats）
 
 同时调用：
 
@@ -54,6 +54,50 @@ mcp__goalcast__footystats_get_league_tables(season_id=<competition_id>)
 ```
 
 注意：工具参数名为 `season_id`，值来自 `competition_id` 字段。FootyStats 中 `season` 与 `competition` 指同一实体。
+
+### Step 2.5：Understat 数据补充（条件触发）
+
+**触发条件**：满足以下任一情况即执行：
+- FootyStats 不提供 xG 数据
+- 用户明确要求使用 xG 数据
+- 联赛属于 Understat 支持范围（EPL, La_liga, Bundesliga, Serie_A, Ligue_1, RFPL）
+
+**执行步骤**：
+
+1. **确定联赛代码和赛季**：
+   ```text
+   联赛映射表：
+   - England Premier League → EPL
+   - La Liga / Spanish → La_liga
+   - Bundesliga / German → Bundesliga
+   - Serie A / Italian → Serie_A
+   - Ligue 1 / French → Ligue_1
+   - 其他 → 跳过 Understat
+   ```
+
+2. **获取 Understat 联赛比赛列表**：
+   ```text
+   mcp__goalcast__understat_get_league_matches(league=<联赛代码>, season=<赛季年份>)
+   ```
+
+3. **匹配比赛**（通过球队名 + 日期）：
+   - 遍历 Understat 比赛列表
+   - 匹配条件：`h_team` 包含主队名关键词 OR `a_team` 包含客队名关键词
+   - 提取匹配到的 `match_id`（Understat ID）
+
+4. **获取 xG 数据**（如果匹配成功）：
+   ```text
+   mcp__goalcast__understat_get_match_stats(match_id=<understat_match_id>)
+   ```
+
+5. **数据融合**：
+   - 从 Understat 提取：`home_xg`, `away_xg`, `shots`（射门详情）
+   - 更新 L1 计算：使用 Understat 的 xG 替代 `xG_proxy`
+   - 标注数据来源：`xG_source="understat"` 或 `xG_source="proxy"`
+
+**失败处理**：
+- Understat 匹配失败 → 降级使用 `xG_proxy`，标注 `xG_source="proxy"`
+- Understat 数据不可用 → 标注 `missing_data` 增加 `"understat_xg"`
 
 ### 零层：赛前强制检查（必须首先执行，不得跳过）
 
@@ -74,7 +118,8 @@ mcp__goalcast__footystats_get_league_tables(season_id=<competition_id>)
 | 赔率（odds_ft_*） | 值 > 0 | 可用 | 不可用 → L3 权重=0%，跳过 |
 | 积分榜 | `league_table` 非 null | 可用 | 不可用 → L2 动力因素跳过 |
 | 阵容/首发 | **预期缺失** | 缺失 | 置信度 -10，L2 调整幅度上限 ±0.2 xG |
-| xG 直接数据 | **预期缺失** | 缺失 | L1 标注 `xG_proxy`，`data_quality=medium` |
+| xG 直接数据（FootyStats） | **预期缺失** | 缺失 | Step 2.5 尝试 Understat 补充 |
+| xG 直接数据（Understat） | Step 2.5 匹配成功 | 可用 | 不可用 → L1 标注 `xG_proxy` |
 | PPDA 数据 | **预期缺失** | 缺失 | L4 权重=0%，跳过 |
 | 赔率变动时序 | **预期缺失** | 缺失 | L3 权重从 20% 降至 8%，标注"低可信度" |
 
@@ -82,11 +127,22 @@ mcp__goalcast__footystats_get_league_tables(season_id=<competition_id>)
 
 ### 第一层：基础实力模型（权重 35%）
 
+**优先级 1：使用 Understat xG 数据（如果 Step 2.5 成功获取）**
+
+```text
+如果 xG_source="understat"：
+  base_xg_home = Understat.home_xg
+  base_xg_away = Understat.away_xg
+  标注：xG_source="understat_direct"
+```
+
+**优先级 2：降级使用 proxy（如果 Understat 不可用）**
+
 从 `get_team_last_x_stats` 提取场均进球（遍历 `data` 数组，按 `last_x_match_num` 匹配 5 和 10，取 `stats.seasonScoredAVG_overall`）：
 
 ```text
-xG_proxy_home = 近10场场均进球 × 0.7 + 近5场场均进球 × 0.3
-xG_proxy_away = 近10场场均进球 × 0.7 + 近5场场均进球 × 0.3
+xG_proxy_home = 近 10 场场均进球 × 0.7 + 近 5 场场均进球 × 0.3
+xG_proxy_away = 近 10 场场均进球 × 0.7 + 近 5 场场均进球 × 0.3
 ```
 
 主场优势修正（联赛参数表）：
@@ -109,6 +165,14 @@ base_xg_away = xG_proxy_away
 比赛类型 B（杯赛）：`base_xg × 0.9`（防守倾向更强）。
 
 数据不可用时：使用联赛场均进球基准的 50/50 分配，`data_quality=low`，注明"基于联赛均值估算"。
+
+**xG 数据优先级总结**：
+```text
+1. Understat 直接 xG → base_xg = Understat xG（最优先，置信度 +5）
+2. FootyStats xG（如有）→ base_xg = FootyStats xG
+3. Proxy 估算 → base_xg = xG_proxy（降级，置信度 -5）
+4. 联赛均值 → base_xg = 联赛均值（最低，置信度 -8）
+```
 
 ### 第二层：情境调整模型（权重 20%）
 
@@ -216,6 +280,7 @@ EV_away = 模型P(客胜) × odds_ft_2 - 1
 加分：
 +10  市场方向与模型一致（signal_direction 含"支持模型"）
 +5   近况数据完整（主客队均有 last_x 数据）
++5   Understat xG 数据可用（xG_source="understat_direct"）
 
 扣分：
 -10  阵容不可用（预期触发，必扣）
@@ -224,6 +289,7 @@ EV_away = 模型P(客胜) × odds_ft_2 - 1
 -5   赔率方向与模型相反
 -10  C 类比赛
 -5   赛前重大不确定事件
+-5   Understat 匹配失败（仅当联赛在支持范围内）
 
 范围：[30, 90]，禁止超过 90
 ```
@@ -275,5 +341,6 @@ EV_away = 模型P(客胜) × odds_ft_2 - 1
 - [ ] `home_win% + draw% + away_win% = 100%`（±0.5%）
 - [ ] `confidence ∈ [30, 90]`
 - [ ] `ev ∈ [-1, +2]`
-- [ ] `missing_data` 包含 `"lineup"`、`"xG_direct"`、`"ppda"`、`"odds_movement"`
-- [ ] `reasoning_summary` 提及 L4 跳过（无 PPDA）和 L6 跳过（无阵容）
+- [ ] `missing_data` 包含 `"lineup"`、`"ppda"`、`"odds_movement"`
+- [ ] `xG_source` 字段存在（`"understat_direct"` 或 `"proxy"`）
+- [ ] `reasoning_summary` 提及 L4 跳过（无 PPDA）、L6 跳过（无阵容）、xG 数据来源
