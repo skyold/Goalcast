@@ -6,7 +6,11 @@ from mcp.server.fastmcp import FastMCP
 from provider.footystats.client import FootyStatsProvider
 from provider.sportmonks.client import SportmonksProvider
 from provider.understat.client import UnderstatProvider
+from analytics.poisson import poisson_distribution, dixon_coles_distribution
+from analytics.ev_calculator import calculate_ev, calculate_kelly, calculate_risk_adjusted_ev, best_bet_recommendation
+from analytics.confidence import calculate_confidence, calculate_confidence_v25, confidence_breakdown
 from utils.logger import logger
+from data_strategy.fusion import DataFusion
 
 # Initialize FastMCP server.
 # FASTMCP_HOST defaults to 127.0.0.1 (local) but can be overridden via env var,
@@ -829,6 +833,272 @@ async def sportmonks_get_predictions(fixture_id: int) -> Any:
 async def sportmonks_get_value_bets() -> Any:
     """Get currently identified Value Bets from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_value_bets())
+
+
+# ─── Quantitative Model Tools (Poisson, EV, Kelly, Confidence) ──────────
+
+@mcp.tool()
+async def goalcast_calculate_poisson(
+    home_lambda: float,
+    away_lambda: float,
+    max_goals: int = 6,
+    model: str = "standard",
+    rho: float = -0.13,
+) -> Any:
+    """Calculate score probability matrix using Poisson or Dixon-Coles distribution.
+
+    Args:
+        home_lambda: Expected goals for home team (λ)
+        away_lambda: Expected goals for away team (λ)
+        max_goals: Maximum goals to model per side (default 6, covers 0-6)
+        model: "standard" (v2.5) or "dixon_coles" (v3.0)
+        rho: Dixon-Coles correction parameter (default -0.13, only used for dixon_coles)
+
+    Returns:
+        Score probability matrix with:
+        - score_matrix: 2D array P(home_goals × away_goals)
+        - home_win_pct / draw_pct / away_win_pct
+        - top_scores: Top 5 most likely scorelines
+        - over_25_pct / btts_pct
+    """
+    try:
+        if model == "dixon_coles":
+            result = dixon_coles_distribution(home_lambda, away_lambda, max_goals, rho)
+        else:
+            result = poisson_distribution(home_lambda, away_lambda, max_goals)
+        return result
+    except Exception as e:
+        return {"error": "POISSON_CALC_ERROR", "message": str(e)}
+
+
+@mcp.tool()
+async def goalcast_calculate_ev(
+    model_probability: float,
+    market_odds: float,
+) -> Any:
+    """Calculate Expected Value for a single direction.
+
+    EV = (model_probability / 100) × market_odds - 1
+
+    Args:
+        model_probability: Model's probability as percentage (0-100)
+        market_odds: Decimal odds from bookmaker (e.g., 1.85, 3.50)
+
+    Returns:
+        EV calculation with break-even odds and value flag.
+    """
+    try:
+        return calculate_ev(model_probability, market_odds)
+    except Exception as e:
+        return {"error": "EV_CALC_ERROR", "message": str(e)}
+
+
+@mcp.tool()
+async def goalcast_calculate_kelly(
+    model_probability: float,
+    market_odds: float,
+    fraction: float = 0.25,
+    bankroll: float = None,
+) -> Any:
+    """Calculate Kelly Criterion stake recommendation.
+
+    f* = (b × p - q) / b where b = odds - 1, p = probability, q = 1 - p
+
+    Args:
+        model_probability: Model's probability as percentage (0-100)
+        market_odds: Decimal odds
+        fraction: Fraction of full Kelly (default 0.25 = quarter Kelly)
+        bankroll: Optional total bankroll for absolute stake amount
+
+    Returns:
+        Kelly percentage and stake recommendation.
+    """
+    try:
+        return calculate_kelly(model_probability, market_odds, fraction, bankroll)
+    except Exception as e:
+        return {"error": "KELLY_CALC_ERROR", "message": str(e)}
+
+
+@mcp.tool()
+async def goalcast_calculate_risk_adjusted_ev(
+    raw_ev: float,
+    lineup_uncertainty: bool = False,
+    market_low_confidence: bool = False,
+    data_quality: str = "medium",
+) -> Any:
+    """Calculate risk-adjusted EV by applying multiplicative risk factors.
+
+    Risk multipliers:
+    - lineup_uncertainty: × 0.85
+    - market_low_confidence: × 0.90
+    - data_quality=low: × 0.80
+
+    Args:
+        raw_ev: Raw expected value
+        lineup_uncertainty: True if lineup data unavailable
+        market_low_confidence: True if market analysis low confidence
+        data_quality: "low", "medium", or "high"
+
+    Returns:
+        Risk-adjusted EV value.
+    """
+    try:
+        ev_adj = calculate_risk_adjusted_ev(raw_ev, lineup_uncertainty, market_low_confidence, data_quality)
+        return {"raw_ev": raw_ev, "risk_adjusted_ev": ev_adj, "recommendation": "bet" if ev_adj > 0.05 else "no_bet"}
+    except Exception as e:
+        return {"error": "RISK_EV_CALC_ERROR", "message": str(e)}
+
+
+@mcp.tool()
+async def goalcast_calculate_confidence(
+    method: str = "v3.0",
+    base_score: int = 70,
+    market_agrees: bool = False,
+    data_complete: bool = False,
+    understat_available: bool = False,
+    odds_available: bool = False,
+    lineup_unavailable: bool = True,
+    xG_proxy_used: bool = False,
+    market_disagrees: bool = False,
+    data_quality_low: bool = False,
+    understat_failed: bool = False,
+    match_type_c: bool = False,
+    major_uncertainty: bool = False,
+    market_downgraded: bool = False,
+) -> Any:
+    """Calculate confidence score for a match prediction.
+
+    Args:
+        method: "v2.5" or "v3.0" (affects weighting)
+        base_score: Starting confidence (default 70)
+        market_agrees: Market direction agrees with model
+        data_complete: Both teams have recent form data
+        understat_available: Direct xG from Understat available
+        odds_available: Valid odds data available
+        lineup_unavailable: Lineup data missing (expected, default True)
+        xG_proxy_used: Using proxy instead of direct xG
+        market_disagrees: Market odds contradict model
+        data_quality_low: Form data unavailable
+        understat_failed: Understat match lookup failed
+        match_type_c: Type C match (second leg)
+        major_uncertainty: Major pre-match uncertainty
+        market_downgraded: Market layer downgraded
+
+    Returns:
+        Confidence score [30-90] with detailed breakdown.
+    """
+    try:
+        kwargs = {
+            "base_score": base_score,
+            "market_agrees": market_agrees,
+            "data_complete": data_complete,
+            "understat_available": understat_available,
+            "odds_available": odds_available,
+            "lineup_unavailable": lineup_unavailable,
+            "xG_proxy_used": xG_proxy_used,
+            "market_disagrees": market_disagrees,
+            "data_quality_low": data_quality_low,
+            "understat_failed": understat_failed,
+            "match_type_c": match_type_c,
+            "major_uncertainty": major_uncertainty,
+            "market_downgraded": market_downgraded,
+        }
+
+        if method == "v2.5":
+            final = calculate_confidence_v25(**kwargs)
+        else:
+            final = calculate_confidence(**kwargs)
+
+        breakdown = confidence_breakdown(**kwargs)
+        return {"confidence": final, "breakdown": breakdown}
+    except Exception as e:
+        return {"error": "CONFIDENCE_CALC_ERROR", "message": str(e)}
+
+
+# ── 数据策略层：单一入口工具 ──────────────────────────────────
+
+@mcp.tool()
+async def goalcast_resolve_match(
+    match_id: str,
+    home_team: str,
+    home_team_id: str,
+    away_team: str,
+    away_team_id: str,
+    season_id: str,
+    league: str,
+    match_date: Optional[str] = None,
+    season: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    数据策略层核心工具：并行采集并融合单场比赛所需的全部数据，
+    返回结构化的 MatchContext 字典。
+
+    Skill 应优先调用此工具（而非逐一调用 provider 工具），
+    自动处理数据来源选择、fallback 链、缓存和质量评分。
+
+    Args:
+        match_id:      FootyStats 比赛 ID（Step 1 从 get_todays_matches 提取）
+        home_team:     主队名称（如 "Arsenal"）
+        home_team_id:  FootyStats 主队 ID（homeID 字段）
+        away_team:     客队名称（如 "Chelsea"）
+        away_team_id:  FootyStats 客队 ID（awayID 字段）
+        season_id:     FootyStats competition/season ID（competition_id 字段，用于积分榜）
+        league:        联赛名（如 "Premier League"，用于 Understat 映射 + 联赛参数）
+        match_date:    比赛日期 YYYY-MM-DD（可选，帮助推断 Understat 赛季）
+        season:        Understat 赛季年份（如 "2025"），不传时自动从 match_date 推断
+
+    Returns:
+        MatchContext 序列化字典，包含以下顶层字段：
+        - match_id, league, home_team, away_team, match_date
+        - xg: {home_xg_for, home_xg_against, away_xg_for, away_xg_against, source, quality}
+        - home_form_5 / home_form_10 / away_form_5 / away_form_10: 近况统计窗口
+        - home_standing / away_standing: 积分榜状态
+        - odds: {home_win, draw, away_win, source, quality}
+        - data_gaps: 缺失数据项列表（如 ["lineups", "injuries", "odds_movement"]）
+        - overall_quality: 综合质量评分 0.0–1.0
+        - sources: 各层数据来源字典
+
+    数据策略（自动处理，Skill 无需关心）：
+        xG    : Understat 球队统计（6 大联赛）→ FootyStats 近况代理 → 联赛均值
+        近况   : FootyStats get_team_last_x_stats（主/客并行）
+        积分榜  : FootyStats get_league_tables → Sportmonks get_standings
+        赔率   : FootyStats match_details → Sportmonks prematch_odds
+        伤停/阵容: v1 标注缺失（data_gaps 中可见）
+    """
+    try:
+        fusion = DataFusion(
+            footystats=get_footystats(),
+            understat=get_understat(),
+            sportmonks=get_sportmonks() if _sportmonks_available() else None,
+        )
+        ctx = await fusion.build(
+            match_id=str(match_id),
+            home_team=home_team,
+            home_team_id=str(home_team_id),
+            away_team=away_team,
+            away_team_id=str(away_team_id),
+            season_id=str(season_id),
+            league=league,
+            match_date=match_date,
+            season=season,
+        )
+        return ctx.to_dict()
+    except Exception as exc:
+        logger.error(f"[goalcast_resolve_match] Unexpected error: {exc}")
+        return {
+            "error": "RESOLVE_ERROR",
+            "message": f"Failed to build MatchContext: {exc}",
+            "match_id": match_id,
+            "home_team": home_team,
+            "away_team": away_team,
+        }
+
+
+def _sportmonks_available() -> bool:
+    """检查 Sportmonks API key 是否已配置。"""
+    from config.settings import settings
+    return bool(getattr(settings, "SPORTMONKS_API_KEY", ""))
+
 
 if __name__ == "__main__":
     import os
