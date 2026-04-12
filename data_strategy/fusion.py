@@ -2,10 +2,11 @@
 数据策略层 — DataFusion（数据融合引擎）
 
 职责：
-1. 并行调用 DataResolver 获取各类数据
-2. 将 provider 原始响应映射到 MatchContext 类型化结构
-3. 计算综合数据质量评分
-4. 返回 MatchContext（Skill 唯一依赖的数据对象）
+1. 根据 data_provider 参数路由到对应的 resolver（FootyStatsResolver / SportmonksResolver）
+2. 并行调用 resolver 获取所有 7 类数据
+3. 将 provider 原始响应映射到 MatchContext 类型化结构
+4. 计算综合数据质量评分
+5. 返回 MatchContext（Skill 唯一依赖的数据对象）
 
 设计原则：
 - 并行 I/O（asyncio.gather），不串行等待
@@ -25,9 +26,14 @@ from data_strategy.models import (
     StandingsEntry,
     OddsSnapshot,
     XGStats,
+    MatchLineups,
+    OddsMovement,
+    H2HEntry,
 )
 from data_strategy.quality import compute_overall_quality
-from data_strategy.resolver import DataResolver, ResolvedData
+from data_strategy.resolver import ResolvedData
+from data_strategy.resolvers.footystats_resolver import FootyStatsResolver
+from data_strategy.resolvers.sportmonks_resolver import SportmonksResolver
 
 if TYPE_CHECKING:
     from provider.footystats.client import FootyStatsProvider
@@ -40,8 +46,13 @@ class DataFusion:
     将多个 provider 的数据融合为单个 MatchContext。
 
     使用示例（由 goalcast_resolve_match MCP 工具调用）：
-        fusion = DataFusion(footystats=fs, understat=us)
+        fusion = DataFusion(
+            data_provider="footystats",
+            footystats=fs,
+            understat=us,
+        )
         ctx = await fusion.build(
+            fixture_id="8255851",
             match_id="8255851",
             home_team="Arsenal",
             home_team_id="86",
@@ -55,18 +66,22 @@ class DataFusion:
 
     def __init__(
         self,
+        data_provider: str,
         footystats: "FootyStatsProvider",
         understat: "UnderstatProvider",
         sportmonks: Optional["SportmonksProvider"] = None,
     ) -> None:
-        self._resolver = DataResolver(
-            footystats=footystats,
-            understat=understat,
-            sportmonks=sportmonks,
-        )
+        self._data_provider = data_provider
+        if data_provider == "sportmonks":
+            if sportmonks is None:
+                raise ValueError("SportmonksProvider required when data_provider='sportmonks'")
+            self._resolver = SportmonksResolver(sportmonks=sportmonks, understat=understat)
+        else:
+            self._resolver = FootyStatsResolver(footystats=footystats, understat=understat)
 
     async def build(
         self,
+        fixture_id: str,
         match_id: str,
         home_team: str,
         home_team_id: str,
@@ -81,13 +96,14 @@ class DataFusion:
         并行解析所有数据层，构建并返回 MatchContext。
 
         Args:
+            fixture_id:    比赛 fixture ID（Sportmonks 使用）
             match_id:      FootyStats 比赛 ID
             home_team:     主队名称
-            home_team_id:  FootyStats 主队 ID
+            home_team_id:  主队 ID
             away_team:     客队名称
-            away_team_id:  FootyStats 客队 ID
-            season_id:     FootyStats competition/season ID（用于积分榜）
-            league:        联赛名（如 "Premier League"，用于 Understat 映射 / 联赛参数）
+            away_team_id:  客队 ID
+            season_id:     competition/season ID（用于积分榜）
+            league:        联赛名（如 "Premier League"）
             match_date:    比赛日期 YYYY-MM-DD（可选，用于日志）
             season:        Understat 赛季年份（如 "2025"），默认从 match_date 推断
 
@@ -99,27 +115,43 @@ class DataFusion:
 
         logger.info(
             f"[Fusion] Building context: {home_team} vs {away_team} "
-            f"| league={league} | season={resolved_season}"
+            f"| provider={self._data_provider} | league={league} | season={resolved_season}"
         )
 
-        # 并行解析所有数据层
-        xg_task = self._resolver.resolve_xg(
-            home_team=home_team,
-            away_team=away_team,
-            league=league,
-            season=resolved_season,
-            home_team_id=home_team_id,
-            away_team_id=away_team_id,
-        )
-        form_task = self._resolver.resolve_form(
-            home_team_id=home_team_id,
-            away_team_id=away_team_id,
-        )
-        standings_task = self._resolver.resolve_standings(season_id=season_id)
-        odds_task = self._resolver.resolve_odds(match_id=match_id)
-
-        xg_res, form_res, standings_res, odds_res = await asyncio.gather(
-            xg_task, form_task, standings_task, odds_task,
+        # 并行解析所有 7 类数据
+        (
+            xg_res,
+            form_res,
+            standings_res,
+            odds_res,
+            lineups_res,
+            odds_mv_res,
+            h2h_res,
+        ) = await asyncio.gather(
+            self._resolver.resolve_xg(
+                home_team=home_team,
+                away_team=away_team,
+                league=league,
+                season=resolved_season,
+                home_team_id=home_team_id,
+                away_team_id=away_team_id,
+            ),
+            self._resolver.resolve_form(
+                home_team_id=home_team_id,
+                away_team_id=away_team_id,
+            ),
+            self._resolver.resolve_standings(season_id=season_id),
+            self._resolver.resolve_odds(match_id=match_id),
+            self._resolver.resolve_lineups(
+                fixture_id=fixture_id,
+                home_team_id=home_team_id,
+                away_team_id=away_team_id,
+            ),
+            self._resolver.resolve_odds_movement(fixture_id=fixture_id),
+            self._resolver.resolve_head_to_head(
+                home_team_id=home_team_id,
+                away_team_id=away_team_id,
+            ),
             return_exceptions=True,
         )
 
@@ -128,6 +160,9 @@ class DataFusion:
         form_res = _safe_result(form_res, "form")
         standings_res = _safe_result(standings_res, "standings")
         odds_res = _safe_result(odds_res, "odds")
+        lineups_res = _safe_result(lineups_res, "lineups")
+        odds_mv_res = _safe_result(odds_mv_res, "odds_movement")
+        h2h_res = _safe_result(h2h_res, "head_to_head")
 
         # 映射到类型化结构
         xg = self._map_xg(xg_res, home_team, away_team, league)
@@ -136,6 +171,9 @@ class DataFusion:
             standings_res, home_team, away_team
         )
         odds = self._map_odds(odds_res)
+        lineups = self._map_lineups(lineups_res)
+        odds_movement = self._map_odds_movement(odds_mv_res)
+        head_to_head = self._map_h2h(h2h_res)
 
         # 收集缺失项
         data_gaps: list[str] = []
@@ -147,8 +185,13 @@ class DataFusion:
             data_gaps.append("standings")
         if odds is None:
             data_gaps.append("odds")
-        # v1 阶段：阵容/伤停/赔率变动固定标注为缺失
-        data_gaps.extend(["lineups", "injuries", "odds_movement"])
+        if lineups is None:
+            data_gaps.append("lineups")
+        if odds_movement is None:
+            data_gaps.append("odds_movement")
+        if head_to_head is None:
+            data_gaps.append("head_to_head")
+        data_gaps.append("injuries")
 
         # 质量评分
         xg_quality = xg_res.quality if xg_res.ok else 0.0
@@ -172,6 +215,7 @@ class DataFusion:
         )
 
         return MatchContext(
+            data_provider=self._data_provider,
             match_id=match_id,
             league=league,
             home_team=home_team,
@@ -193,6 +237,9 @@ class DataFusion:
             standings_source=standings_res.source,
             standings_quality=standings_quality,
             odds=odds,
+            lineups=lineups,
+            odds_movement=odds_movement,
+            head_to_head=head_to_head,
             data_gaps=tuple(data_gaps),
             overall_quality=overall_quality,
             sources=sources,
@@ -314,6 +361,54 @@ class DataFusion:
             source=res.source,
             quality=res.quality,
         )
+
+    def _map_lineups(self, res: ResolvedData) -> Optional[MatchLineups]:
+        """将 resolver lineups 结果映射为 MatchLineups。"""
+        if not res.ok or not res.data:
+            return None
+        d = res.data
+        return MatchLineups(
+            home_formation=d.get("home_formation"),
+            away_formation=d.get("away_formation"),
+            home_confirmed=bool(d.get("home_confirmed", False)),
+            away_confirmed=bool(d.get("away_confirmed", False)),
+        )
+
+    def _map_odds_movement(self, res: ResolvedData) -> Optional[OddsMovement]:
+        """将 resolver odds_movement 结果映射为 OddsMovement。"""
+        if not res.ok or not res.data:
+            return None
+        d = res.data
+        try:
+            return OddsMovement(
+                home_open=float(d["home_open"]),
+                home_current=float(d["home_current"]),
+                draw_open=float(d["draw_open"]),
+                draw_current=float(d["draw_current"]),
+                away_open=float(d["away_open"]),
+                away_current=float(d["away_current"]),
+                movement_hours=int(d.get("movement_hours", 48)),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _map_h2h(self, res: ResolvedData) -> Optional[tuple]:
+        """将 resolver head_to_head 结果映射为 tuple[H2HEntry, ...]。"""
+        if not res.ok or not res.data:
+            return None
+        entries = res.data.get("entries", [])
+        result = tuple(
+            H2HEntry(
+                date=e["date"],
+                home_team=e["home_team"],
+                away_team=e["away_team"],
+                home_goals=e["home_goals"],
+                away_goals=e["away_goals"],
+            )
+            for e in entries
+            if isinstance(e, dict)
+        )
+        return result or None
 
 
 # ── 模块级辅助函数 ────────────────────────────────────────────
