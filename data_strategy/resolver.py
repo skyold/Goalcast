@@ -43,6 +43,8 @@ CACHE_TTL: dict[str, float] = {
     "standings": 6.0,     # 积分榜随比赛日更新
     "odds": 0.5,          # 赔率变动快
     "match_meta": 2.0,    # 比赛基础信息
+    "lineups": 2.0,       # 阵容数据赛前更新
+    "h2h": 24.0,          # 历史交锋数据稳定
 }
 
 # 最低可接受质量阈值（低于此值触发 fallback）

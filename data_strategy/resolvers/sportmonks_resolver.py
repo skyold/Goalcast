@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from provider.understat.client import UnderstatProvider
 
 
+_ODDS_MOVEMENT_WINDOW_HOURS = 48  # Sportmonks provides ~48h of pre-match odds history
+
+
 class SportmonksResolver:
 
     def __init__(
@@ -173,7 +176,7 @@ class SportmonksResolver:
                     "sm_lineups",
                     cache_key,
                     {"data": lineups_data, "source": "sportmonks", "quality": 0.90},
-                    ttl_hours=2.0,
+                    ttl_hours=CACHE_TTL["lineups"],
                 )
                 return result
         except Exception as exc:
@@ -230,7 +233,7 @@ class SportmonksResolver:
                     "sm_h2h",
                     cache_key,
                     {"data": data, "source": "sportmonks", "quality": 0.80},
-                    ttl_hours=24.0,
+                    ttl_hours=CACHE_TTL["h2h"],
                 )
                 return result
         except Exception as exc:
@@ -265,34 +268,26 @@ def _extract_lineups(
 ) -> Optional[dict]:
     if not raw or not isinstance(raw, dict):
         return None
-    fixture = raw.get("data", {})
-    if not isinstance(fixture, dict):
-        return None
-    lineups = fixture.get("lineups", [])
+    lineups = raw.get("data", {}).get("lineups", [])
     if not lineups:
         return None
 
-    result: dict = {
-        "home_formation": None,
-        "away_formation": None,
-        "home_confirmed": False,
-        "away_confirmed": False,
-    }
-    for lu in lineups:
-        if not isinstance(lu, dict):
-            continue
-        tid = str(lu.get("team_id", ""))
-        if tid == str(home_team_id):
-            result["home_formation"] = lu.get("formation")
-            result["home_confirmed"] = bool(lu.get("confirmed", False))
-        elif tid == str(away_team_id):
-            result["away_formation"] = lu.get("formation")
-            result["away_confirmed"] = bool(lu.get("confirmed", False))
+    home = next(
+        (lu for lu in lineups if str(lu.get("team_id", "")) == str(home_team_id)), {}
+    )
+    away = next(
+        (lu for lu in lineups if str(lu.get("team_id", "")) == str(away_team_id)), {}
+    )
 
-    # Only return if we found at least one team's lineup
-    if result["home_formation"] is None and result["away_formation"] is None:
+    if not home and not away:
         return None
-    return result
+
+    return {
+        "home_formation": home.get("formation"),
+        "away_formation": away.get("formation"),
+        "home_confirmed": bool(home.get("confirmed", False)),
+        "away_confirmed": bool(away.get("confirmed", False)),
+    }
 
 
 def _extract_odds_movement(raw: Any) -> Optional[dict]:
@@ -334,7 +329,7 @@ def _extract_odds_movement(raw: Any) -> Optional[dict]:
         "draw_current": draw_vals[-1],
         "away_open": away_vals[0],
         "away_current": away_vals[-1],
-        "movement_hours": 48,
+        "movement_hours": _ODDS_MOVEMENT_WINDOW_HOURS,
     }
 
 
