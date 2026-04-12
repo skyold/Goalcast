@@ -426,6 +426,177 @@ Step 4：转交 goalcast-compare
 
 ---
 
+## 第六节：批量处理与数据预热
+
+### 使用场景
+
+1. **定时任务**：每天固定时间自动拉取当天赛程，预热数据缓存
+2. **批量分析**：对 watchlist 中所有联赛的当天比赛运行全量分析，结果持久化
+
+### 三阶段架构
+
+```
+阶段一：Python 预热（无 LLM 参与）
+  batch_runner.py
+    → 读取 config/watchlist.yaml（联赛列表）
+    → 调用 goalcast_prefetch_today(leagues, data_provider)
+    → 并发拉取所有比赛的原始数据，写入 data/cache/
+    → 输出 data/cache/today_matches_{provider}.json（比赛列表）
+
+阶段二：Agent 分析（LLM 进行解读，数据全部走缓存）
+  goalcast-daily / goalcast-compare
+    → goalcast_get_todays_matches() → 缓存命中，返回比赛列表
+    → 每场 goalcast_resolve_match() → 缓存命中，毫秒级
+    → 执行 v2.5 / v3.0 分析层（LLM 解读，数学工具调用）
+    → 保存 AnalysisResult 到 data/reports/ 和 data/analysis.db
+
+阶段三：其他 Agent 消费输出
+  → 读取 data/reports/ 的 JSON 文件
+  → 查询 data/analysis.db 进行回测和历史对比
+```
+
+### 新增 MCP 工具：`goalcast_prefetch_today`
+
+```python
+goalcast_prefetch_today(
+    data_provider: str,              # "sportmonks" | "footystats"
+    leagues: List[str] = None,       # 为空时使用 config/watchlist.yaml
+    date: str = None,                # YYYY-MM-DD，默认今天
+) -> PrefetchResult
+```
+
+返回：
+
+```json
+{
+  "matches_found": 12,
+  "matches_cached": 12,
+  "cache_path": "data/cache/today_matches_sportmonks.json",
+  "leagues": ["Premier League", "La Liga", "Bundesliga"],
+  "provider": "sportmonks",
+  "date": "2026-04-12"
+}
+```
+
+内部实现：调用 `batch_runner.py` 子进程，并发拉取，写入缓存后返回。Agent 调用此工具后，所有后续的 `goalcast_resolve_match` 均为缓存命中。
+
+### goalcast-daily 更新后的执行流程
+
+```
+Step 0（可选，推荐在批量时执行）：数据预热
+  调用 goalcast_prefetch_today(data_provider, leagues=watchlist, date=today)
+  → 等待完成，确认缓存就绪
+  → 输出："已预热 12 场比赛数据，API 配额消耗 0"
+
+Step 1-4：同原设计（此时所有数据调用均走缓存）
+```
+
+**单场分析时无需预热**：直接调用 `goalcast_resolve_match`，按需获取并缓存。预热仅在批量（>3 场）时有显著收益。
+
+### 配置文件：`config/watchlist.yaml`
+
+```yaml
+# 联赛监控列表，按 provider 分别配置
+sportmonks:
+  leagues:
+    - name: "Premier League"
+      country: "England"
+      season_id: 23614          # Sportmonks season ID
+    - name: "La Liga"
+      country: "Spain"
+      season_id: 23599
+    - name: "Bundesliga"
+      country: "Germany"
+      season_id: 23584
+
+footystats:
+  leagues:
+    - name: "Premier League"
+      country: "England"
+      league_id: 2               # FootyStats league ID
+    - name: "La Liga"
+      country: "Spain"
+      league_id: 3
+```
+
+### 输出存储设计
+
+```
+data/
+  cache/                        # 临时缓存（TTL 2h），跨进程共享
+    today_matches_sportmonks.json
+    today_matches_footystats.json
+    resolve_{match_id}_{provider}.json
+    ...
+
+  reports/                      # 分析结果（永久保存）
+    2026-04-12/
+      Arsenal_vs_Chelsea_sportmonks_v30.json
+      Arsenal_vs_Chelsea_footystats_v30.json
+      ...
+
+  analysis.db                   # SQLite，结构化历史数据，用于回测
+```
+
+**SQLite 表结构（简化）：**
+
+```sql
+-- 每次分析结果一行
+CREATE TABLE analyses (
+    id          INTEGER PRIMARY KEY,
+    match_date  TEXT NOT NULL,
+    home_team   TEXT NOT NULL,
+    away_team   TEXT NOT NULL,
+    competition TEXT NOT NULL,
+    data_provider TEXT NOT NULL,    -- "sportmonks" | "footystats"
+    model_version TEXT NOT NULL,    -- "v2.5" | "v3.0"
+    home_win_prob REAL,
+    draw_prob     REAL,
+    away_win_prob REAL,
+    confidence    INTEGER,
+    best_bet      TEXT,
+    ev_adjusted   REAL,
+    result_json   TEXT,             -- 完整 AnalysisResult JSON
+    created_at  TEXT NOT NULL
+);
+
+-- 实际比赛结果（赛后填充，用于回测）
+CREATE TABLE match_results (
+    match_date  TEXT NOT NULL,
+    home_team   TEXT NOT NULL,
+    away_team   TEXT NOT NULL,
+    home_goals  INTEGER,
+    away_goals  INTEGER,
+    PRIMARY KEY (match_date, home_team, away_team)
+);
+```
+
+### 目录结构补充
+
+```
+Goalcast/
+  config/
+    watchlist.yaml              ← 新增
+  data/
+    cache/                      ← 新增（已在 .gitignore）
+    reports/                    ← 新增（已在 .gitignore）
+    analysis.db                 ← 新增（已在 .gitignore）
+  scripts/
+    batch_runner.py             ← 新增（Python 批处理，无 LLM）
+```
+
+`batch_runner.py` CLI：
+
+```bash
+# 预热今日所有 watchlist 联赛数据
+python scripts/batch_runner.py --date today --provider sportmonks
+
+# 指定日期 + 指定联赛
+python scripts/batch_runner.py --date 2026-04-12 --provider footystats --league "Premier League"
+```
+
+---
+
 ## 附录：遗留的已知问题（本次不修复）
 
 以下问题在初始 review 中发现，但不在本次重构范围内：
@@ -448,5 +619,7 @@ Step 4：转交 goalcast-compare
 | P1 | `goalcast_get_todays_matches` 新工具，`goalcast_resolve_match` 加 `data_provider` 参数 |
 | P2 | MatchContext 新字段（lineups、odds_movement、H2H） |
 | P2 | `goalcast-compare` 重写，`goalcast-analyzer-v25/v30` 子 agent 静默模式 |
-| P3 | `goalcast-daily` 新 skill |
+| P3 | `goalcast-daily` 新 skill，含预热模式 |
 | P3 | `mcp_server/server.py` 拆分为 `tools/` 子模块 |
+| P3 | `goalcast_prefetch_today` 工具 + `batch_runner.py` 脚本 |
+| P3 | `config/watchlist.yaml`，`data/reports/`，`data/analysis.db` 存储层 |
