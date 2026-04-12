@@ -15,6 +15,7 @@
 """
 
 import asyncio
+import datetime
 import time
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -39,6 +40,9 @@ if TYPE_CHECKING:
     from provider.footystats.client import FootyStatsProvider
     from provider.sportmonks.client import SportmonksProvider
     from provider.understat.client import UnderstatProvider
+
+
+_DEFAULT_ODDS_MOVEMENT_HOURS = 48  # default movement window when not provided by resolver
 
 
 class DataFusion:
@@ -387,12 +391,12 @@ class DataFusion:
                 draw_current=float(d["draw_current"]),
                 away_open=float(d["away_open"]),
                 away_current=float(d["away_current"]),
-                movement_hours=int(d.get("movement_hours", 48)),
+                movement_hours=int(d.get("movement_hours", _DEFAULT_ODDS_MOVEMENT_HOURS)),
             )
         except (KeyError, TypeError, ValueError):
             return None
 
-    def _map_h2h(self, res: ResolvedData) -> Optional[tuple]:
+    def _map_h2h(self, res: ResolvedData) -> Optional[tuple[H2HEntry, ...]]:
         """将 resolver head_to_head 结果映射为 tuple[H2HEntry, ...]。"""
         if not res.ok or not res.data:
             return None
@@ -420,7 +424,6 @@ def _infer_season(match_date: Optional[str]) -> str:
     足球赛季一般 8 月开始，因此 1–7 月用上一年。
     """
     if not match_date:
-        import datetime
         now = datetime.datetime.now()
         year = now.year - 1 if now.month < 8 else now.year
         return str(year)
@@ -430,14 +433,13 @@ def _infer_season(match_date: Optional[str]) -> str:
         month = int(match_date[5:7])
         return str(year - 1 if month < 8 else year)
     except (ValueError, IndexError):
-        import datetime
         return str(datetime.datetime.now().year - 1)
 
 
 def _safe_result(result: Any, data_type: str) -> ResolvedData:
     """将 asyncio.gather 异常或无效值转为 missing ResolvedData。"""
     if isinstance(result, BaseException):
-        logger.error(f"[Fusion] {data_type} task failed: {result}")
+        logger.opt(exception=result).error(f"[Fusion] {data_type} task failed")
         return ResolvedData.missing(data_type)
     if not isinstance(result, ResolvedData):
         return ResolvedData.missing(data_type)
@@ -483,6 +485,8 @@ def _find_standing(
             or str(row.get("id", ""))
         ).lower()
 
+        # TODO: improve team name matching — substring keyword match can produce false
+        # positives (e.g. "West Ham" keywords matching "West Brom").
         if row_name == name_lower or any(kw in row_name for kw in keywords):
             return StandingsEntry(
                 position=int(row.get("position") or row.get("pos") or 0),
