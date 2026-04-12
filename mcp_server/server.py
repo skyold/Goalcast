@@ -1,6 +1,8 @@
 import asyncio
 import datetime
 import os
+import yaml
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
 
@@ -1197,6 +1199,96 @@ def _normalize_footystats_fixtures(raw, league_filter: Optional[str]) -> List[Di
             "season_id": str(m.get("competition_id", "")),
         })
     return result
+
+
+@mcp.tool()
+async def goalcast_prefetch_today(
+    data_provider: str,
+    leagues: Optional[List[str]] = None,
+    date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    预热今日/指定日期比赛的数据缓存。
+
+    适合在批量分析前调用：并发拉取所有比赛的原始数据，
+    写入 data/cache/，后续 goalcast_resolve_match 调用均为缓存命中。
+
+    Args:
+        data_provider: "sportmonks" | "footystats"
+        leagues:       联赛名列表。为 None 时读取 config/watchlist.yaml。
+        date:          YYYY-MM-DD，默认今天
+
+    Returns:
+        { matches_found, matches_cached, provider, date, leagues, match_list }
+    """
+    target_date = date or datetime.date.today().isoformat()
+
+    # 读取 watchlist（未指定 leagues 时使用）
+    if leagues is None:
+        watchlist_path = Path(__file__).resolve().parent.parent / "config" / "watchlist.yaml"
+        if watchlist_path.exists():
+            with open(watchlist_path) as f:
+                wl = yaml.safe_load(f)
+            provider_cfg = wl.get(data_provider, {})
+            leagues = [lg["name"] for lg in provider_cfg.get("leagues", [])]
+        else:
+            leagues = []
+
+    all_matches: List[Dict[str, Any]] = []
+    for league in (leagues or [None]):
+        try:
+            matches = await goalcast_get_todays_matches(
+                data_provider=data_provider,
+                date=target_date,
+                league_filter=league,
+            )
+            all_matches.extend(m for m in matches if "error" not in m)
+        except Exception as exc:
+            logger.warning(f"[prefetch] Failed to list {league}: {exc}")
+
+    # 并发预热每场比赛
+    async def _prefetch_one(match: Dict[str, Any]) -> bool:
+        try:
+            await goalcast_resolve_match(
+                match_id=match["match_id"],
+                fixture_id=match.get("fixture_id") or match["match_id"],
+                home_team=match["home_team"],
+                home_team_id=match["home_team_id"],
+                away_team=match["away_team"],
+                away_team_id=match["away_team_id"],
+                season_id=match["season_id"],
+                league=match["competition"],
+                data_provider=data_provider,
+                match_date=target_date,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                f"[prefetch] Failed {match.get('home_team')} vs {match.get('away_team')}: {exc}"
+            )
+            return False
+
+    results = await asyncio.gather(
+        *(_prefetch_one(m) for m in all_matches), return_exceptions=True
+    )
+    cached_count = sum(1 for r in results if r is True)
+
+    return {
+        "matches_found": len(all_matches),
+        "matches_cached": cached_count,
+        "provider": data_provider,
+        "date": target_date,
+        "leagues": leagues or [],
+        "match_list": [
+            {
+                "home_team": m["home_team"],
+                "away_team": m["away_team"],
+                "competition": m["competition"],
+                "kickoff_time": m.get("kickoff_time", ""),
+            }
+            for m in all_matches
+        ],
+    }
 
 
 def _sportmonks_available() -> bool:
