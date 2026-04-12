@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
@@ -1123,7 +1124,6 @@ async def goalcast_get_todays_matches(
         [{ home_team, away_team, competition, kickoff_time,
            match_id, home_team_id, away_team_id, season_id }, ...]
     """
-    import datetime
     target_date = date or datetime.date.today().isoformat()
 
     try:
