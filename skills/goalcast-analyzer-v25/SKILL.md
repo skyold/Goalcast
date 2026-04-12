@@ -22,121 +22,104 @@ description: Use this skill when the user wants a single-match Goalcast football
 3. **置信度上限 90** - 绝对禁止输出 >90 的置信度
 4. **概率三项之和必须 = 100%**（允许 ±0.5% 误差）
 
+## 关键变更
+
+⚠️ **所有数学计算（泊松分布、EV、置信度）必须通过 MCP 工具调用，禁止 LLM 心算。**
+- 泊松分布 → `goalcast_calculate_poisson`
+- EV 计算 → `goalcast_calculate_ev`
+- Kelly → `goalcast_calculate_kelly`
+- 风险调整 EV → `goalcast_calculate_risk_adjusted_ev`
+- 置信度 → `goalcast_calculate_confidence(method="v2.5", ...)`
+
 ## 执行步骤
 
 ### Step 1：定位比赛
 
-调用 `mcp__goalcast__footystats_get_todays_matches`：
+**注**：通过 `goalcast_get_todays_matches` 获取比赛 ID，无需直接调用 provider 工具。
+
+调用 `goalcast_get_todays_matches`：
+- 参数 `data_provider`：由调用方传入（如 "sportmonks" / "footystats"）
 - 参数 `date`：用户指定日期（YYYY-MM-DD），默认今天
-- 参数 `league_filter`：从用户意图提取，如 "Premier League"、"Champions League"
+- 参数 `league_filter`：从用户意图提取，如 "Premier League"
 
-从返回的 `data[]` 数组中找到目标比赛，提取：
-- `id` → match_id
-- `homeID` → home_team_id
-- `awayID` → away_team_id
-- `home_name` → 主队名
-- `away_name` → 客队名
-- `competition_id` → 用于查积分榜
-- `competition_name`（或 `competition`）→ 联赛名
+按队名模糊匹配提取目标比赛，获取：
+- `match_id` / `fixture_id` → provider 内部 ID
+- `home_team_id` / `away_team_id`
+- `competition` → 联赛名
+- `season_id`
 
-如果找不到比赛：回复"未找到符合条件的比赛，请确认日期和联赛名称"，停止执行。
+如未找到：回复"未找到符合条件的比赛"，停止。
 
-### Step 2：并行采集数据（FootyStats）
+**被 goalcast-compare 作为子 agent 调用时**：
+接收参数包含 `home_team`, `away_team`, `competition`, `date`, `data_provider`, `model`, `match_type`。
+此时跳过用户交互，直接以队名在 `goalcast_get_todays_matches` 结果中定位比赛。
 
-同时调用以下 4 个工具：
+### Step 2：数据采集（统一接口）
 
-```text
-mcp__goalcast__footystats_get_match_details(match_id=<id>)
-mcp__goalcast__footystats_get_team_last_x_stats(team_id=<homeID>)
-mcp__goalcast__footystats_get_team_last_x_stats(team_id=<awayID>)
-mcp__goalcast__footystats_get_league_tables(season_id=<competition_id>)
+调用 `goalcast_resolve_match` 工具：
+
+```
+goalcast_resolve_match(
+    match_id=<match_id>,
+    fixture_id=<fixture_id>,      ← Sportmonks provider 时传入
+    home_team=<home_team>,
+    home_team_id=<home_team_id>,
+    away_team=<away_team>,
+    away_team_id=<away_team_id>,
+    season_id=<season_id>,
+    league=<competition>,
+    data_provider=<data_provider>,  ← 必填，来自 Step 1 参数
+    match_date=<date>
+)
 ```
 
-注意：工具参数名为 `season_id`，值来自 Step 1 提取的 `competition_id` 字段。FootyStats 中 `season` 与 `competition` 指同一实体。
+**该工具自动处理**：数据源选择、resolver 路由、缓存、质量评分。
 
-记录每个调用是否成功。失败项列入 `missing_data`。
+**Sportmonks provider 新增字段**（v3.0 分析层可使用）：
+- `ctx.lineups` → L6 贝叶斯调整启用条件
+- `ctx.odds_movement` → L3 市场行为权重提升至 20%
+- `ctx.head_to_head` → 交锋记录参考
 
-### Step 2.5：Understat 数据补充（条件触发）
-
-**触发条件**：满足以下任一情况即执行：
-- FootyStats 不提供 xG 数据（`xG` 字段缺失）
-- 用户明确要求使用 xG 数据
-- 联赛属于 Understat 支持范围（EPL, La_liga, Bundesliga, Serie_A, Ligue_1, RFPL）
-
-**执行步骤**：
-
-1. **确定联赛代码和赛季**：
-   ```text
-   联赛映射表：
-   - England Premier League → EPL
-   - La Liga / Spanish → La_liga
-   - Bundesliga / German → Bundesliga
-   - Serie A / Italian → Serie_A
-   - Ligue 1 / French → Ligue_1
-   - 其他 → 跳过 Understat
-   ```
-
-2. **获取 Understat 联赛比赛列表**：
-   ```text
-   mcp__goalcast__understat_get_league_matches(league=<联赛代码>, season=<赛季年份>)
-   ```
-
-3. **匹配比赛**（通过球队名 + 日期）：
-   - 遍历 Understat 比赛列表
-   - 匹配条件：`h_team` 包含主队名关键词 OR `a_team` 包含客队名关键词
-   - 提取匹配到的 `match_id`（Understat ID）
-
-4. **获取 xG 数据**（如果匹配成功）：
-   ```text
-   mcp__goalcast__understat_get_match_stats(match_id=<understat_match_id>)
-   ```
-
-5. **数据融合**：
-   - 从 Understat 提取：`home_xg`, `away_xg`, `shots`（射门详情）
-   - 更新 L1 计算：使用 Understat 的 xG 替代 `xG_proxy`
-   - 标注数据来源：`xG_source="understat"` 或 `xG_source="proxy"`
-
-**失败处理**：
-- Understat 匹配失败 → 降级使用 `xG_proxy`，标注 `xG_source="proxy"`
-- Understat 数据不可用 → 标注 `missing_data` 增加 `"understat_xg"`
+**子 agent 静默规则**：收到 `match_type` 参数时，零层检查直接采用该值，不询问用户。
 
 ### Step 3：零层数据检查
 
-分析前，检查并记录每项数据的可用性：
+使用 `goalcast_resolve_match` 返回的 `MatchContext` 进行数据质量评估：
 
 | 数据项 | 检查方式 | 降级处理 |
 |--------|----------|----------|
-| 主队近况（last_x） | `data` 数组非空 | 不可用 → 使用联赛均值，`data_quality=low` |
-| 客队近况（last_x） | `data` 数组非空 | 不可用 → 使用联赛均值，`data_quality=low` |
-| 赔率（odds_ft_1/x/2） | 值 > 0 | 不可用 → L3 跳过，market 信号=中立 |
-| 积分榜（league_table） | `league_table` 非 null | 不可用 → L2 动力因素跳过 |
-| 阵容（首发） | **预期缺失** | 置信度 -10，L2 调整幅度上限 ±0.2 xG |
-| xG 直接数据（FootyStats） | **预期缺失** | 尝试 Understat 补充（Step 2.5） |
-| xG 直接数据（Understat） | Step 2.5 匹配成功 | 不可用 → L1 使用进球数代理（`xG_proxy`） |
+| xG 数据 | `ctx.xg` 非空 | 不可用 → L1 使用联赛均值，`data_quality=low` |
+| 主队近况 | `ctx.home_form_10` 非空 | 不可用 → L1 使用联赛均值，`data_quality=low` |
+| 客队近况 | `ctx.away_form_10` 非空 | 不可用 → L1 使用联赛均值，`data_quality=low` |
+| 赔率 | `ctx.odds` 非空且值 > 0 | 不可用 → L3 跳过，market 信号=中立 |
+| 积分榜 | `ctx.home_standing` 非空 | 不可用 → L2 动力因素跳过 |
+| 阵容 | **预期缺失** | 置信度 -10，L2 调整幅度上限 ±0.2 xG |
 
-将所有预期和实际缺失的数据写入 `missing_data` 列表。
+**数据质量确定**：
+- `ctx.overall_quality >= 0.8` → `data_quality=high`
+- `0.5 <= ctx.overall_quality < 0.8` → `data_quality=medium`
+- `ctx.overall_quality < 0.5` → `data_quality=low`
+
+**缺失数据处理**：
+- 直接使用 `ctx.data_gaps` 作为 `missing_data` 列表
 
 ### Step 4：v2.5 五层分析
 
 **【第一层 - 基础实力（权重 40%）】**
 
-**优先级 1：使用 Understat xG 数据（如果 Step 2.5 成功获取）**
+使用 `MatchContext` 中的 xG 数据：
 
-```text
-如果 xG_source="understat"：
-  base_xg_home = Understat.home_xg
-  base_xg_away = Understat.away_xg
-  标注：xG_source="understat_direct"
+```
+# 从 ctx.xg 获取 xG 数据
+base_xg_home = ctx.xg.home_xg_for
+base_xg_away = ctx.xg.away_xg_for
+xG_source = ctx.xg.source  # "understat_direct" | "footystats_proxy" | "league_avg"
 ```
 
-**优先级 2：降级使用 proxy（如果 Understat 不可用）**
-
-从 `get_team_last_x_stats` 提取场均进球数（字段：`stats.seasonScoredAVG_overall`，按 `last_x_match_num` 遍历匹配 5 和 10）：
-
-```text
-xG_proxy_home = 近 10 场场均进球 × 0.7 + 近 5 场场均进球 × 0.3
-xG_proxy_away = 近 10 场场均进球 × 0.7 + 近 5 场场均进球 × 0.3
-```
+**数据来源说明**：
+- `understat_direct`：使用 Understat 直接 xG 数据（最优先）
+- `footystats_proxy`：使用 FootyStats 近况数据计算的 proxy
+- `league_avg`：使用联赛均值（最低优先级）
 
 主场优势修正（联赛参数）：
 
@@ -150,7 +133,7 @@ xG_proxy_away = 近 10 场场均进球 × 0.7 + 近 5 场场均进球 × 0.3
 | Champions League | +0.18 |
 | 其他 | +0.20 |
 
-```text
+```
 base_xg_home = xG_proxy_home + 主场修正
 base_xg_away = xG_proxy_away
 ```
@@ -158,7 +141,7 @@ base_xg_away = xG_proxy_away
 如近况数据不可用：使用联赛均值（英超：主 1.5 / 客 1.2），标注 `data_quality=low`，注明"基于联赛均值估算"。
 
 **xG 数据优先级总结**：
-```text
+```
 1. Understat 直接 xG → base_xg = Understat xG（最优先，置信度 +5）
 2. FootyStats xG（如有）→ base_xg = FootyStats xG
 3. Proxy 估算 → base_xg = xG_proxy（降级，置信度 -5）
@@ -167,9 +150,9 @@ base_xg_away = xG_proxy_away
 
 **【第二层 - 状态调整（权重 25%）】**
 
-将可用的短期因素转为结构化 xG 调整（禁止叙述性描述，必须量化）：
+使用 `MatchContext` 数据进行状态调整：
 
-1. **动力因素**（来自 `league_table`，字段 `points` / `position`）：
+1. **动力因素**（来自 `ctx.home_standing` 和 `ctx.away_standing`）：
    - 主队积分与第 4 名差距 ≤3 分（争欧战）：主队 +0.15 xG
    - 主队积分与降级区差距 ≤3 分（保级压力）：主队 +0.15 xG
    - 客队同理
@@ -180,21 +163,26 @@ base_xg_away = xG_proxy_away
    - 伤病/停赛：标注"数据不可用，跳过"
    - 赛程疲劳：标注"数据不可用，跳过"
 
-```text
+```
 adjusted_xg_home = base_xg_home + L2_adjustment_home（受 ±0.2 上限约束）
 adjusted_xg_away = base_xg_away + L2_adjustment_away（受 ±0.2 上限约束）
 ```
 
 **【第三层 - 市场行为（权重 20%）】**
 
-使用 `match_details` 中的赔率字段（`odds_ft_1` / `odds_ft_x` / `odds_ft_2`）：
+使用 `MatchContext` 中的赔率数据：
 
-```text
-超售率 = 1/odds_ft_1 + 1/odds_ft_x + 1/odds_ft_2
+```
+# 从 ctx.odds 获取赔率
+odds_home = ctx.odds.home_win
+odds_draw = ctx.odds.draw
+odds_away = ctx.odds.away_win
+
+超售率 = 1/odds_home + 1/odds_draw + 1/odds_away
 市场概率（归一化）：
-  P_market_home = (1/odds_ft_1) / 超售率
-  P_market_draw = (1/odds_ft_x) / 超售率
-  P_market_away = (1/odds_ft_2) / 超售率
+  P_market_home = (1/odds_home) / 超售率
+  P_market_draw = (1/odds_draw) / 超售率
+  P_market_away = (1/odds_away) / 超售率
 ```
 
 模型与市场分歧 = 模型概率 - 市场概率（各方向）
@@ -208,34 +196,47 @@ adjusted_xg_away = base_xg_away + L2_adjustment_away（受 ±0.2 上限约束）
 
 **【第四层 - 分布模型（权重 10%）】**
 
-使用标准泊松分布（v2.5 不使用 Dixon-Coles 修正）：
+⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算泊松分布。**
 
-```text
-λ_home = adjusted_xg_home
-λ_away = adjusted_xg_away
-
-P(主队进 k 球) = e^(-λ_home) × λ_home^k / k!
-P(客队进 k 球) = e^(-λ_away) × λ_away^k / k!
+调用 `goalcast_calculate_poisson`：
+```
+goalcast_calculate_poisson(
+    home_lambda=adjusted_xg_home,
+    away_lambda=adjusted_xg_away,
+    max_goals=6,
+    model="standard"
+)
 ```
 
-计算 0-5 × 0-5 的比分矩阵（36 种比分组合）：
-- `P(主胜)` = 所有主队进球 > 客队进球的概率之和
-- `P(平)` = 所有主客进球相等的概率之和
-- `P(客胜)` = `1 - P(主胜) - P(平)`
-
-取概率最高的前 3 个比分作为 `top_scores`。
+从返回结果中提取：
+- `home_win_pct` → 主胜概率
+- `draw_pct` → 平局概率
+- `away_win_pct` → 客胜概率
+- `top_scores` → 前 5 高概率比分
+- `score_matrix` → 完整比分概率矩阵
 
 **【第五层 - 决策与风险（权重 5%）】**
 
-EV 计算（v2.5 简化版）：
+⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算 EV。**
 
-```text
-对主胜方向：EV = 模型P(主胜) × odds_ft_1 - 1
-对平局方向：EV = 模型P(平) × odds_ft_x - 1
-对客胜方向：EV = 模型P(客胜) × odds_ft_2 - 1
+对三个方向分别调用 `goalcast_calculate_ev`：
+```
+goalcast_calculate_ev(model_probability=模型P(主胜), market_odds=odds_ft_1)
+goalcast_calculate_ev(model_probability=模型P(平),   market_odds=odds_ft_x)
+goalcast_calculate_ev(model_probability=模型P(客胜), market_odds=odds_ft_2)
 ```
 
-选取 EV 最高的方向作为 `best_bet`。
+从返回结果中取 `ev` 最高的方向作为 `best_bet`。
+
+再调用 `goalcast_calculate_risk_adjusted_ev` 获取风险调整后 EV：
+```
+goalcast_calculate_risk_adjusted_ev(
+    raw_ev=最高EV,
+    lineup_uncertainty=True,
+    market_low_confidence=False,
+    data_quality="medium"  # 根据实际数据质量
+)
+```
 
 投注决策：
 - EV > 0.08 → 推荐
@@ -244,25 +245,28 @@ EV 计算（v2.5 简化版）：
 
 如赔率不可用（`odds=0`）：`EV=0`，`bet_rating="不推荐"`，`best_bet="不推荐（赔率数据不可用）"`。
 
-置信度计算：
+**置信度计算**：
 
-```text
-基础分 = 70
+⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算置信度。**
 
-加分：
-+8   市场方向与模型一致（signal_direction 含"支持模型"）
-+5   近况数据完整（主客队均有 last_x 数据）
-+5   Understat xG 数据可用（xG_source="understat_direct"）
-
-扣分：
--10  阵容不可用（预期触发，必扣）
--5   xG 使用代理值（预期触发，必扣）
--5   赔率方向与模型相反
--8   近况数据不可用（data_quality=low）
--5   Understat 匹配失败（仅当联赛在支持范围内）
-
-范围限制：[30, 90]
+调用 `goalcast_calculate_confidence(method="v2.5", ...)`：
 ```
+goalcast_calculate_confidence(
+    method="v2.5",
+    base_score=70,
+    market_agrees=<是否一致>,
+    data_complete=ctx.overall_quality >= 0.8,
+    understat_available=ctx.xg.source == "understat_direct",
+    odds_available=ctx.odds is not None,
+    lineup_unavailable=True,
+    xG_proxy_used=ctx.xg.source == "footystats_proxy",
+    market_disagrees=<市场是否相反>,
+    data_quality_low=ctx.overall_quality < 0.5,
+    understat_failed=ctx.xg.source != "understat_direct" and ctx.sources.xg == "understat"
+)
+```
+
+从返回结果中取 `confidence` 作为最终值。
 
 ### Step 5：输出 `AnalysisResult`
 
@@ -272,12 +276,12 @@ EV 计算（v2.5 简化版）：
 {
   "method": "v2.5",
   "match_info": {
-    "home_team": "<主队名>",
-    "away_team": "<客队名>",
-    "competition": "<联赛名>",
+    "home_team": "<ctx.match_info.home_team>",
+    "away_team": "<ctx.match_info.away_team>",
+    "competition": "<ctx.match_info.league>",
     "match_type": "A",
-    "data_quality": "medium",
-    "missing_data": ["lineup", "xG_direct"]
+    "data_quality": "<根据 ctx.overall_quality 确定>",
+    "missing_data": "<ctx.data_gaps>"
   },
   "probabilities": {
     "home_win": "<X%>",
@@ -305,7 +309,7 @@ EV 计算（v2.5 简化版）：
     "bet_rating": "推荐 | 小注 | 不推荐",
     "confidence": 0
   },
-  "reasoning_summary": "<各层关键结论，须包含：xG_proxy 数值、市场信号方向、EV 计算依据、置信度扣分项>"
+  "reasoning_summary": "<各层关键结论，须包含：xG 数据来源、市场信号方向、EV 计算依据、置信度扣分项>"
 }
 ```
 
@@ -314,5 +318,6 @@ EV 计算（v2.5 简化版）：
 - [ ] `confidence ∈ [30, 90]`
 - [ ] `ev ∈ [-1, +2]`
 - [ ] `missing_data` 包含 `"lineup"`
-- [ ] `xG_source` 字段存在（`"understat_direct"` 或 `"proxy"`）
-- [ ] `reasoning_summary` 非空且提及数据来源（Understat 或 proxy）
+- [ ] `xG_source` 字段存在（`"understat_direct"`、`"footystats_proxy"` 或 `"league_avg"`）
+- [ ] `reasoning_summary` 非空且提及 xG 数据来源
+- [ ] **所有计算（泊松、EV、置信度）均通过 MCP 工具调用**
