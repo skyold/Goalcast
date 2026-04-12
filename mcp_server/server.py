@@ -1028,6 +1028,8 @@ async def goalcast_resolve_match(
     league: str,
     match_date: Optional[str] = None,
     season: Optional[str] = None,
+    data_provider: str = "footystats",
+    fixture_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     数据策略层核心工具：并行采集并融合单场比赛所需的全部数据，
@@ -1046,6 +1048,9 @@ async def goalcast_resolve_match(
         league:        联赛名（如 "Premier League"，用于 Understat 映射 + 联赛参数）
         match_date:    比赛日期 YYYY-MM-DD（可选，帮助推断 Understat 赛季）
         season:        Understat 赛季年份（如 "2025"），不传时自动从 match_date 推断
+        data_provider: 数据提供商，"footystats"（默认）或 "sportmonks"
+        fixture_id:    Sportmonks fixture ID（当 data_provider="sportmonks" 时使用）；
+                       不传时回退到 match_id
 
     Returns:
         MatchContext 序列化字典，包含以下顶层字段：
@@ -1066,12 +1071,17 @@ async def goalcast_resolve_match(
         伤停/阵容: v1 标注缺失（data_gaps 中可见）
     """
     try:
+        effective_fixture_id = fixture_id or match_id
+        sportmonks = get_sportmonks() if data_provider == "sportmonks" else None
+
         fusion = DataFusion(
+            data_provider=data_provider,
             footystats=get_footystats(),
             understat=get_understat(),
-            sportmonks=get_sportmonks() if _sportmonks_available() else None,
+            sportmonks=sportmonks,
         )
         ctx = await fusion.build(
+            fixture_id=str(effective_fixture_id),
             match_id=str(match_id),
             home_team=home_team,
             home_team_id=str(home_team_id),
@@ -1084,14 +1094,109 @@ async def goalcast_resolve_match(
         )
         return ctx.to_dict()
     except Exception as exc:
-        logger.error(f"[goalcast_resolve_match] Unexpected error: {exc}")
+        logger.error(f"[goalcast_resolve_match] {exc}")
         return {
             "error": "RESOLVE_ERROR",
-            "message": f"Failed to build MatchContext: {exc}",
+            "message": str(exc),
             "match_id": match_id,
             "home_team": home_team,
             "away_team": away_team,
         }
+
+
+@mcp.tool()
+async def goalcast_get_todays_matches(
+    data_provider: str,
+    date: Optional[str] = None,
+    league_filter: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    通过指定 data_provider 获取今日/指定日期的比赛列表。
+    返回标准化 MatchSummary 列表，字段与 provider 无关。
+
+    Args:
+        data_provider: "sportmonks" | "footystats"
+        date:          YYYY-MM-DD，默认今天
+        league_filter: 联赛名过滤（子字符串匹配，不区分大小写）
+
+    Returns:
+        [{ home_team, away_team, competition, kickoff_time,
+           match_id, home_team_id, away_team_id, season_id }, ...]
+    """
+    import datetime
+    target_date = date or datetime.date.today().isoformat()
+
+    try:
+        if data_provider == "sportmonks":
+            raw = await handle_api_call(
+                "Sportmonks",
+                get_sportmonks().get_fixtures_by_date(
+                    target_date,
+                    include="participants;scores;league;season",
+                ),
+            )
+            return _normalize_sportmonks_fixtures(raw, league_filter)
+
+        elif data_provider == "footystats":
+            raw = await handle_api_call(
+                "FootyStats",
+                get_footystats().get_todays_matches(target_date, timezone=None),
+            )
+            return _normalize_footystats_fixtures(raw, league_filter)
+
+        else:
+            return [{"error": f"Unknown data_provider: {data_provider}"}]
+
+    except Exception as exc:
+        logger.error(f"[goalcast_get_todays_matches] {exc}")
+        return [{"error": str(exc)}]
+
+
+def _normalize_sportmonks_fixtures(raw, league_filter: Optional[str]) -> List[Dict]:
+    data = raw.get("data", []) if isinstance(raw, dict) else []
+    result = []
+    for fix in data:
+        if not isinstance(fix, dict):
+            continue
+        league_name = fix.get("league", {}).get("name", "") if isinstance(fix.get("league"), dict) else ""
+        if league_filter and league_filter.lower() not in league_name.lower():
+            continue
+        participants = fix.get("participants", [])
+        home = next((p for p in participants if p.get("meta", {}).get("location") == "home"), {})
+        away = next((p for p in participants if p.get("meta", {}).get("location") == "away"), {})
+        result.append({
+            "home_team": home.get("name", ""),
+            "away_team": away.get("name", ""),
+            "competition": league_name,
+            "kickoff_time": fix.get("starting_at", ""),
+            "match_id": str(fix.get("id", "")),
+            "home_team_id": str(home.get("id", "")),
+            "away_team_id": str(away.get("id", "")),
+            "season_id": str(fix.get("season_id", "")),
+        })
+    return result
+
+
+def _normalize_footystats_fixtures(raw, league_filter: Optional[str]) -> List[Dict]:
+    matches = raw.get("data", []) if isinstance(raw, dict) else []
+    result = []
+    for m in matches:
+        if not isinstance(m, dict):
+            continue
+        comp_name = m.get("competition_name", "")
+        if league_filter and league_filter.lower() not in comp_name.lower():
+            continue
+        result.append({
+            "home_team": m.get("home_name", ""),
+            "away_team": m.get("away_name", ""),
+            "competition": comp_name,
+            "kickoff_time": m.get("date_unix", ""),
+            "match_id": str(m.get("id", "")),
+            "home_team_id": str(m.get("homeID", "")),
+            "away_team_id": str(m.get("awayID", "")),
+            "season_id": str(m.get("competition_id", "")),
+        })
+    return result
 
 
 def _sportmonks_available() -> bool:
