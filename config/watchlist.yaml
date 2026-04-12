@@ -1,0 +1,39 @@
+# config/watchlist.yaml
+# 联赛监控列表，按 provider 分别配置
+# batch_runner.py 读取此文件确定每日分析范围
+
+sportmonks:
+  leagues:
+    - name: "Premier League"
+      country: "England"
+      season_id: 23614
+    - name: "La Liga"
+      country: "Spain"
+      season_id: 23599
+    - name: "Bundesliga"
+      country: "Germany"
+      season_id: 23584
+    - name: "Serie A"
+      country: "Italy"
+      season_id: 23605
+    - name: "Ligue 1"
+      country: "France"
+      season_id: 23610
+
+footystats:
+  leagues:
+    - name: "Premier League"
+      country: "England"
+      league_id: 2
+    - name: "La Liga"
+      country: "Spain"
+      league_id: 3
+    - name: "Bundesliga"
+      country: "Germany"
+      league_id: 4
+    - name: "Serie A"
+      country: "Italy"
+      league_id: 5
+    - name: "Ligue 1"
+      country: "France"
+      league_id: 6
