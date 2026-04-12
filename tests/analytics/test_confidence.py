@@ -33,3 +33,15 @@ def test_confidence_default_base_is_70():
 def test_confidence_v25_exists():
     score = calculate_confidence_v25()
     assert 30 <= score <= 90
+
+
+def test_market_agrees_increases_score():
+    base = calculate_confidence()
+    with_agree = calculate_confidence(market_agrees=True)
+    assert with_agree > base
+
+
+def test_data_quality_low_decreases_score():
+    base = calculate_confidence()
+    with_low = calculate_confidence(data_quality_low=True)
+    assert with_low < base

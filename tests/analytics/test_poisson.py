@@ -35,3 +35,15 @@ def test_poisson_over25_pct():
 def test_poisson_btts_pct():
     result = poisson_distribution(1.8, 1.4)
     assert 0 <= result["btts_pct"] <= 100
+
+
+def test_poisson_zero_lambda():
+    # If one team has no expected goals, should still return valid result
+    result = poisson_distribution(0.0, 1.5)
+    assert result["home_win_pct"] + result["draw_pct"] + result["away_win_pct"] < 101
+
+
+def test_poisson_equal_teams():
+    result = poisson_distribution(1.3, 1.3)
+    # Equal teams — home advantage means home slightly favored
+    assert abs(result["home_win_pct"] - result["away_win_pct"]) < 20  # roughly similar
