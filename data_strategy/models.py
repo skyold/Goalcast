@@ -11,7 +11,7 @@
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 
 # ── 联赛常量 ────────────────────────────────────────────────
@@ -118,6 +118,46 @@ class XGStats:
     quality: float               # 0.0 – 1.0
 
 
+@dataclass(frozen=True)
+class MatchLineups:
+    """
+    双方阵型与首发确认状态。
+    来源：Sportmonks lineups include
+    """
+    home_formation: Optional[str]   # "4-3-3"，未公布时为 None
+    away_formation: Optional[str]
+    home_confirmed: bool            # 是否已确认首发
+    away_confirmed: bool
+
+
+@dataclass(frozen=True)
+class OddsMovement:
+    """
+    赔率变动快照（开盘 vs 当前）。
+    来源：Sportmonks odds_movement
+    """
+    home_open: float
+    home_current: float
+    draw_open: float
+    draw_current: float
+    away_open: float
+    away_current: float
+    movement_hours: int             # 赔率变动时间跨度（小时）
+
+
+@dataclass(frozen=True)
+class H2HEntry:
+    """
+    单场历史交锋记录。
+    来源：Sportmonks head_to_head
+    """
+    date: str                       # YYYY-MM-DD
+    home_team: str
+    away_team: str
+    home_goals: int
+    away_goals: int
+
+
 # ── 主契约对象 ────────────────────────────────────────────────
 
 
@@ -138,7 +178,10 @@ class MatchContext:
       - 元数据：data_gaps / overall_quality / sources / resolved_at
     """
 
-    # ── 比赛标识 ──────────────────────────────────────────
+    # ── 新增：provider 标识（最重要，放首位）─────────────────
+    data_provider: str               # "sportmonks" | "footystats"
+
+    # ── 比赛标识（原有，不变）─────────────────────────────────
     match_id: str                # FootyStats match ID
     league: str                  # 联赛名（如 "Premier League"）
     home_team: str
@@ -168,6 +211,11 @@ class MatchContext:
 
     # ── L3：赔率 ──────────────────────────────────────────
     odds: Optional[OddsSnapshot] # None → 见 data_gaps
+
+    # ── 新增：Sportmonks 独有字段──────────────────────────────
+    lineups: Optional[MatchLineups]
+    odds_movement: Optional[OddsMovement]
+    head_to_head: Optional[tuple]    # tuple[H2HEntry, ...] or None
 
     # ── 元数据 ────────────────────────────────────────────
     data_gaps: tuple             # 缺失数据项列表，如 ("lineups", "injuries")
