@@ -1,0 +1,212 @@
+{
+  "v2.5": {
+    "method": "v2.5",
+    "match_info": {
+      "home_team": "Paderborn",
+      "away_team": "Magdeburg",
+      "competition": "2. Bundesliga",
+      "match_type": "A",
+      "data_quality": "medium",
+      "missing_data": [
+        "standings",
+        "lineups",
+        "injuries",
+        "odds_movement",
+        "lineup"
+      ]
+    },
+    "probabilities": {
+      "home_win": "43.3%",
+      "draw": "21.0%",
+      "away_win": "35.7%"
+    },
+    "top_scores": [
+      {
+        "score": "2-1",
+        "probability_pct": 7.79
+      },
+      {
+        "score": "1-1",
+        "probability_pct": 7.53
+      },
+      {
+        "score": "2-2",
+        "probability_pct": 7.29
+      },
+      {
+        "score": "1-2",
+        "probability_pct": 7.04
+      },
+      {
+        "score": "3-1",
+        "probability_pct": 5.38
+      }
+    ],
+    "market": {
+      "market_probabilities": {
+        "home_win": "55.6%",
+        "draw": "26.7%",
+        "away_win": "28.6%"
+      },
+      "signal_direction": "支持模型",
+      "signal_strength": "中"
+    },
+    "decision": {
+      "ev": 0.2503,
+      "risk_adjusted_ev": 0.2128,
+      "best_bet": "客胜",
+      "bet_rating": "推荐",
+      "confidence": 50
+    },
+    "reasoning_summary": "v2.5 分析：基于 xG Proxy (2.07/1.87)。市场信号支持。EV 0.2503。置信度 50。"
+  },
+  "v3.0": {
+    "method": "v3.0",
+    "match_info": {
+      "home_team": "Paderborn",
+      "away_team": "Magdeburg",
+      "competition": "2. Bundesliga",
+      "match_type": "A",
+      "data_quality": "medium",
+      "missing_data": [
+        "standings",
+        "lineups",
+        "injuries",
+        "odds_movement",
+        "lineup",
+        "ppda",
+        "odds_movement"
+      ]
+    },
+    "probabilities": {
+      "home_win": "42.4%",
+      "draw": "22.7%",
+      "away_win": "34.9%"
+    },
+    "top_scores": [
+      {
+        "score": "1-1",
+        "probability_pct": 8.26
+      },
+      {
+        "score": "2-1",
+        "probability_pct": 7.67
+      },
+      {
+        "score": "2-2",
+        "probability_pct": 7.29
+      },
+      {
+        "score": "1-2",
+        "probability_pct": 6.94
+      },
+      {
+        "score": "3-1",
+        "probability_pct": 5.37
+      }
+    ],
+    "market": {
+      "market_probabilities": {
+        "home_win": "55.6%",
+        "draw": "26.7%",
+        "away_win": "28.6%"
+      },
+      "signal_direction": "支持模型",
+      "signal_strength": "中"
+    },
+    "decision": {
+      "ev": 0.2205,
+      "risk_adjusted_ev": 0.1687,
+      "best_bet": "客胜",
+      "bet_rating": "小注",
+      "confidence": 68
+    },
+    "reasoning_summary": "v3.0 分析：L4/L6 跳过。基于 footystats_proxy xG (2.10/1.90)。Dixon-Coles 修正。EV_adj 0.1687。置信度 68 (扣分项: 阵容缺失、市场降级)。"
+  },
+  "match_context": {
+    "match_id": "8228005",
+    "league": "2. Bundesliga",
+    "home_team": "Paderborn",
+    "home_team_id": "53",
+    "away_team": "Magdeburg",
+    "away_team_id": "558",
+    "season_id": "14931",
+    "match_date": "2026-04-12",
+    "xg": {
+      "home_xg_for": 1.9,
+      "home_xg_against": 1.1,
+      "away_xg_for": 1.9,
+      "away_xg_against": 2.2,
+      "source": "footystats_proxy",
+      "quality": 0.5
+    },
+    "home_form_5": {
+      "games": 5,
+      "wins": 3,
+      "draws": 2,
+      "losses": 0,
+      "goals_scored": 9.0,
+      "goals_conceded": 5.0,
+      "avg_scored": 1.8,
+      "avg_conceded": 1.0
+    },
+    "home_form_10": {
+      "games": 10,
+      "wins": 6,
+      "draws": 3,
+      "losses": 1,
+      "goals_scored": 19.0,
+      "goals_conceded": 11.0,
+      "avg_scored": 1.9,
+      "avg_conceded": 1.1
+    },
+    "away_form_5": {
+      "games": 5,
+      "wins": 2,
+      "draws": 1,
+      "losses": 2,
+      "goals_scored": 9.0,
+      "goals_conceded": 7.0,
+      "avg_scored": 1.8,
+      "avg_conceded": 1.4
+    },
+    "away_form_10": {
+      "games": 10,
+      "wins": 3,
+      "draws": 1,
+      "losses": 6,
+      "goals_scored": 19.0,
+      "goals_conceded": 22.0,
+      "avg_scored": 1.9,
+      "avg_conceded": 2.2
+    },
+    "form_source": "footystats",
+    "form_quality": 0.85,
+    "home_standing": null,
+    "away_standing": null,
+    "total_teams": 5,
+    "standings_source": "footystats",
+    "standings_quality": 0.8,
+    "odds": {
+      "home_win": 1.8,
+      "draw": 3.75,
+      "away_win": 3.5,
+      "source": "footystats",
+      "quality": 0.9
+    },
+    "data_gaps": [
+      "standings",
+      "lineups",
+      "injuries",
+      "odds_movement"
+    ],
+    "overall_quality": 0.725,
+    "sources": {
+      "xg": "footystats_proxy",
+      "form": "footystats",
+      "standings": "footystats",
+      "odds": "footystats"
+    },
+    "resolved_at": 1775962560.513424
+  }
+}

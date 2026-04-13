@@ -1,0 +1,46 @@
+{
+  "match_info": {
+    "match_id": 8255851,
+    "home_team": "Lokomotiv Sofia 1929",
+    "away_team": "Beroe",
+    "competition": "Parva Liga",
+    "date": "2026-04-09",
+    "final_score": "2-1"
+  },
+  "predictions_reviewed": [
+    {
+      "method": "v2.5",
+      "predicted_home_win": "52.0%",
+      "predicted_draw": "24.0%",
+      "predicted_away_win": "24.0%",
+      "predicted_best_bet": "客胜",
+      "predicted_top_score": "1-1",
+      "confidence": 50,
+      "correct_result": false,
+      "brier_component": 0.3456
+    },
+    {
+      "method": "v3.0",
+      "predicted_home_win": "51.0%",
+      "predicted_draw": "25.0%",
+      "predicted_away_win": "24.0%",
+      "predicted_best_bet": "客胜",
+      "predicted_top_score": "1-1",
+      "confidence": 50,
+      "correct_result": false,
+      "brier_component": 0.36019999999999996
+    }
+  ],
+  "actual_outcome": {
+    "home_goals": 2,
+    "away_goals": 1,
+    "result": "home_win",
+    "total_goals": 3
+  },
+  "accuracy": {
+    "correct_result": false,
+    "top_score_hit": false,
+    "brier_avg": 0.3529
+  },
+  "lesson": "两个模型均指向客队 Beroe 在当前赔率下具有较高的博弈价值（EV > 0.20），虽然模型概率认为主队 Lokomotiv Sofia 1929 胜算更大（~52%），但市场开出的 1.55 主胜赔率过度低估了客队，导致客胜方向出现显著分歧信号。鉴于数据质量仅为 medium 且缺乏关键阵容信息，建议以'小注'为主。"
+}

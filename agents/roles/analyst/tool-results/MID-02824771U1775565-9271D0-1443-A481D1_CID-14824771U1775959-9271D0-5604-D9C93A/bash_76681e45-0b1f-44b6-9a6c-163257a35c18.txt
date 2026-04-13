@@ -1,0 +1,199 @@
+Tool                                    Description
+  ──────────────────────────────────────────────────────────────────────────────────────────
+  start_google_auth                       Manually initiate Google OAuth authentication flow.
+  start_gmail_auth                        Start OAuth flow for Gmail scopes.
+  start_twitter_auth                      发起 Twitter/X OAuth 2.0 授权流程，让当前用户授权其 X 账号。
+  start_github_auth                       Start GitHub OAuth authorization flow.
+  list_all_authorizations                 List all connected (authorized) connectors for the current user.
+  start_linkedin_auth                     Start LinkedIn OAuth authorization flow.
+  linkedin_browser_login                  Log in to LinkedIn using a headless browser and persist the session.
+  start_notion_auth                       发起 Notion OAuth 2.0 授权流程。
+  set_notion_token                        Set or update Notion Integration Token for a user.
+  check_notion_token                      Check the status of a user's Notion Integration Token.
+  delete_notion_token                     Delete a user's Notion Integration Token.
+  list_notion_token_users                 List all users with stored Notion Integration Tokens.
+  set_higgsfield_credentials              Set or update Higgsfield API credentials for a user.
+  check_higgsfield_credentials            Check the status of a user's Higgsfield API credentials.
+  delete_higgsfield_credentials           Delete a user's Higgsfield API credentials.
+  list_higgsfield_users                   List all users with stored Higgsfield API credentials.
+  generate_higgsfield_image               Generate an image using the Higgsfield AI API.
+  generate_higgsfield_video               Generate a video using the Higgsfield AI API.
+  generate_higgsfield_voice               Generate voice/audio using the Higgsfield AI API.
+  get_higgsfield_generation_status        Get the status of a Higgsfield generation request.
+  cancel_higgsfield_generation            Cancel a queued Higgsfield generation request.
+  start_cj_auth                           Start CJ authorization flow.
+  get_cj_access_token                     Get the current workspace CJ access token.
+  start_shopify_auth                      Start Shopify authorization or claim an already-installed store.
+  get_shopify_access_token                Get the current workspace Shopify access token.
+  start_square_auth                       Manually initiate Square POS OAuth authentication flow.
+  start_alibaba_com_auth                  Generate an Alibaba second-party authorization login URL.
+  start_shopline_auth                     Start Shopline authorization for a store.
+  get_shopline_access_token               Get non-secret metadata about the current workspace Shopline token state.
+  claim_shopline_store                    Claim a pending Shopline store installation to the current workspace.
+  search_gmail_messages                   Search Gmail messages
+  get_gmail_message_content               Get Gmail message content
+  get_gmail_messages_content_batch        Get Gmail messages content in batch
+  get_gmail_attachment_content            Get Gmail attachment content
+  send_gmail_message                      Send Gmail message
+  draft_gmail_message                     Create Gmail draft message
+  get_gmail_thread_content                Get Gmail thread content
+  get_gmail_threads_content_batch         Get Gmail threads content in batch
+  list_gmail_labels                       List Gmail labels
+  manage_gmail_label                      Manage Gmail label (create, update, delete)
+  modify_gmail_message_labels             Modify Gmail message labels
+  batch_modify_gmail_message_labels       Batch modify Gmail message labels
+  list_gmail_filters                      List Gmail filters
+  create_gmail_filter                     Create Gmail filter
+  delete_gmail_filter                     Delete Gmail filter
+  setup_gmail_watch                       Set up Gmail watch for push notifications.
+  stop_gmail_watch                        Stop Gmail watch and remove stored config.
+  get_gmail_watch_status                  Get current Gmail watch config and expiration for the user.
+  renew_gmail_watch                       Renew Gmail watch (extends expiration by ~7 days).
+  get_user_profile                        Get detailed profile information for a user by user ID.
+  get_user_by_screen_name                 Fetches a user by screen name (username).
+  get_user_by_id                          Fetches a user by ID.
+  get_user_followers                      Retrieves a list of followers for a given user.
+  get_user_following                      Retrieves users the given user is following.
+  get_user_followers_you_know             Retrieves a list of common followers (simulated).
+  get_user_subscriptions                  Retrieves users the specified user is subscribed to (uses following as proxy).
+  post_tweet                              Post a tweet with optional media (images), reply, and tags.
+  delete_tweet                            Delete a tweet by its ID.
+  get_tweet_details                       Get detailed information about a specific tweet.
+  create_poll_tweet                       Create a tweet with a poll.
+  vote_on_poll                            Vote on a poll (mocked; Twitter API v2 does not support programmatic voting).
+  favorite_tweet                          Favorites (likes) a tweet.
+  unfavorite_tweet                        Unfavorites (unlikes) a tweet.
+  bookmark_tweet                          Adds the tweet to bookmarks.
+  delete_bookmark                         Removes the tweet from bookmarks.
+  delete_all_bookmarks                    Deletes all bookmarks (simulated by fetching and removing one by one).
+  get_timeline                            Get tweets from your home timeline (For You).
+  get_latest_timeline                     Get tweets from your home timeline (Following).
+  search_twitter                          Search Twitter with a query. product: 'Top' (relevancy) or 'Latest' (recency).
+  get_trends                              Retrieves trending topics on Twitter.
+  get_highlights_tweets                   Retrieves highlighted tweets from a user's timeline (simulated via user timeline
+  get_user_mentions                       Get tweets mentioning a specific user.
+  web_search_exa                          Semantic web search via Exa. Returns titles, URLs, published dates, and text sni
+  find_similar_pages_exa                  Find web pages similar to a given URL.
+  get_page_contents_exa                   Get extracted text (and optionally summary) for a list of URLs.
+  exa_answer                              Get a direct answer to a question with source citations from Exa search.
+  list_square_locations                   List all locations for a Square merchant.
+  get_square_location                     Get details of a specific Square location.
+  list_square_catalog                     List catalog objects for a Square merchant.
+  get_square_catalog_object               Retrieve a specific catalog object by ID.
+  search_square_catalog                   Search the Square catalog by text query.
+  upsert_square_catalog_object            Create or update a catalog object.
+  search_square_orders                    Search orders for a Square merchant.
+  get_square_order                        Retrieve a specific order by ID.
+  create_square_order                     Create a new order at a Square location.
+  list_square_customers                   List customers for a Square merchant.
+  get_square_customer                     Retrieve a specific customer by ID.
+  search_square_customers                 Search customers by various criteria.
+  create_square_customer                  Create a new customer profile.
+  list_square_payments                    List payment transactions for a Square merchant.
+  get_square_payment                      Retrieve a specific payment by ID.
+  get_square_inventory_count              Get inventory count for a specific catalog object.
+  batch_retrieve_square_inventory         Batch retrieve inventory counts for multiple catalog objects.
+  adjust_square_inventory                 Adjust inventory quantity for a catalog item variation.
+  set_square_inventory_physical_count     Set the physical inventory count for a catalog item variation.
+  transfer_square_inventory               Transfer inventory between two locations.
+  js_product_database_query               Search the Amazon product database via Jungle Scout.
+  js_historical_search_volume             Get historical Amazon search volume trend for a keyword via Jungle Scout.
+  js_sales_estimates                      Get estimated sales data for an Amazon product (ASIN) via Jungle Scout.
+  js_share_of_voice                       Get share of voice data for an Amazon search keyword via Jungle Scout.
+  js_keywords_by_asin                     Find keywords that one or more Amazon products (ASINs) rank for via Jungle Scout
+  js_keywords_by_keyword                  Find related Amazon keywords for given search terms via Jungle Scout.
+  oss_upload_file                         Upload file content to an Alibaba Cloud OSS bucket and return the access URL.
+  querySkillMetadata                      Query supported Accio Skills metadata (official and personal).
+  querySkillMetadataById                  Query Accio Skills metadata by skill and registry identifiers.
+  listSkillsMcpTools                      List tool definitions exposed by the remote Accio Skills MCP server (MCP tools/l
+  query_orders                            依時間區間、訂單狀態、通路來源查詢訂單列表。回傳精簡的訂單摘要。
+  get_sales_summary                       取得指定時間區間的銷售摘要：營業額、訂單數、客單價、件單價、折扣總額等核心指標。支援依通路/門市篩選。
+  get_top_products                        取得指定時間區間的商品銷售排行榜（依銷量或營業額排序），或滯銷商品清單。
+  get_sales_trend                         取得銷售趨勢數據，支援每日/每週/每月粒度，可用於繪製趨勢圖。
+  get_channel_comparison                  比較各門市/通路的同期業績：營業額、訂單數、客單價等。支援線上 vs 門市，或門市之間的比較。
+  get_order_detail                        取得單筆訂單的完整資訊，包含商品明細、付款、物流、折扣等。
+  get_refund_summary                      取得指定時間區間的退貨退款統計：退款金額、退貨筆數、退貨率、退貨商品明細。支援計算淨營收。
+  get_product_list                        取得商品列表，含 SKU 變體、價格、品牌、庫存數量等資訊。
+  get_product_variants                    取得特定商品的所有 SKU 變體明細，含尺寸×顏色的庫存矩陣。
+  get_inventory_overview                  取得全商品庫存總覽：按 inventory_levels 真實庫存統計總量、SKU 數與缺貨數。
+  get_low_stock_alerts                    取得低庫存或缺貨的 SKU 清單，可自訂庫存門檻值。
+  get_warehouses                          取得所有倉庫/門市據點列表。
+  get_stock_by_warehouse                  取得商品在各倉庫/門市的庫存分佈矩陣。可查詢單一商品或全部商品的各倉庫庫存。
+  get_rfm_analysis                        根據訂單資料進行 RFM（Recency/Frequency/Monetary）分群分析。注意：僅能分析有下單紀錄的客戶（Customers API 為 403
+  get_repurchase_analysis                 分析客戶回購率與回購週期。計算新客 vs 舊客比例、回購率、平均回購天數。
+  get_customer_geo_analysis               根據訂單的收件地址分析客戶地區分佈（縣市層級）。
+  get_inventory_turnover                  計算庫存周轉指標：周轉天數、周轉率。需要商品庫存 + 銷售數據。
+  get_category_sales                      依商品分類（Category）彙總銷售數據：各分類的營業額、銷量、商品數。需交叉 Categories API + Products + Orders。
+  composio_create_session                 Create a Composio session and return both the raw MCP endpoint metadata and
+  composio_list_apps                      List the user's connected (authorized) apps on Composio platform.
+  composio_connect_app                    Initiate an OAuth connection for a specific app via Composio platform.
+  composio_disconnect_app                 Disconnect (revoke) a connected app on Composio platform.
+  apify_search-actors                     Search the Apify Store to FIND and DISCOVER what scraping tools/Actors exist for
+  apify_fetch-actor-details               Get detailed information about an Actor by its ID or full name (format: "usernam
+  apify_call-actor                        Call any Actor from the Apify Store.
+  apify_get-actor-run                     Get detailed information about a specific Actor run by runId.
+  apify_get-actor-output                  Retrieve the output dataset items of a specific Actor run using its datasetId.
+  apify_search-apify-docs                 Search Apify and Crawlee documentation using full-text search.
+  apify_fetch-apify-docs                  Fetch the full content of an Apify or Crawlee documentation page by its URL.
+  apify_apify--rag-web-browser            This tool calls the Actor "apify/rag-web-browser" and retrieves its output resul
+  ai_minisite_acciowork_create_page       在 AI 旺铺中创建一个新的页面主版本。每个店铺有最大版本数量限制，超出时会报错。创建后可通过 ai_minisite_acciowork_publish_pa
+  ai_minisite_acciowork_publish_page      发布 AI 旺铺页面，将页面内容上线并对外立即生效。会创建一个历史版本记录。需先通过 ai_minisite_acciowork_create_page 创建页
+  ai_minisite_get_acciowork_page_list     获取 AI 旺铺的页面版本列表，返回所有页面主版本及每个主版本下的历史子版本。用于查看已有页面和获取 pageId，供 ai_minisite_acciowor
+  ai_minisite_get_company_info            获取卖家的公司信息，包括公司简介、主营业务等数据，用于 AI 旺铺页面的内容填充。
+  ai_minisite_get_template_info           获取 AI 旺铺模板信息。支持两种模式：按筛选条件获取模板列表，或按模板 ID 获取具体模板详情。用于为旺铺页面选择合适的设计模板。
+  aw_create_complete_website              通过 AI 一键生成完整的旺铺网站页面，生成的网站会占用旺铺页面配额。根据指令和素材模板生成包含完整内容的网站。与 aw_create_website_prev
+  aw_create_website_preview               根据指令和素材生成旺铺网站的预览版本，用于在正式创建前查看效果。与 aw_create_complete_website 不同：本工具仅生成预览，不创建正式页面
+  aw_edit_website                         编辑已有的 AI 旺铺网站内容，修改会直接覆盖当前版本。基于变更日志对现有网站进行增量修改。建议操作前先通过 ai_minisite_get_acciowork
+  aw_get_auth_token                       获取鉴权token
+  aw_get_task_status                      获取当前任务状态
+  chargebackMaterialWithAIForAliid        根据订单信息使用 AI 自动生成拒付抗辩材料，帮助卖家应对 chargeback 争议。
+  data_advisor_category_prediction        根据商品或类目的文字描述，通过 AI 预测匹配的 ICBU 平台类目 ID（cateId）。用于发品前确定商品所属类目，返回的 cateId 可直接传入 dat
+  data_advisor_product_selection          行业选品数据分析工具，查询指定类目下的热门商品及其市场表现数据（如询盘量、订单量、GMV、UV 等），帮助卖家进行选品决策。支持按国家、价格、起订量等条件筛选和
+  data_advisor_shop_region                查询店铺流量的地域分布数据，支持按国家和大洲维度查看不同指标的分布情况。与 data_advisor_shop_summary 配合使用：后者查看店铺整体数据，
+  data_advisor_shop_summary               查询店铺的整体经营数据汇总，包括流量、曝光、点击、商机等核心指标。与 data_advisor_shop_region 配合使用：本工具查看整体数据，后者查看地
+  get_seller_main_cate                    获取国际站商家主营类目
+  ggs_fetch_token                         ggs_fetch_token
+  ggs_mcpserver_status                    ggs_mcpserver_status
+  icbu_distribution_mcp_tool_member       ICBU分销MCP工具_获取会员信息_http
+  icbu_faq_knowledge_chunk                从国际站知识库检索业务切片。适用场景包括：国际站后台配置、全球市场准入、跨境物流与结算等问题。通过此工具获取专业、结构化的知识内容，以支持回复的准确性和权威性。
+  icbu_product_generate_by_material       基于已解析的商品素材自动生成并发布商品，会消耗 i 豆和图片银行空间。需先通过 user_material_analysis 上传素材，再用 query_mat
+  icbu_reception_tool                     服务ICBU商家，用于接待买家，跟进买家，与买家沟通
+  icbu_seller_query_lg_solution           商家输入包裹重量和目的国后可查询国际站物流线路（精选返回推荐最多3条线路）
+  infer_category                          基于解析素材进行类目预测
+  infer_prop                              素材内容映射到站内的属性和sku信息
+  merge_material                          合并用户修改的商品内容
+  product_ai_image_color_change           对商品图片的主体进行 AI 换色处理。提交后为异步任务，需通过 product_ai_image_generate_result 轮询获取结果。
+  product_ai_image_custom_logo            将自定义 Logo 融合到商品主体图片上进行 AI 创作。提交后为异步任务，需通过 product_ai_image_generate_result 轮询获取结
+  product_ai_image_generate               通用 AI 图片创作入口，根据指定的 AI 能力编码对商品图片进行创作处理（如背景替换、场景生成等）。提交后为异步任务，需通过 product_ai_image
+  product_ai_image_generate_result        查询 AI 图片创作任务的处理结果。需传入创作请求返回的 requestKey 进行轮询，直到任务完成。与 product_ai_image_generate、
+  product_ai_image_model_generate         AI 模特图创作，将商品（如服装）与模特图片合成，生成商品上身效果图。提交后为异步任务，需通过 product_ai_image_generate_result
+  product_ai_image_translate              AI 图片文字翻译，识别商品图片上的文字并翻译为目标语言后重新生成图片。提交后为异步任务，需通过 product_ai_image_generate_resul
+  product_ai_video_generate_result        创意工坊视频结果查询
+  product_generate_precheck               商品发布前的预检工具，校验 i 豆余额是否充足、图片银行存储空间是否足够。建议在调用 icbu_product_generate_by_material 发品前
+  product_generate_query_task             轮询查询商品生成任务的执行状态和结果。在调用 icbu_product_generate_by_material 发品后使用，传入返回的任务 ID 持续查询直到
+  product_scene_video_generate            根据提供的商品图片生成一个商品的动态场景展示视频。输入为一张商品图片和商品视频描述prompt，输出动态展示商品的视频路径。当用户需要生成商品视频时使用。
+  queryTradeListMcp                       根据用户请求查询交易合同列表
+  query_category                          获取用户的经营类目
+  query_contact                           查询当前用户的 IM 联系人列表，支持增量拉取。用于获取可发起沟通的好友列表及其 chatToken，适用于 IM 消息场景。返回的联系人信息中包含 chatT
+  query_conversation_msg                  查询指定会话的历史消息记录，以 limitTimeStamp 为锚点，支持向更早（forward=false，查历史）或向更新（forward=true，查新消
+  query_im_card_info                      查询 IM 消息中卡片类型消息的结构化描述信息，返回 AI 可理解的卡片语义内容。需将 useAgentDescription 设为 true 以获取 AI 友
+  query_material_analysis_result          查询素材解析任务的结果。在调用 user_material_analysis 提交素材后，使用返回的 uniqueRequestId 轮询查询解析进度和结果。解
+  query_recent_conversation               查询当前用户的最近会话列表，返回修改时间早于 limitTimeStamp 的会话（即向更早的方向翻页），单次最多 1000 条。返回的 conversatio
+  query_seller_acct_dim_diag_data         查询单个卖家账号维度的 IM 沟通诊断数据，包括沟通买家数、沟通深度、回复率、服务评价等指标。适用于评估单个客服或子账号的服务质量。如需店铺整体数据及行业对比，
+  query_seller_chat_quality_check_detail  查询卖家一周内的 IM 沟通质检明细，包括买家已读未回、超时回复、重复回复等质检项。用于定位具体的沟通质量问题。
+  query_seller_shop_dim_diag_data         查询店铺维度的 IM 沟通诊断数据，包含行业平均值和行业优秀值的对比，帮助卖家了解在行业中的服务水平排名。如需查询单个账号维度的数据，请使用 query_sel
+  seller_logistics_oder_list              商家物流订单列表查询
+  send_msg                                在 IM 会话中发送消息，消息发送后不可撤回。支持单聊和群聊场景，可发送文本、卡片等多种消息类型。发送前需要有效的 chatToken（通过 query_con
+  service_report_weekly_all_data_query    查询商家服务周报的完整详细数据。需要先获取报告查询回执（receipt），再通过本工具拉取数据。
+  shop_risk_diagnosis                     扫描店铺和商品的合规风险，检测潜在的违规问题并给出风险提示。
+  store_diagnose_brief                    对店铺进行综合经营诊断，结合店铺经营数据自动生成诊断分析报告和改善建议。
+  subaccount_query                        查询主账号下的所有子账号信息列表，包括子账号的基本信息和权限。
+  user_material_analysis                  提交用户上传的素材文件进行商品信息解析，支持压缩包、Excel、Word、PDF、图片等多种文件格式。解析为异步任务，需通过 query_material_an
+  COMPOSIO_MANAGE_CONNECTIONS             Create or manage connections to user's apps. Returns a branded authentication li
+  COMPOSIO_MULTI_EXECUTE_TOOL             Fast and parallel tool executor for tools and recipes discovered through COMPOSI
+  COMPOSIO_REMOTE_BASH_TOOL               Execute bash commands in a REMOTE sandbox for file operations, data processing, 
+  COMPOSIO_REMOTE_WORKBENCH               Process **REMOTE FILES** or script BULK TOOL EXECUTIONS using Python code IN A R
+  COMPOSIO_SEARCH_TOOLS                   MCP Server Info: COMPOSIO MCP connects 500+ apps—Slack, GitHub, Notion, Google W
+  COMPOSIO_GET_TOOL_SCHEMAS               Retrieve input schemas for tools by slug. Returns complete parameter definitions
+
+  195 tools available

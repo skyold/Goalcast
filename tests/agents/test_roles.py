@@ -29,6 +29,7 @@ async def test_gatherer_agent(monkeypatch):
     assert new_state.match_contexts[0].match_id == "m1"
 
 from agents.roles.analyst import Analyst
+from agents.core.directory_agent import AgentConfig
 
 @pytest.mark.asyncio
 async def test_analyst_agent(monkeypatch):
@@ -36,6 +37,9 @@ async def test_analyst_agent(monkeypatch):
         return "Analysis output for match"
         
     monkeypatch.setattr("agents.roles.analyst.generate_response", mock_generate_response)
+    
+    # Mock the loader so it doesn't read the real file system
+    monkeypatch.setattr("agents.roles.analyst.DirectoryAgentLoader.load", lambda x: AgentConfig(system_prompt="Mocked Analyst"))
     
     state = WorkflowState(task_id="t1")
     state.match_contexts = [
@@ -51,7 +55,7 @@ async def test_analyst_agent(monkeypatch):
         )
     ]
     
-    analyst = Analyst("analyst")
+    analyst = Analyst("analyst", "agents/roles/analyst")
     new_state = await analyst.execute(state)
     
     assert new_state.current_step == "ANALYZE"
@@ -66,9 +70,10 @@ async def test_supervisor_agent(monkeypatch):
     async def mock_generate_response(*args, **kwargs):
         return "PASS: The analysis is solid."
     monkeypatch.setattr("agents.roles.supervisor.generate_response", mock_generate_response)
+    monkeypatch.setattr("agents.roles.supervisor.DirectoryAgentLoader.load", lambda x: AgentConfig(system_prompt="Mocked Supervisor"))
     
     state = WorkflowState(task_id="t1", analysis_results={"m1": "Good match"})
-    supervisor = Supervisor("supervisor")
+    supervisor = Supervisor("supervisor", "agents/roles/supervisor")
     new_state = await supervisor.execute(state)
     assert new_state.current_step == "SUPERVISE"
 
@@ -77,9 +82,10 @@ async def test_reviewer_agent(monkeypatch):
     async def mock_generate_response(*args, **kwargs):
         return "Review Report: Accurate"
     monkeypatch.setattr("agents.roles.reviewer.generate_response", mock_generate_response)
+    monkeypatch.setattr("agents.roles.reviewer.DirectoryAgentLoader.load", lambda x: AgentConfig(system_prompt="Mocked Reviewer"))
     
     state = WorkflowState(task_id="t1", analysis_results={"m1": "Good match"})
-    reviewer = Reviewer("reviewer")
+    reviewer = Reviewer("reviewer", "agents/roles/reviewer")
     new_state = await reviewer.execute(state)
     assert new_state.current_step == "REVIEW"
     assert "m1" in new_state.review_results
