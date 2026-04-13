@@ -538,7 +538,7 @@ git commit -m "feat(agents): implement Supervisor and Reviewer agents"
 - Create: `agents/scheduler.py`
 - Test: `tests/agents/test_scheduler.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/agents/test_scheduler.py`:
 ```python
@@ -560,12 +560,12 @@ def test_scheduler_initialization(monkeypatch):
     assert mock_instance.job_added
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_scheduler.py -v`
 Expected: FAIL
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/scheduler.py`:
 ```python
@@ -597,13 +597,13 @@ if __name__ == "__main__":
         pass
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Add `apscheduler` to requirements if not present.
 Run: `pytest tests/agents/test_scheduler.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 echo "apscheduler>=3.10.0" >> requirements.txt
