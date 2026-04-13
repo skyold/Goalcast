@@ -37,10 +37,10 @@ import datetime
 
 # 尝试导入 understatapi 库
 try:
-    from understat import Understat
+    from understatapi import UnderstatClient
     UNDERSTAT_API_AVAILABLE = True
 except ImportError:
-    Understat = None
+    UnderstatClient = None
     UNDERSTAT_API_AVAILABLE = False
     logger.warning("understatapi library not installed. Run: pip install understatapi")
 
@@ -79,7 +79,7 @@ class UnderstatProvider(BaseProvider):
         self.debug = debug
         self.use_library = use_library
         self._session: Optional[aiohttp.ClientSession] = None
-        self._understat: Optional[Understat] = None
+        self._understat: Optional[Any] = None
         
         if use_library and not UNDERSTAT_API_AVAILABLE:
             logger.warning("Falling back to HTTP requests. Install understatapi for full functionality.")
@@ -103,19 +103,32 @@ class UnderstatProvider(BaseProvider):
         except Exception:
             return False
     
-    async def _get_understat(self) -> Optional[Understat]:
-        """获取 understatapi 实例"""
+    def _normalize_league_code(self, league: str) -> str:
+        if not league:
+            return league
+        key = league.strip()
+        lower = key.lower()
+        if lower == "epl":
+            return "EPL"
+        if lower in ("la_liga", "la_liga".lower(), "la-liga"):
+            return "La_Liga"
+        if lower == "bundesliga":
+            return "Bundesliga"
+        if lower in ("serie_a", "serie a"):
+            return "Serie_A"
+        if lower in ("ligue_1", "ligue 1"):
+            return "Ligue_1"
+        if lower == "rfpl":
+            return "RFPL"
+        return key
+
+    async def _get_understat(self) -> Optional[Any]:
+        """获取 understatapi client 实例（同步库，通过线程调用）。"""
         if not UNDERSTAT_API_AVAILABLE:
             return None
         
         if self._understat is None:
-            # 创建 aiohttp session
-            session = aiohttp.ClientSession(
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                }
-            )
-            self._understat = Understat(session=session)
+            self._understat = UnderstatClient()
         
         return self._understat
     
@@ -132,12 +145,12 @@ class UnderstatProvider(BaseProvider):
     
     async def close(self):
         """关闭所有连接"""
-        # 关闭 understatapi 会话
         if self._understat:
             try:
-                # understatapi 需要关闭 session
-                if hasattr(self._understat, 'session') and self._understat.session:
-                    await self._understat.session.close()
+                if hasattr(self._understat, "close"):
+                    self._understat.close()
+                elif hasattr(self._understat, "session") and getattr(self._understat, "session", None):
+                    self._understat.session.close()
             except Exception:
                 pass
             self._understat = None
@@ -169,9 +182,16 @@ class UnderstatProvider(BaseProvider):
             return None
         
         try:
-            # understatapi 使用小写联赛代码，方法名是 get_teams
-            teams = await understat.get_teams(league.lower(), season)
-            return teams
+            code = self._normalize_league_code(league)
+            raw = await asyncio.to_thread(
+                understat.league(league=code).get_team_data,
+                season=season,
+            )
+            if isinstance(raw, dict):
+                teams = raw.get("teams")
+                if isinstance(teams, list):
+                    return teams
+            return None
         except Exception as e:
             logger.error(f"Error getting league teams: {e}")
             return None
@@ -196,8 +216,12 @@ class UnderstatProvider(BaseProvider):
             return None
         
         try:
-            players = await understat.get_league_players(league.lower(), season)
-            return players
+            code = self._normalize_league_code(league)
+            players = await asyncio.to_thread(
+                understat.league(league=code).get_player_data,
+                season=season,
+            )
+            return players if isinstance(players, list) else None
         except Exception as e:
             logger.error(f"Error getting league players: {e}")
             return None
@@ -222,11 +246,12 @@ class UnderstatProvider(BaseProvider):
             return None
         
         try:
-            # understatapi 使用 get_league_results 或 get_league_fixtures
-            matches = await understat.get_league_results(league.lower(), season)
-            if not matches:
-                matches = await understat.get_league_fixtures(league.lower(), season)
-            return matches
+            code = self._normalize_league_code(league)
+            matches = await asyncio.to_thread(
+                understat.league(league=code).get_match_data,
+                season=season,
+            )
+            return matches if isinstance(matches, list) else None
         except Exception as e:
             logger.error(f"Error getting league matches: {e}")
             return None
@@ -250,24 +275,24 @@ class UnderstatProvider(BaseProvider):
             return None
         
         try:
-            # understatapi 使用 get_match_shots 获取比赛射门数据
-            # 这是比赛统计的主要数据来源
-            shots_data = await understat.get_match_shots(match_id)
-            
-            # 获取比赛球员数据
-            players_data = await understat.get_match_players(match_id)
+            shots_data = await asyncio.to_thread(
+                understat.match(match=str(match_id)).get_shot_data
+            )
+            roster_data = await asyncio.to_thread(
+                understat.match(match=str(match_id)).get_roster_data
+            )
             
             # 整合数据
             match_stats = {
                 "match_id": match_id,
                 "shots": shots_data or [],
-                "players": players_data or {},
+                "players": roster_data or {},
             }
             
             # 如果有射门数据，计算基本统计
             if shots_data and isinstance(shots_data, list):
-                home_shots = [s for s in shots_data if s.get("isHome", False)]
-                away_shots = [s for s in shots_data if not s.get("isHome", True)]
+                home_shots = [s for s in shots_data if str(s.get("h_a", "")).lower() in ("h", "home")]
+                away_shots = [s for s in shots_data if str(s.get("h_a", "")).lower() in ("a", "away")]
                 
                 match_stats["home_shots"] = len(home_shots)
                 match_stats["away_shots"] = len(away_shots)
@@ -296,34 +321,8 @@ class UnderstatProvider(BaseProvider):
             logger.warning("understatapi library not available")
             return None
         
-        understat = await self._get_understat()
-        if not understat:
-            return None
-        
-        try:
-            # understatapi 的 get_team_stats 需要 season 参数
-            # 但如果提供了 season，也可以获取球队球员数据
-            if season:
-                # 获取特定赛季的球队统计
-                stats = await understat.get_team_stats(team_id, season)
-                
-                # 同时获取该赛季的球队球员数据
-                try:
-                    players = await understat.get_team_players(team_id, season)
-                    if players:
-                        stats["players"] = players
-                except Exception as e:
-                    logger.debug(f"Could not get team players: {e}")
-                
-                return stats
-            else:
-                # 如果没有提供 season，尝试获取球队基本信息
-                # 这需要从其他接口获取，这里返回 None 并提供提示
-                logger.warning("season parameter required for get_team_stats. Use get_league_teams() to get team info without season.")
-                return None
-        except Exception as e:
-            logger.error(f"Error getting team stats: {e}")
-            return None
+        logger.warning("understatapi does not support fetching team stats by team_id. Provide league/team name mapping if needed.")
+        return None
     
     async def get_team_stats_by_season(self, team_id: int, season: str) -> Optional[Dict[str, Any]]:
         """
@@ -357,9 +356,9 @@ class UnderstatProvider(BaseProvider):
             return None
         
         try:
-            # understatapi 的 get_player_stats 返回的是列表格式
-            # 列表中可能包含多个赛季的数据
-            stats_list = await understat.get_player_stats(player_id)
+            stats_list = await asyncio.to_thread(
+                understat.player(player=str(player_id)).get_season_data
+            )
             
             if not stats_list:
                 return None
@@ -430,8 +429,10 @@ class UnderstatProvider(BaseProvider):
             return None
         
         try:
-            shots = await understat.get_player_shots(player_id)
-            return shots
+            shots = await asyncio.to_thread(
+                understat.player(player=str(player_id)).get_shot_data
+            )
+            return shots if isinstance(shots, list) else None
         except Exception as e:
             logger.error(f"Error getting player shots: {e}")
             return None
