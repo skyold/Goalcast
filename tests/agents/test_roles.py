@@ -57,3 +57,29 @@ async def test_analyst_agent(monkeypatch):
     assert new_state.current_step == "ANALYZE"
     assert "m1" in new_state.analysis_results
     assert new_state.analysis_results["m1"] == "Analysis output for match"
+
+from agents.roles.supervisor import Supervisor
+from agents.roles.reviewer import Reviewer
+
+@pytest.mark.asyncio
+async def test_supervisor_agent(monkeypatch):
+    async def mock_generate_response(*args, **kwargs):
+        return "PASS: The analysis is solid."
+    monkeypatch.setattr("agents.roles.supervisor.generate_response", mock_generate_response)
+    
+    state = WorkflowState(task_id="t1", analysis_results={"m1": "Good match"})
+    supervisor = Supervisor("supervisor")
+    new_state = await supervisor.execute(state)
+    assert new_state.current_step == "SUPERVISE"
+
+@pytest.mark.asyncio
+async def test_reviewer_agent(monkeypatch):
+    async def mock_generate_response(*args, **kwargs):
+        return "Review Report: Accurate"
+    monkeypatch.setattr("agents.roles.reviewer.generate_response", mock_generate_response)
+    
+    state = WorkflowState(task_id="t1", analysis_results={"m1": "Good match"})
+    reviewer = Reviewer("reviewer")
+    new_state = await reviewer.execute(state)
+    assert new_state.current_step == "REVIEW"
+    assert "m1" in new_state.review_results

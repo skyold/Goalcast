@@ -271,7 +271,7 @@ git commit -m "feat(agents): add LLM router using litellm"
 - Create: `agents/roles/gatherer.py`
 - Test: `tests/agents/test_roles.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/agents/test_roles.py`:
 ```python
@@ -306,12 +306,12 @@ async def test_gatherer_agent(monkeypatch):
     assert new_state.match_contexts[0].match_id == "m1"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_roles.py::test_gatherer_agent -v`
 Expected: FAIL
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/roles/__init__.py` (empty).
 Create `agents/roles/gatherer.py`:
@@ -337,12 +337,12 @@ class DataGatherer(BaseAgent):
         return state
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/agents/test_roles.py::test_gatherer_agent -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agents/roles/gatherer.py tests/agents/test_roles.py agents/roles/__init__.py
@@ -357,7 +357,7 @@ git commit -m "feat(agents): implement DataGatherer agent"
 - Create: `agents/roles/analyst.py`
 - Modify: `tests/agents/test_roles.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/agents/test_roles.py`:
 ```python
@@ -392,12 +392,12 @@ async def test_analyst_agent(monkeypatch):
     assert new_state.analysis_results["m1"] == "Analysis output for match"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_roles.py::test_analyst_agent -v`
 Expected: FAIL
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/roles/analyst.py`:
 ```python
@@ -420,12 +420,12 @@ class Analyst(BaseAgent):
         return state
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/agents/test_roles.py::test_analyst_agent -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agents/roles/analyst.py tests/agents/test_roles.py
@@ -441,7 +441,7 @@ git commit -m "feat(agents): implement Analyst agent"
 - Create: `agents/roles/reviewer.py`
 - Modify: `tests/agents/test_roles.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/agents/test_roles.py`:
 ```python
@@ -472,12 +472,12 @@ async def test_reviewer_agent(monkeypatch):
     assert "m1" in new_state.review_results
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_roles.py::test_supervisor_agent tests/agents/test_roles.py::test_reviewer_agent -v`
 Expected: FAIL
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/roles/supervisor.py`:
 ```python
@@ -518,12 +518,12 @@ class Reviewer(BaseAgent):
         return state
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/agents/test_roles.py::test_supervisor_agent tests/agents/test_roles.py::test_reviewer_agent -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agents/roles/supervisor.py agents/roles/reviewer.py tests/agents/test_roles.py
