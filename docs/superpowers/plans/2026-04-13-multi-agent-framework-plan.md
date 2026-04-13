@@ -19,7 +19,7 @@
 - Create: `agents/core/base.py`
 - Test: `tests/agents/test_core.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/agents/test_core.py`:
 ```python
@@ -47,12 +47,12 @@ async def test_base_agent_interface():
     assert new_state.current_step == "DUMMY_DONE"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_core.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'agents.core.state'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/__init__.py` and `agents/core/__init__.py` (empty files).
 
@@ -88,12 +88,12 @@ class BaseAgent(ABC):
         pass
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/agents/test_core.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agents/ tests/agents/
@@ -108,7 +108,7 @@ git commit -m "feat(agents): add core WorkflowState and BaseAgent"
 - Create: `agents/core/coordinator.py`
 - Modify: `tests/agents/test_core.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/agents/test_core.py`:
 ```python
@@ -136,12 +136,12 @@ async def test_coordinator_flow():
     assert final_state.current_step == "STEP_2"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_core.py::test_coordinator_flow -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'agents.core.coordinator'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/core/coordinator.py`:
 ```python
@@ -178,12 +178,12 @@ class Coordinator:
         return state
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/agents/test_core.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agents/core/coordinator.py tests/agents/test_core.py
@@ -198,7 +198,7 @@ git commit -m "feat(agents): implement Coordinator state machine"
 - Create: `agents/llm_router.py`
 - Test: `tests/agents/test_llm_router.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/agents/test_llm_router.py`:
 ```python
@@ -222,12 +222,12 @@ async def test_generate_response(monkeypatch):
     assert response == "Mocked LLM Response"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/agents/test_llm_router.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `agents/llm_router.py`:
 ```python
@@ -248,13 +248,13 @@ async def generate_response(prompt: str, model: str = "gpt-4o-mini", system_prom
     return response.choices[0].message.content
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Note: Ensure `litellm` is added to requirements.txt if not present. Run test:
 Run: `pytest tests/agents/test_llm_router.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 echo "litellm>=1.0.0" >> requirements.txt
