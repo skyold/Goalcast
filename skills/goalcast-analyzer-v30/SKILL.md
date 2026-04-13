@@ -97,7 +97,7 @@ goalcast_resolve_match(
 
 | 数据项 | 检查方式 | 预期状态 | 降级规则 |
 |--------|----------|----------|----------|
-| xG 数据 | `ctx.xg` 非空 | 可用 | 不可用 → L1 使用联赛均值，`data_quality=low` |
+| xG 数据 | `ctx.xg` 非空 | 可用 | sportmonks → 优先用 `sportmonks_direct`；不可用时降级 understat → league_avg，`data_quality=low` |
 | 主队近况 | `ctx.home_form_10` 非空 | 可用 | 不可用 → L1 使用联赛均值，`data_quality=low` |
 | 客队近况 | `ctx.away_form_10` 非空 | 可用 | 不可用 → L1 使用联赛均值，`data_quality=low` |
 | 赔率 | `ctx.odds` 非空且值 > 0 | 可用 | 不可用 → L3 权重=0%，跳过 |
@@ -122,11 +122,12 @@ goalcast_resolve_match(
 # 从 ctx.xg 获取 xG 数据
 base_xg_home = ctx.xg.home_xg_for
 base_xg_away = ctx.xg.away_xg_for
-xG_source = ctx.xg.source  # "understat_direct" | "footystats_proxy" | "league_avg"
+xG_source = ctx.xg.source  # "sportmonks_direct" | "understat_direct" | "footystats_proxy" | "league_avg"
 ```
 
 **数据来源说明**：
-- `understat_direct`：使用 Understat 直接 xG 数据（最优先）
+- `sportmonks_direct`：使用 Sportmonks 直接 xG 数据（**最优先**，当 data_provider="sportmonks" 时）
+- `understat_direct`：使用 Understat 直接 xG 数据（次优先）
 - `footystats_proxy`：使用 FootyStats 近况数据计算的 proxy
 - `league_avg`：使用联赛均值（最低优先级）
 
@@ -153,11 +154,15 @@ base_xg_away = xG_proxy_away
 
 **xG 数据优先级总结**：
 ```
-1. Understat 直接 xG → base_xg = Understat xG（最优先，置信度 +5）
-2. FootyStats xG（如有）→ base_xg = FootyStats xG
-3. Proxy 估算 → base_xg = xG_proxy（降级，置信度 -5）
-4. 联赛均值 → base_xg = 联赛均值（最低，置信度 -8）
+1. Sportmonks xG（data_provider="sportmonks"）→ base_xg = Sportmonks xG（最优先，置信度 +5）
+2. Understat 直接 xG → base_xg = Understat xG（次优先，置信度 +5）
+3. FootyStats xG（如有）→ base_xg = FootyStats xG
+4. Proxy 估算 → base_xg = xG_proxy（降级，置信度 -5）
+5. 联赛均值 → base_xg = 联赛均值（最低，置信度 -8）
 ```
+
+**注意**：xG 数据源的选择由 `goalcast_resolve_match`（resolver 层）负责，Skill 不直接调用任何 provider 工具。
+Skill 只读取 `ctx.xg.source` 来了解数据来源，并据此调整置信度扣分。
 
 ### 第二层：情境调整模型（权重 20%）
 
@@ -288,7 +293,7 @@ goalcast_calculate_confidence(
     base_score=70,
     market_agrees=<是否一致>,
     data_complete=ctx.overall_quality >= 0.8,
-    understat_available=ctx.xg.source == "understat_direct",
+    understat_available=ctx.xg.source in ("sportmonks_direct", "understat_direct"),
     odds_available=ctx.odds is not None,
     lineup_unavailable=True,
     xG_proxy_used=ctx.xg.source == "footystats_proxy",
@@ -351,6 +356,6 @@ goalcast_calculate_confidence(
 - [ ] `confidence ∈ [30, 90]`
 - [ ] `ev ∈ [-1, +2]`
 - [ ] `missing_data` 包含 `"lineup"`、`"ppda"`、`"odds_movement"`
-- [ ] `xG_source` 字段存在（`"understat_direct"`、`"footystats_proxy"` 或 `"league_avg"`）
+- [ ] `xG_source` 字段存在（`"sportmonks_direct"`、`"understat_direct"`、`"footystats_proxy"` 或 `"league_avg"`）
 - [ ] `reasoning_summary` 提及 L4 跳过（无 PPDA）、L6 跳过（无阵容）、xG 数据来源
 - [ ] **所有计算（Dixon-Coles 泊松、EV、Kelly、置信度）均通过 MCP 工具调用**

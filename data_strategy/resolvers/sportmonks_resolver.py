@@ -2,15 +2,16 @@
 Sportmonks + Understat データ解析器
 
 データ覆盖：
-  xG:       Understat → league_avg                ✅
-  近況:      缺失                                   ✗
-  積分榜:    Sportmonks get_standings_by_season    ✅
-  赔率:      Sportmonks get_prematch_odds          ✅
-  赔率变动:  Sportmonks get_odds_movement          ✅
-  阵容:      Sportmonks get_fixture_by_id(lineups) ✅
-  H2H:       Sportmonks get_head_to_head          ✅
+  xG:       Sportmonks expected_goals → Understat → league_avg  ✅
+  近況:      缺失                                                  ✗
+  積分榜:    Sportmonks get_standings_by_season                  ✅
+  赔率:      Sportmonks get_prematch_odds                        ✅
+  赔率变动:  Sportmonks get_odds_movement                        ✅
+  阵容:      Sportmonks get_fixture_by_id(lineups)               ✅
+  H2H:       Sportmonks get_head_to_head                        ✅
 """
 
+import asyncio
 from typing import Optional, List, TYPE_CHECKING, Any
 
 from utils.cache import cache_get, cache_set
@@ -46,7 +47,12 @@ class SportmonksResolver:
         home_team_id: str,
         away_team_id: str,
     ) -> ResolvedData:
-        """Understat → league_avg (Sportmonks native xG not yet implemented)."""
+        """
+        xG fallback chain: sportmonks_direct → understat_direct → league_avg.
+
+        Sportmonks provides per-fixture xG via /expected/fixtures?participant_id=<team_id>.
+        We average across recent fixtures to get a stable season estimate.
+        """
         cache_key = f"sm_xg_{home_team}_{away_team}_{league}_{season}"
         cached = cache_get("sm_xg", cache_key)
         if cached:
@@ -56,6 +62,41 @@ class SportmonksResolver:
                 quality=cached["quality"],
             )
 
+        # ── Step 1: Sportmonks native xG (highest priority) ─────────
+        try:
+            home_xg_raw, away_xg_raw = await asyncio.gather(
+                self._sm.get_expected_goals_by_team(int(home_team_id)),
+                self._sm.get_expected_goals_by_team(int(away_team_id)),
+                return_exceptions=True,
+            )
+            home_xg = _extract_team_xg_avg(home_xg_raw)
+            away_xg = _extract_team_xg_avg(away_xg_raw)
+
+            if home_xg is not None and away_xg is not None:
+                data = {
+                    "home_xg_for": home_xg["xg_for"],
+                    "home_xg_against": home_xg["xg_against"],
+                    "away_xg_for": away_xg["xg_for"],
+                    "away_xg_against": away_xg["xg_against"],
+                }
+                # Validate: reject if both teams return all-zero (API returns data but no values)
+                total = sum(data.values())
+                if total > 0:
+                    result = ResolvedData(data=data, source="sportmonks_direct", quality=0.90)
+                    cache_set(
+                        "sm_xg",
+                        cache_key,
+                        {"data": data, "source": "sportmonks_direct", "quality": 0.90},
+                        ttl_hours=CACHE_TTL["xg"],
+                    )
+                    return result
+                logger.warning(
+                    f"[SportmonksResolver] xG returned all zeros for {home_team} vs {away_team}, falling back"
+                )
+        except Exception as exc:
+            logger.warning(f"[SportmonksResolver] Sportmonks xG error: {exc}")
+
+        # ── Step 2: Understat fallback ───────────────────────────────
         understat_code = get_understat_league_code(league)
         if understat_code:
             try:
@@ -70,19 +111,25 @@ class SportmonksResolver:
                             "away_xg_for": float(away_s.get("xG", 0) or 0),
                             "away_xg_against": float(away_s.get("xGA", 0) or 0),
                         }
-                        result = ResolvedData(
-                            data=data, source="understat_direct", quality=0.95
+                        # Reject all-zero Understat responses (future fixtures not yet played)
+                        if sum(data.values()) > 0:
+                            result = ResolvedData(
+                                data=data, source="understat_direct", quality=0.85
+                            )
+                            cache_set(
+                                "sm_xg",
+                                cache_key,
+                                {"data": data, "source": "understat_direct", "quality": 0.85},
+                                ttl_hours=CACHE_TTL["xg"],
+                            )
+                            return result
+                        logger.warning(
+                            f"[SportmonksResolver] Understat returned all zeros for {home_team} vs {away_team}"
                         )
-                        cache_set(
-                            "sm_xg",
-                            cache_key,
-                            {"data": data, "source": "understat_direct", "quality": 0.95},
-                            ttl_hours=CACHE_TTL["xg"],
-                        )
-                        return result
             except Exception as exc:
                 logger.warning(f"[SportmonksResolver] Understat xG error: {exc}")
 
+        # ── Step 3: League average (lowest priority) ─────────────────
         return ResolvedData(
             data={"fallback": "league_avg"}, source="league_avg", quality=0.35
         )
@@ -243,6 +290,60 @@ class SportmonksResolver:
 
 
 # ── Private helpers ─────────────────────────────────────────
+
+
+def _extract_team_xg_avg(raw: Any) -> Optional[dict]:
+    """
+    Parse Sportmonks /expected/fixtures response for a single team.
+
+    Returns {"xg_for": float, "xg_against": float} as season averages,
+    or None if the response is unusable (error, empty, or exception object).
+
+    Sportmonks returns per-fixture xG entries; we average across all fixtures
+    to get a stable season estimate. Each entry may contain:
+      - "xg" or "expected_goals": the team's xG in that fixture
+      - "xga" or "expected_goals_against": xGA in that fixture
+    """
+    if raw is None or isinstance(raw, Exception):
+        return None
+    if not isinstance(raw, dict):
+        return None
+
+    data = raw.get("data", [])
+    if not isinstance(data, list) or not data:
+        return None
+
+    xg_values: list[float] = []
+    xga_values: list[float] = []
+
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        # Sportmonks v3 field names vary by subscription tier
+        xg_val = (
+            entry.get("xg")
+            or entry.get("expected_goals")
+            or entry.get("value")  # some tiers nest under "value"
+        )
+        xga_val = (
+            entry.get("xga")
+            or entry.get("expected_goals_against")
+        )
+        try:
+            if xg_val is not None:
+                xg_values.append(float(xg_val))
+            if xga_val is not None:
+                xga_values.append(float(xga_val))
+        except (TypeError, ValueError):
+            continue
+
+    if not xg_values:
+        return None
+
+    return {
+        "xg_for": sum(xg_values) / len(xg_values),
+        "xg_against": sum(xga_values) / len(xga_values) if xga_values else 0.0,
+    }
 
 
 def _extract_sportmonks_odds_local(raw: Any) -> Optional[dict]:

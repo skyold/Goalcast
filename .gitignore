@@ -65,3 +65,7 @@ Thumbs.db
 data/backtests/
 .accio/cron/jobs.json
 data/predictions/
+/.accio
+/data
+/diary
+.mcp.json

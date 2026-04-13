@@ -220,11 +220,15 @@ class SportmonksProvider(BaseProvider):
 
     async def get_expected_goals_by_fixture(self, fixture_id: int) -> Optional[Dict[str, Any]]:
         """获取特定比赛的深度 xG 数据"""
-        return await self._request_raw(f"/expected/fixtures/{fixture_id}")
+        return await self._request_raw(f"/expected/fixtures", {"fixture_id": fixture_id})
 
-    async def get_expected_goals_by_season(self, season_id: int) -> Optional[Dict[str, Any]]:
-        """获取整个赛季的 xG 数据统计"""
-        return await self._request_raw(f"/expected/seasons/{season_id}")
+    async def get_expected_goals_by_team(self, team_id: int) -> Optional[Dict[str, Any]]:
+        """获取特定球队的 xG 数据"""
+        return await self._request_raw(f"/expected/fixtures", {"participant_id": team_id})
+
+    async def get_all_expected_goals(self, page: int = 1) -> Optional[Dict[str, Any]]:
+        """获取所有 xG 数据"""
+        return await self._request_raw(f"/expected/fixtures", {"page": page})
 
     # ==================== 9. Odds (赔率数据) ====================
 
@@ -236,13 +240,13 @@ class SportmonksProvider(BaseProvider):
         """获取单场比赛的滚球赔率"""
         return await self._request_raw(f"/odds/inplay/fixtures/{fixture_id}", {"include": include} if include else None)
 
-    async def get_markets(self) -> Optional[Dict[str, Any]]:
-        """获取所有可用的盘口/市场类型"""
-        return await self._request_raw("/odds/markets")
+    async def get_markets(self, fixture_id: int) -> Optional[Dict[str, Any]]:
+        """获取特定比赛的盘口/市场类型"""
+        return await self._request_raw(f"/odds/pre-match/fixtures/{fixture_id}", {"include": "markets"})
 
-    async def get_bookmakers(self) -> Optional[Dict[str, Any]]:
-        """获取所有支持的博彩公司"""
-        return await self._request_raw("/odds/bookmakers")
+    async def get_bookmakers(self, fixture_id: int) -> Optional[Dict[str, Any]]:
+        """获取特定比赛的博彩公司"""
+        return await self._request_raw(f"/odds/pre-match/fixtures/{fixture_id}", {"include": "bookmakers"})
 
     # ==================== 10. Predictions (预测数据) ====================
 
@@ -286,9 +290,7 @@ class SportmonksProvider(BaseProvider):
         """获取比赛状态码表 (如: Finished, NS, TBD 等)"""
         return await self._request_raw("/states")
 
-    async def get_types(self) -> Optional[Dict[str, Any]]:
-        """获取数据类型码表 (如: Shots, Corners 等 ID 定义)"""
-        return await self._request_raw("/types")
+
 
     async def get_news_by_season(self, season_id: int) -> Optional[Dict[str, Any]]:
         """获取赛季相关新闻"""

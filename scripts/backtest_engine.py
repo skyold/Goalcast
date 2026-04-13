@@ -210,16 +210,53 @@ def generate_report(
     end_date: str,
 ) -> Dict:
     """Generate comprehensive backtest report."""
-    total = len(predictions)
-    matched = sum(
-        1 for p in predictions
-        if f"{p['match_info']['home_team']}_{p['match_info']['away_team']}" in results
-    )
+    # Flatten comparison reports into individual method predictions
+    flattened_preds = []
+    for p in predictions:
+        if "comparison" in p:
+            # This is a comparison report
+            for method_name, result in p["comparison"].items():
+                pred_copy = result.copy()
+                # Ensure match info is available in the flattened version
+                if "match_info" not in pred_copy:
+                    pred_copy["match_info"] = {
+                        "home_team": p.get("home_team", ""),
+                        "away_team": p.get("away_team", ""),
+                        "competition": p.get("competition", ""),
+                        "date": p.get("date", "")
+                    }
+                flattened_preds.append(pred_copy)
+        else:
+            # Single prediction report
+            if "match_info" not in p:
+                if "home_team" in p:
+                    p["match_info"] = {
+                        "home_team": p.get("home_team", ""),
+                        "away_team": p.get("away_team", ""),
+                        "competition": p.get("competition", ""),
+                        "date": p.get("date", "")
+                    }
+                else:
+                    # Skip invalid prediction objects that have neither match_info nor home_team
+                    continue
+            flattened_preds.append(p)
+
+    total = len(flattened_preds)
+    matched = 0
+    valid_preds = []
+    for p in flattened_preds:
+        if "match_info" in p and "home_team" in p["match_info"] and "away_team" in p["match_info"]:
+            match_key = f"{p['match_info']['home_team']}_{p['match_info']['away_team']}"
+            if match_key in results:
+                matched += 1
+            valid_preds.append(p)
+    
+    flattened_preds = valid_preds
 
     # Per-method metrics
     by_method = {}
     for method_name in ["v2.5", "v3.0"]:
-        method_preds = [p for p in predictions if p.get("method") == method_name]
+        method_preds = [p for p in flattened_preds if p.get("method") == method_name]
         if not method_preds:
             continue
 
@@ -254,15 +291,15 @@ def generate_report(
     # Overall metrics (aggregate all)
     all_brier = []
     all_logloss = []
-    for p in predictions:
+    for p in flattened_preds:
         match_key = f"{p['match_info']['home_team']}_{p['match_info']['away_team']}"
         actual = results.get(match_key)
         if actual:
             all_brier.append(brier_score(p.get("probabilities", {}), actual))
             all_logloss.append(log_loss(p.get("probabilities", {}), actual))
 
-    correct, eval_total, hr = hit_rate(predictions, results)
-    profit, staked, roi = calculate_roi(predictions, results)
+    correct, eval_total, hr = hit_rate(flattened_preds, results)
+    profit, staked, roi = calculate_roi(flattened_preds, results)
 
     report = {
         "period": {"start": start_date, "end": end_date},
@@ -291,25 +328,75 @@ def _generate_optimization_notes(by_method: Dict) -> str:
     """Generate actionable optimization suggestions."""
     notes = []
 
-    if "v2.5" in by_method and "v3.0" in by_method:
-        v25 = by_method["v2.5"]
-        v30 = by_method["v3.0"]
-        if v25.get("brier_score") and v30.get("brier_score"):
-            better = "v2.5" if v25["brier_score"] < v30["brier_score"] else "v3.0"
-            diff = abs(v25["brier_score"] - v30["brier_score"])
-            if diff > 0.01:
-                notes.append(f"{better} 在 Brier Score 上表现更优 (差值 {diff:.4f})，建议优先使用 {better}")
+    if not by_method:
+        return "暂无模型预测数据"
 
     for method, metrics in by_method.items():
+        matched = metrics.get("matched_results", 0)
+        
+        # 只有在有足够样本量(如 >= 5)时才给出性能建议
+        if matched < 5:
+            notes.append(f"{method}: 样本量不足({matched})，暂不提供优化建议")
+            continue
+
         if metrics.get("roi_pct") is not None and metrics["roi_pct"] < -5:
             notes.append(f"{method}: ROI 为 {metrics['roi_pct']}%，建议检查 EV 计算模型或调整 Kelly 系数")
         if metrics.get("hit_rate_pct") is not None and metrics["hit_rate_pct"] < 45:
             notes.append(f"{method}: 命中率 {metrics['hit_rate_pct']}% 低于随机基线，建议调整权重分配")
 
-    if not notes:
-        notes.append("数据量不足，暂无优化建议")
+    if "v2.5" in by_method and "v3.0" in by_method:
+        v25 = by_method["v2.5"]
+        v30 = by_method["v3.0"]
+        if v25.get("matched_results", 0) >= 5 and v30.get("matched_results", 0) >= 5:
+            if v25.get("brier_score") and v30.get("brier_score"):
+                better = "v2.5" if v25["brier_score"] < v30["brier_score"] else "v3.0"
+                diff = abs(v25["brier_score"] - v30["brier_score"])
+                if diff > 0.01:
+                    notes.append(f"{better} 在 Brier Score 上表现更优 (差值 {diff:.4f})，建议优先使用 {better}")
 
     return "; ".join(notes)
+
+
+def generate_markdown_report(report: Dict, output_path: str) -> str:
+    """Generate human-readable Markdown report from the JSON report."""
+    md_path = output_path.replace(".json", ".md")
+
+    lines = [
+        f"# Goalcast 回测评估报告 ({report['period']['start']} → {report['period']['end']})",
+        f"\n**生成时间**: `{report['generated_at']}`",
+        "\n## 1. 核心汇总 (Summary)",
+        "| 指标 | 数值 |",
+        "| :--- | :--- |",
+        f"| 总预测场次 | {report['summary']['total_predictions']} |",
+        f"| 已结算场次 | {report['summary']['total_matches_evaluated']} |",
+        f"| 数据覆盖率 | {report['summary']['data_coverage']} |",
+        f"| 平均 Brier Score | {report['metrics'].get('brier_score') or 'N/A'} |",
+        f"| 平均 Log Loss | {report['metrics'].get('log_loss') or 'N/A'} |",
+        f"| 整体命中率 | {report['metrics']['hit_rate_pct']}% |",
+        f"| 整体 ROI | {report['metrics']['roi_pct']}% |",
+        f"| 累计盈亏 | {report['metrics']['total_profit']} units |",
+        "\n## 2. 模型表现对比 (By Method)",
+        "| 模型版本 | 预测数 | 结算数 | 命中率 | ROI | Brier Score |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |"
+    ]
+
+    for method, m in report.get("by_method", {}).items():
+        lines.append(
+            f"| {method} | {m['total_predictions']} | {m['matched_results']} | "
+            f"{m['hit_rate_pct']}% | {m['roi_pct']}% | {m.get('brier_score') or 'N/A'} |"
+        )
+
+    lines.extend([
+        "\n## 3. 量化优化建议 (Optimization Notes)",
+        f"> {report['optimization_notes']}",
+        "\n---",
+        "*Report generated by Goalcast Backtester*"
+    ])
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    return md_path
 
 
 # ─── CLI ───────────────────────────────────────────────────────────────
@@ -345,6 +432,9 @@ def main():
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
+
+    # Generate human-readable Markdown report
+    md_report_path = generate_markdown_report(report, output_path)
 
     # Print summary
     print(f"\n{'='*50}")

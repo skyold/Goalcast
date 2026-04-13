@@ -107,7 +107,7 @@ class XGStats:
     同理适用于客队。
 
     source 优先级（由 resolver 保证）：
-      "understat_direct" > "footystats_proxy" > "league_avg"
+      "sportmonks_direct" > "understat_direct" > "footystats_proxy" > "league_avg"
     """
 
     home_xg_for: float
