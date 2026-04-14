@@ -111,7 +111,7 @@ git commit -m "feat: add cache reader utility for provider raw data"
 **Files:**
 - Create: `scripts/prewarm_cache.py`
 
-- [ ] **Step 1: Write the implementation**
+- [x] **Step 1: Write the implementation**
 
 ```python
 # scripts/prewarm_cache.py
@@ -191,12 +191,12 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 2: Test the script**
+- [x] **Step 2: Test the script**
 
 Run: `python scripts/prewarm_cache.py --date 2026-04-14`
 Expected: Output showing matches were pre-warmed, and `data/cache/2026-04-14/sportmonks/matches.json` should exist.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/prewarm_cache.py
@@ -208,7 +208,7 @@ git commit -m "feat: add script to pre-warm match data to local JSON and SQLite 
 **Files:**
 - Create: `skills/sportmonks-analyst-v1/SKILL.md`
 
-- [ ] **Step 1: Write the Skill Markdown file**
+- [x] **Step 1: Write the Skill Markdown file**
 
 ```markdown
 ---
@@ -248,7 +248,7 @@ matches = get_cached_matches(provider="sportmonks", date="2026-04-14")
 - Accept that some fields might be nested deeply in the raw Sportmonks JSON. Use `dict.get()` extensively to avoid KeyErrors.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add skills/sportmonks-analyst-v1/SKILL.md
@@ -260,7 +260,7 @@ git commit -m "feat: add sportmonks-analyst-v1 skill for analyzing raw sportmonk
 **Files:**
 - Create: `skills/footystats-analyst-v1/SKILL.md`
 
-- [ ] **Step 1: Write the Skill Markdown file**
+- [x] **Step 1: Write the Skill Markdown file**
 
 ```markdown
 ---
@@ -300,7 +300,7 @@ matches = get_cached_matches(provider="footystats", date="2026-04-14")
 - Focus solely on the statistical depth provided by Footystats.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add skills/footystats-analyst-v1/SKILL.md
