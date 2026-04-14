@@ -21,14 +21,19 @@ ENV_FILE="$PROJECT_ROOT/.env"
 WATCHLIST="$PROJECT_ROOT/config/watchlist.yaml"
 
 # ── 颜色 ──────────────────────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
+if [[ -t 1 ]] && [[ "${TERM:-}" != "dumb" ]] && [[ -z "${NO_COLOR:-}" ]]; then
+    RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
+    BLUE=$'\033[0;34m'; BOLD=$'\033[1m'; NC=$'\033[0m'
+else
+    RED=''; GREEN=''; YELLOW=''
+    BLUE=''; BOLD=''; NC=''
+fi
 
-info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
-ok()      { echo -e "${GREEN}[✓]${NC} $*"; }
-warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
-err()     { echo -e "${RED}[✗]${NC} $*" >&2; }
-section() { echo -e "\n${BOLD}$*${NC}"; }
+info()    { printf '%b\n' "${BLUE}[INFO]${NC} $*"; }
+ok()      { printf '%b\n' "${GREEN}[✓]${NC} $*"; }
+warn()    { printf '%b\n' "${YELLOW}[!]${NC} $*"; }
+err()     { printf '%b\n' "${RED}[✗]${NC} $*" >&2; }
+section() { printf '\n%b\n' "${BOLD}$*${NC}"; }
 
 # ── 帮助 ──────────────────────────────────────────────────────────────
 show_help() {
@@ -75,7 +80,7 @@ ${BLUE}部署场景速查:${NC}
     # 在远端服务器上：
     $(basename "$0") deploy --docker
     # 在本地 Mac 上：
-    $(basename "$0") config --server 81.70.207.129
+    $(basename "$0") config --server 127.0.0.1
 
   $(basename "$0") check                           # 任何场景下检查状态
 EOF

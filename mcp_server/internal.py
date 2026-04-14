@@ -8,10 +8,16 @@ MCP 接口见 server.py。
 import asyncio
 import datetime
 import os
+import sys
 import yaml
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from mcp.server.fastmcp import FastMCP
+
+# 确保项目根目录在 sys.path 中，无论从哪里启动 server 都能找到各包
+_project_root = str(Path(__file__).parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from provider.footystats.client import FootyStatsProvider
 from provider.sportmonks.client import SportmonksProvider
@@ -23,6 +29,57 @@ from utils.logger import logger
 from data_strategy.fusion import DataFusion
 from data_strategy.resolvers.sportmonks_resolver import SportmonksResolver
 from data_strategy.sportmonks.models import SportmonksMatchData
+
+# ── 联赛关键词映射（供 goalcast_sm_get_fixtures 使用）──────────────────────────
+_SM_LEAGUE_KEYWORDS: Dict[str, List[str]] = {
+    "Premier League":  ["premier league"],
+    "Championship":    ["championship"],
+    "Serie A":         ["serie a"],
+    "La Liga":         ["la liga", "laliga"],
+    "Bundesliga":      ["bundesliga"],
+    "Ligue 1":         ["ligue 1", "ligue1"],
+    "Eredivisie":      ["eredivisie"],
+    "Primeira Liga":   ["primeira liga"],
+}
+
+
+def _infer_season(match_date: str) -> str:
+    """从比赛日期推断赛季年份（赛季跨年取后一年）。"""
+    try:
+        year = int(match_date[:4])
+        month = int(match_date[5:7])
+        return str(year) if month >= 8 else str(year - 1)
+    except Exception:
+        return str(datetime.date.today().year - 1)
+
+
+def _extract_standing_for_team(raw_standings: Any, team_id: int) -> Optional[Dict[str, Any]]:
+    """从 Sportmonks standings 原始响应中提取指定球队的积分榜数据。"""
+    try:
+        data = raw_standings.get("data", []) if isinstance(raw_standings, dict) else []
+        for entry in data:
+            if isinstance(entry, dict) and entry.get("participant_id") == team_id:
+                details = entry.get("details", [])
+                stat = {
+                    d["type"]["name"]: d["value"]
+                    for d in details
+                    if isinstance(d, dict) and "type" in d and "value" in d
+                }
+                return {
+                    "position":        entry.get("position"),
+                    "points":          stat.get("Points"),
+                    "wins":            stat.get("Won"),
+                    "draws":           stat.get("Draw"),
+                    "losses":          stat.get("Lost"),
+                    "goals_for":       stat.get("Goals For"),
+                    "goals_against":   stat.get("Goals Against"),
+                    "goal_difference": stat.get("Goal Difference"),
+                    "matches_played":  stat.get("Matches Played"),
+                }
+    except Exception:
+        pass
+    return None
+
 
 # Initialize FastMCP server.
 # FASTMCP_HOST defaults to 127.0.0.1 (local) but can be overridden via env var,

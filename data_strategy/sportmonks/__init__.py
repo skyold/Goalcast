@@ -14,7 +14,6 @@ from .models import (
 )
 from .extractor import SportmonksExtractor
 from .transformer import SportmonksTransformer
-from .storage import SportmonksStorage
 from .utils import SportmonksUtils
 
 __all__ = [
@@ -30,6 +29,5 @@ __all__ = [
     'SportmonksMatchData',
     'SportmonksExtractor',
     'SportmonksTransformer',
-    'SportmonksStorage',
     'SportmonksUtils'
 ]
