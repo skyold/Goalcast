@@ -1,9 +1,14 @@
 ---
 name: footystats-provider
-description: Use this skill when the user needs FootyStats API guidance, asks about league tables, team statistics, match details, BTTS/Over 2.5 stats, or how to use any of the 16 FootyStats endpoints.
+description: Use this skill when the user needs FootyStats API guidance, asks about league tables, team statistics, match details, BTTS/Over 2.5 stats, or how to use any of the 16 FootyStats endpoints. NOT FOR MATCH ANALYSIS.
 ---
 
 # FootyStats Provider Skill
+
+## ⚠️ 重要架构变更说明 (2026-04-14)
+**注意：本技能已退居幕后，仅作为“数据获取指南”使用。**
+- **不可用于直接分析**：如果你正在执行足球比赛分析任务，请**停止使用**此技能，并改用 `footystats-analyst-v1` 技能读取本地缓存数据。
+- **新职责**：本技能专用于指导数据工程师 Agent 或开发人员如何正确调用 FootyStats API（例如：编写 `prewarm_cache.py` 预热脚本、处理限流、分页等）。
 
 ## 📋 概述
 
