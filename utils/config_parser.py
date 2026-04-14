@@ -3,6 +3,19 @@ import re
 import os
 from typing import List, Dict, Any
 
+import yaml
+
+def load_config(file_path: str) -> Dict[str, Any]:
+    """Load configuration from a YAML file."""
+    if not os.path.exists(file_path):
+        return {}
+        
+    with open(file_path, 'r', encoding='utf-8') as f:
+        try:
+            return yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            raise ValueError(f"Failed to parse YAML in {file_path}: {e}")
+
 def load_jsonc(file_path: str) -> Dict[str, Any]:
     """Load JSONC file by stripping comments before parsing."""
     if not os.path.exists(file_path):
