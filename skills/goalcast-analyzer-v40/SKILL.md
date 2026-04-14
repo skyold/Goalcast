@@ -182,8 +182,8 @@ base_xg_away = xG_proxy_away
 5. 联赛均值 → base_xg = 联赛均值（最低，置信度 -8）
 ```
 
-**注意**：xG 数据源的选择由 `goalcast_resolve_match`（resolver 层）负责，Skill 不直接调用任何 provider 工具。
-Skill 只读取 `ctx.xg.source` 来了解数据来源，并据此调整置信度扣分。
+**注意**：xG 数据源的选择由 `goalcast_sm_fetch`（SportmonksResolver 层）负责，Skill 不直接调用任何 provider 工具。
+Skill 只读取 `xg.source` 来了解数据来源，并据此调整置信度扣分。
 
 ### 第二层：情境调整模型（权重 20%）
 
