@@ -33,6 +33,7 @@ def mock_fs_resolver():
     r.resolve_lineups = AsyncMock(return_value=_make_missing("lineups"))
     r.resolve_odds_movement = AsyncMock(return_value=_make_missing("odds_movement"))
     r.resolve_head_to_head = AsyncMock(return_value=_make_missing("head_to_head"))
+    r.resolve_predictions = AsyncMock(return_value=_make_missing("predictions"))
     return r
 
 
@@ -81,6 +82,7 @@ async def test_sportmonks_provider_form_in_gaps():
         "movement_hours": 48,
     }))
     sm_resolver.resolve_head_to_head = AsyncMock(return_value=_make_missing("head_to_head"))
+    sm_resolver.resolve_predictions = AsyncMock(return_value=_make_missing("predictions"))
 
     with patch("data_strategy.fusion.SportmonksResolver", return_value=sm_resolver):
         fusion = DataFusion(

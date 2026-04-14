@@ -30,6 +30,7 @@ def calculate_confidence(
     match_type_c: bool = False,
     major_uncertainty: bool = False,
     market_downgraded: bool = False,
+    prediction_diverged: bool = False,
 ) -> int:
     """
     Calculate confidence score for a match prediction.
@@ -48,6 +49,7 @@ def calculate_confidence(
         match_type_c: Type C match (second leg of two-legged tie) (-10)
         major_uncertainty: Major pre-match uncertainty event (-5)
         market_downgraded: Market analysis layer downgraded (-5)
+        prediction_diverged: Sportmonks prediction significantly diverges from model (-10)
 
     Returns:
         Confidence score clamped to [30, 90]
@@ -81,6 +83,8 @@ def calculate_confidence(
         score -= 5
     if market_downgraded:
         score -= 5
+    if prediction_diverged:
+        score -= 10
 
     # Clamp to [30, 90]
     return max(30, min(90, score))
@@ -157,6 +161,8 @@ def confidence_breakdown(
         deductions.append("赛前重大不确定 (-5)")
     if kwargs.get("market_downgraded"):
         deductions.append("市场层权重降级 (-5)")
+    if kwargs.get("prediction_diverged"):
+        deductions.append("官方预测分歧过大 (-10)")
 
     final = calculate_confidence(base_score=base_score, **kwargs)
 

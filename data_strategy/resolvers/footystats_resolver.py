@@ -66,3 +66,7 @@ class FootyStatsResolver:
         self, home_team_id: str, away_team_id: str
     ) -> ResolvedData:
         return ResolvedData.missing("head_to_head")
+
+    async def resolve_predictions(self, fixture_id: str) -> ResolvedData:
+        """FootyStats 官方不提供概率预测。"""
+        return ResolvedData.missing("predictions")

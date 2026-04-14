@@ -30,6 +30,7 @@ from data_strategy.models import (
     MatchLineups,
     OddsMovement,
     H2HEntry,
+    PredictionSnapshot,
 )
 from data_strategy.quality import compute_overall_quality
 from data_strategy.resolver import ResolvedData
@@ -122,7 +123,7 @@ class DataFusion:
             f"| provider={self._data_provider} | league={league} | season={resolved_season}"
         )
 
-        # 并行解析所有 7 类数据
+        # 并行解析所有 8 类数据
         (
             xg_res,
             form_res,
@@ -131,6 +132,7 @@ class DataFusion:
             lineups_res,
             odds_mv_res,
             h2h_res,
+            predictions_res,
         ) = await asyncio.gather(
             self._resolver.resolve_xg(
                 home_team=home_team,
@@ -156,6 +158,7 @@ class DataFusion:
                 home_team_id=home_team_id,
                 away_team_id=away_team_id,
             ),
+            self._resolver.resolve_predictions(fixture_id=fixture_id),
             return_exceptions=True,
         )
 
@@ -167,6 +170,7 @@ class DataFusion:
         lineups_res = _safe_result(lineups_res, "lineups")
         odds_mv_res = _safe_result(odds_mv_res, "odds_movement")
         h2h_res = _safe_result(h2h_res, "head_to_head")
+        predictions_res = _safe_result(predictions_res, "predictions")
 
         # 映射到类型化结构
         xg = self._map_xg(xg_res, home_team, away_team, league)
@@ -178,6 +182,7 @@ class DataFusion:
         lineups = self._map_lineups(lineups_res)
         odds_movement = self._map_odds_movement(odds_mv_res)
         head_to_head = self._map_h2h(h2h_res)
+        predictions = self._map_predictions(predictions_res)
 
         # 收集缺失项
         data_gaps: list[str] = []
@@ -195,6 +200,8 @@ class DataFusion:
             data_gaps.append("odds_movement")
         if head_to_head is None:
             data_gaps.append("head_to_head")
+        if predictions is None:
+            data_gaps.append("predictions")
         data_gaps.append("injuries")
 
         # 质量评分
@@ -244,6 +251,7 @@ class DataFusion:
             lineups=lineups,
             odds_movement=odds_movement,
             head_to_head=head_to_head,
+            predictions=predictions,
             data_gaps=tuple(data_gaps),
             overall_quality=overall_quality,
             sources=sources,
@@ -413,6 +421,19 @@ class DataFusion:
             if isinstance(e, dict)
         )
         return result or None
+
+    def _map_predictions(self, res: ResolvedData) -> Optional[PredictionSnapshot]:
+        """将 resolver predictions 结果映射为 PredictionSnapshot。"""
+        if not res.ok or not res.data:
+            return None
+        d = res.data
+        return PredictionSnapshot(
+            home_win=float(d.get("home_win", 0.0)),
+            draw=float(d.get("draw", 0.0)),
+            away_win=float(d.get("away_win", 0.0)),
+            source=res.source,
+            quality=res.quality,
+        )
 
 
 # ── 模块级辅助函数 ────────────────────────────────────────────

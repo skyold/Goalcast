@@ -159,6 +159,19 @@ class H2HEntry:
     away_goals: int
 
 
+@dataclass(frozen=True)
+class PredictionSnapshot:
+    """
+    Sportmonks 预测概率快照。
+    来源：Sportmonks predictions/probabilities
+    """
+    home_win: float              # 主胜概率 (0.0 - 1.0)
+    draw: float                  # 平局概率 (0.0 - 1.0)
+    away_win: float              # 客胜概率 (0.0 - 1.0)
+    source: str                  # "sportmonks"
+    quality: float               # 0.0 - 1.0
+
+
 # ── 主契约对象 ────────────────────────────────────────────────
 
 
@@ -217,6 +230,7 @@ class MatchContext:
     lineups: Optional[MatchLineups]
     odds_movement: Optional[OddsMovement]
     head_to_head: Optional[tuple]    # tuple[H2HEntry, ...] or None
+    predictions: Optional[PredictionSnapshot] # 官方胜平负预测概率
 
     # ── 元数据 ────────────────────────────────────────────
     data_gaps: tuple             # 缺失数据项列表，如 ("lineups", "injuries")

@@ -435,6 +435,42 @@ class DataResolver:
         logger.info(f"[Resolver] Odds unavailable for match_id={match_id}")
         return ResolvedData.missing("odds")
 
+    # ── 预测解析 ─────────────────────────────────────────────
+
+    async def resolve_predictions(self, fixture_id: str) -> ResolvedData:
+        """
+        解析胜平负预测概率。
+        仅 Sportmonks 提供，FootyStats 返回 missing。
+        """
+        if self._sm:
+            cache_key = f"predictions_{fixture_id}"
+            cached = cache_get("data_strategy_predictions", cache_key)
+            if cached:
+                return ResolvedData(
+                    data=cached["data"], source=cached["source"], quality=cached["quality"]
+                )
+
+            try:
+                raw = await self._sm.get_predictions_by_fixture(int(fixture_id))
+                if raw and not _is_error_response(raw):
+                    from data_strategy.resolvers.sportmonks_resolver import _extract_predictions
+                    pred_data = _extract_predictions(raw)
+                    if pred_data:
+                        result = ResolvedData(
+                            data=pred_data, source="sportmonks", quality=0.90
+                        )
+                        cache_set(
+                            "data_strategy_predictions",
+                            cache_key,
+                            {"data": pred_data, "source": "sportmonks", "quality": 0.90},
+                            ttl_hours=12.0,
+                        )
+                        return result
+            except Exception as exc:
+                logger.warning(f"[Resolver] Sportmonks predictions error: {exc}")
+
+        return ResolvedData.missing("predictions")
+
 
 # ── 私有辅助函数 ──────────────────────────────────────────────
 

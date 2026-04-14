@@ -9,7 +9,8 @@ def test_understat_league_code_premier_league():
     assert get_understat_league_code("Premier League") == "EPL"
 
 def test_understat_league_code_la_liga():
-    assert get_understat_league_code("La Liga") == "La_liga"
+    assert get_understat_league_code("La Liga") == "La_Liga"
+    assert get_understat_league_code("Spanish La Liga") == "La_Liga"
 
 def test_understat_league_code_unknown():
     assert get_understat_league_code("Fake League") is None
@@ -145,6 +146,7 @@ def _make_minimal_ctx(**overrides):
         lineups=None,
         odds_movement=None,
         head_to_head=None,
+        predictions=None,
         data_gaps=("xg", "form", "lineups"),
         overall_quality=0.0,
         sources={},

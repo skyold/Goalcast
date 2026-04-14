@@ -968,11 +968,12 @@ async def goalcast_calculate_confidence(
     match_type_c: bool = False,
     major_uncertainty: bool = False,
     market_downgraded: bool = False,
+    prediction_diverged: bool = False,
 ) -> Any:
     """Calculate confidence score for a match prediction.
 
     Args:
-        method: "v2.5" or "v3.0" (affects weighting)
+        method: "v2.5" or "v3.0" or "v4.0" (affects weighting)
         base_score: Starting confidence (default 70)
         market_agrees: Market direction agrees with model
         data_complete: Both teams have recent form data
@@ -986,6 +987,7 @@ async def goalcast_calculate_confidence(
         match_type_c: Type C match (second leg)
         major_uncertainty: Major pre-match uncertainty
         market_downgraded: Market layer downgraded
+        prediction_diverged: Sportmonks prediction significantly diverges from model
 
     Returns:
         Confidence score [30-90] with detailed breakdown.
@@ -1005,6 +1007,7 @@ async def goalcast_calculate_confidence(
             "match_type_c": match_type_c,
             "major_uncertainty": major_uncertainty,
             "market_downgraded": market_downgraded,
+            "prediction_diverged": prediction_diverged,
         }
 
         if method == "v2.5":

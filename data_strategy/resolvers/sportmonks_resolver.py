@@ -288,6 +288,33 @@ class SportmonksResolver:
 
         return ResolvedData.missing("head_to_head")
 
+    async def resolve_predictions(self, fixture_id: str) -> ResolvedData:
+        cache_key = f"sm_predictions_{fixture_id}"
+        cached = cache_get("sm_predictions", cache_key)
+        if cached:
+            return ResolvedData(
+                data=cached["data"],
+                source=cached["source"],
+                quality=cached["quality"],
+            )
+
+        try:
+            raw = await self._sm.get_predictions_by_fixture(int(fixture_id))
+            data = _extract_predictions(raw)
+            if data:
+                result = ResolvedData(data=data, source="sportmonks", quality=0.90)
+                cache_set(
+                    "sm_predictions",
+                    cache_key,
+                    {"data": data, "source": "sportmonks", "quality": 0.90},
+                    ttl_hours=12.0,
+                )
+                return result
+        except Exception as exc:
+            logger.warning(f"[SportmonksResolver] Predictions error: {exc}")
+
+        return ResolvedData.missing("predictions")
+
 
 # ── Private helpers ─────────────────────────────────────────
 
@@ -490,3 +517,39 @@ def _extract_h2h(raw: Any) -> List[dict]:
                 }
             )
     return entries
+
+
+def _extract_predictions(raw: Any) -> Optional[dict]:
+    """
+    Extract match probability predictions from Sportmonks.
+    Returns: {"home_win": float, "draw": float, "away_win": float}
+    """
+    if not raw or not isinstance(raw, dict):
+        return None
+    data = raw.get("data", [])
+    if not data:
+        return None
+
+    # Sportmonks returns predictions in a list, we look for type "probability" and subtype "1x2" or similar
+    # However, /predictions/probabilities/fixtures/{id} usually returns an array where we can find "home", "draw", "away" keys or values
+    # Actually, predictions structure:
+    # {"data": [{"type_id": xxx, "predictions": {"home": 45.5, "draw": 25.5, "away": 29.0}, ...}]}
+    # We will safely iterate and try to find home/draw/away probabilities.
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        predictions = item.get("predictions")
+        if isinstance(predictions, dict):
+            home = predictions.get("home") or predictions.get("1")
+            draw = predictions.get("draw") or predictions.get("X") or predictions.get("x")
+            away = predictions.get("away") or predictions.get("2")
+            if home is not None and draw is not None and away is not None:
+                # Normalise to 0.0 - 1.0 if they are percentages
+                total = float(home) + float(draw) + float(away)
+                if total > 0:
+                    return {
+                        "home_win": float(home) / total,
+                        "draw": float(draw) / total,
+                        "away_win": float(away) / total,
+                    }
+    return None
