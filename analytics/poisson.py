@@ -10,7 +10,7 @@ All computation is deterministic — no LLM "mental math".
 """
 
 import math
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 def poisson_pmf(k: int, lam: float) -> float:
@@ -214,3 +214,127 @@ def dixon_coles_distribution(
         "rho": rho,
         "model": "dixon_coles",
     }
+
+
+# ─── Asian Handicap 概率计算 ──────────────────────────────────────────────────
+
+def calculate_ah_probability(
+    score_matrix: List[List[float]],
+    ah_line: float,
+) -> Dict:
+    """
+    从 Dixon-Coles/Poisson 比分矩阵推导亚盘（Asian Handicap）覆盖概率。
+
+    亚盘规则说明：
+    ─────────────────────────────────────────────────────────
+    ah_line 为主队让球线（负值=主队让球，正值=主队受让）。
+
+    结算逻辑（以 ah_line=-0.5 为例，主队让半球）：
+      净胜球 net = home_goals - away_goals
+      net >  0.5  → 主队赢（主队覆盖）
+      net <= 0.5  → 客队赢（客队覆盖）
+      无平局（亚盘两路返还）
+
+    四分之一盘（±0.25 / ±0.75）：
+      将 ah_line 分解为两个相邻整/半球盘各投一半。
+      例：ah_line=-0.25 = 平手盘(-0.0) + 让半球盘(-0.5) 各 50%
+      例：ah_line=-0.75 = 让半球盘(-0.5) + 让一球盘(-1.0) 各 50%
+
+    Args:
+        score_matrix: poisson/dixon_coles 返回的 score_matrix，
+                      matrix[i][j] = P(home=i, away=j)，未归一化原始概率。
+        ah_line:      主队让球线，如 -0.5, -1.0, +0.5, -0.25, -0.75。
+
+    Returns:
+        {
+          "ah_line": float,
+          "p_home_cover": float,   # 主队覆盖概率（0~1）
+          "p_away_cover": float,   # 客队覆盖概率（0~1）
+          "p_push": float,         # 退水概率（整球盘时存在）
+          "p_home_cover_pct": float,
+          "p_away_cover_pct": float,
+          "p_push_pct": float,
+          "ah_type": str,          # "half" | "whole" | "quarter"
+        }
+    """
+    # 检查是否为四分之一盘（0.25 或 0.75 小数部分）
+    remainder = abs(ah_line) % 1
+    is_quarter = abs(remainder - 0.25) < 1e-9 or abs(remainder - 0.75) < 1e-9
+
+    if is_quarter:
+        # 四分之一盘 = 两个相邻盘各 50%
+        # 规则：round down & up（向更接近 0 和更远离 0 的方向）
+        if ah_line < 0:
+            line_low = math.floor(ah_line * 2) / 2   # 更接近 0（让球少）
+            line_high = math.ceil(ah_line * 2) / 2   # 更远离 0（让球多）
+        else:
+            line_low = math.floor(ah_line * 2) / 2
+            line_high = math.ceil(ah_line * 2) / 2
+
+        res_low = _calc_single_ah(score_matrix, line_low)
+        res_high = _calc_single_ah(score_matrix, line_high)
+
+        p_home = 0.5 * res_low["p_home_cover"] + 0.5 * res_high["p_home_cover"]
+        p_away = 0.5 * res_low["p_away_cover"] + 0.5 * res_high["p_away_cover"]
+        p_push = 0.5 * res_low["p_push"] + 0.5 * res_high["p_push"]
+        ah_type = "quarter"
+    else:
+        res = _calc_single_ah(score_matrix, ah_line)
+        p_home = res["p_home_cover"]
+        p_away = res["p_away_cover"]
+        p_push = res["p_push"]
+        remainder_half = abs(ah_line) % 1
+        ah_type = "half" if abs(remainder_half - 0.5) < 1e-9 else "whole"
+
+    return {
+        "ah_line": ah_line,
+        "p_home_cover": round(p_home, 6),
+        "p_away_cover": round(p_away, 6),
+        "p_push": round(p_push, 6),
+        "p_home_cover_pct": round(p_home * 100, 4),
+        "p_away_cover_pct": round(p_away * 100, 4),
+        "p_push_pct": round(p_push * 100, 4),
+        "ah_type": ah_type,
+    }
+
+
+def _calc_single_ah(
+    score_matrix: List[List[float]],
+    ah_line: float,
+) -> Dict:
+    """
+    计算单一（非四分之一）亚盘线的覆盖概率。
+
+    net_goal_margin = home_goals - away_goals + ah_line
+    (ah_line 为负数时，主队需赢超过该让球数)
+
+    结算：
+      net > 0  → 主队覆盖
+      net < 0  → 客队覆盖
+      net == 0 → 退水（push），仅整球盘时发生
+    """
+    p_home = 0.0
+    p_away = 0.0
+    p_push = 0.0
+
+    for i, row in enumerate(score_matrix):
+        for j, prob in enumerate(row):
+            if prob <= 0:
+                continue
+            # net > 0 意味着 home_goals - away_goals > -ah_line
+            # 等价于 home_goals - away_goals + ah_line > 0
+            net = (i - j) + ah_line
+            if net > 1e-9:
+                p_home += prob
+            elif net < -1e-9:
+                p_away += prob
+            else:
+                p_push += prob  # 整球盘退水
+
+    total = p_home + p_away + p_push
+    if total > 1e-9:
+        p_home /= total
+        p_away /= total
+        p_push /= total
+
+    return {"p_home_cover": p_home, "p_away_cover": p_away, "p_push": p_push}

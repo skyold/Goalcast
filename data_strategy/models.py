@@ -98,6 +98,24 @@ class OddsSnapshot:
 
 
 @dataclass(frozen=True)
+class AsianHandicapOdds:
+    """
+    亚盘（Asian Handicap）赔率快照。
+    来源：Sportmonks prematch_odds → Asian Handicap market（主盘线）
+
+    ah_line 含义：
+      - 负值：主队让球（如 -0.5 = 主队让半球，-1.0 = 主队让一球）
+      - 正值：客队让球（如 +0.5 = 主队受让半球）
+      - 四分之一盘：-0.25 / -0.75（上下盘各半，仅一半注金退还）
+    """
+    ah_line: float               # 主队让球线（主盘线）
+    ah_home_odds: float          # 主队（让球后）赔率
+    ah_away_odds: float          # 客队（受让后）赔率
+    source: str                  # "sportmonks_cached" | "sportmonks"
+    quality: float               # 0.0 – 1.0
+
+
+@dataclass(frozen=True)
 class XGStats:
     """
     双方的 xG 攻防代理值（场均）。
@@ -225,6 +243,9 @@ class MatchContext:
 
     # ── L3：赔率 ──────────────────────────────────────────
     odds: Optional[OddsSnapshot] # None → 见 data_gaps
+
+    # ── Layer AH：亚盘赔率快照 ────────────────────────────
+    asian_handicap: Optional["AsianHandicapOdds"]  # None → AH 数据缺失，见 data_gaps
 
     # ── 新增：Sportmonks 独有字段──────────────────────────────
     lineups: Optional[MatchLineups]

@@ -1,6 +1,6 @@
 ---
 name: sportmonks-analyst-v1
-description: Use this skill when you need to analyze football matches using pre-warmed Sportmonks raw data. Focuses on extracting xG, lineups, and odds movement directly from Sportmonks JSON.
+description: "[DEPRECATED] This skill is retired. Data fetching is now handled by goalcast_sm_fetch MCP tool which calls SportmonksResolver directly. Use goalcast-analyzer-v40 instead."
 ---
 
 # Sportmonks Analyst Skill v1

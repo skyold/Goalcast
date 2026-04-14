@@ -26,6 +26,7 @@ from data_strategy.models import (
     TeamFormWindow,
     StandingsEntry,
     OddsSnapshot,
+    AsianHandicapOdds,
     XGStats,
     MatchLineups,
     OddsMovement,
@@ -179,6 +180,7 @@ class DataFusion:
             standings_res, home_team, away_team
         )
         odds = self._map_odds(odds_res)
+        asian_handicap = self._map_asian_handicap(odds_res)  # 复用 odds resolver 结果
         lineups = self._map_lineups(lineups_res)
         odds_movement = self._map_odds_movement(odds_mv_res)
         head_to_head = self._map_h2h(h2h_res)
@@ -194,6 +196,8 @@ class DataFusion:
             data_gaps.append("standings")
         if odds is None:
             data_gaps.append("odds")
+        if asian_handicap is None:
+            data_gaps.append("asian_handicap")
         if lineups is None:
             data_gaps.append("lineups")
         if odds_movement is None:
@@ -248,6 +252,7 @@ class DataFusion:
             standings_source=standings_res.source,
             standings_quality=standings_quality,
             odds=odds,
+            asian_handicap=asian_handicap,
             lineups=lineups,
             odds_movement=odds_movement,
             head_to_head=head_to_head,
@@ -370,6 +375,37 @@ class DataFusion:
             home_win=home,
             draw=draw,
             away_win=away,
+            source=res.source,
+            quality=res.quality,
+        )
+
+    def _map_asian_handicap(self, res: ResolvedData) -> Optional[AsianHandicapOdds]:
+        """
+        从 resolve_odds 的返回数据中提取亚盘字段，映射为 AsianHandicapOdds。
+
+        前提：resolver 已在 odds_data 中携带 ah_line / ah_home_odds / ah_away_odds。
+        任意字段为 None 或赔率 ≤ 1.0 时，返回 None（标记为数据缺失）。
+        """
+        if not res.ok or not res.data:
+            return None
+        d = res.data
+        ah_line = d.get("ah_line")
+        ah_home = d.get("ah_home_odds")
+        ah_away = d.get("ah_away_odds")
+        if ah_line is None or not ah_home or not ah_away:
+            return None
+        try:
+            ah_line_f = float(ah_line)
+            ah_home_f = float(ah_home)
+            ah_away_f = float(ah_away)
+        except (TypeError, ValueError):
+            return None
+        if ah_home_f <= 1.0 or ah_away_f <= 1.0:
+            return None
+        return AsianHandicapOdds(
+            ah_line=ah_line_f,
+            ah_home_odds=ah_home_f,
+            ah_away_odds=ah_away_f,
             source=res.source,
             quality=res.quality,
         )

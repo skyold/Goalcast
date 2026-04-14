@@ -9,11 +9,13 @@ from mcp.server.fastmcp import FastMCP
 from provider.footystats.client import FootyStatsProvider
 from provider.sportmonks.client import SportmonksProvider
 from provider.understat.client import UnderstatProvider
-from analytics.poisson import poisson_distribution, dixon_coles_distribution
+from analytics.poisson import poisson_distribution, dixon_coles_distribution, calculate_ah_probability
 from analytics.ev_calculator import calculate_ev, calculate_kelly, calculate_risk_adjusted_ev, best_bet_recommendation
 from analytics.confidence import calculate_confidence, calculate_confidence_v25, confidence_breakdown
 from utils.logger import logger
 from data_strategy.fusion import DataFusion
+from data_strategy.resolvers.sportmonks_resolver import SportmonksResolver
+from data_strategy.sportmonks.models import SportmonksMatchData
 
 # Initialize FastMCP server.
 # FASTMCP_HOST defaults to 127.0.0.1 (local) but can be overridden via env var,
@@ -79,8 +81,9 @@ async def handle_api_call(provider_name: str, coro):
         }
 
 # --- FootyStats Tools ---
+# 内部函数：不暴露为 MCP tool，由 goalcast_resolve_match 通过 DataFusion 内部调用。
+# V4.0 路径不使用这些函数；v2.5/v3.0 通过 DataFusion 调用。
 
-@mcp.tool()
 async def footystats_get_league_list(chosen_leagues_only: bool = False, country: Optional[int] = None) -> Any:
     """Get list of available leagues from FootyStats.
     Args:
@@ -89,12 +92,10 @@ async def footystats_get_league_list(chosen_leagues_only: bool = False, country:
     """
     return await handle_api_call("FootyStats", get_footystats().get_league_list(chosen_leagues_only, country))
 
-@mcp.tool()
 async def footystats_get_country_list() -> Any:
     """Get list of all countries and their ISO IDs from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_country_list())
 
-@mcp.tool()
 async def footystats_get_todays_matches(
     date: Optional[str] = None,
     timezone: Optional[str] = None,
@@ -125,12 +126,10 @@ async def footystats_get_todays_matches(
         return {**result, "data": filtered}
     return result
 
-@mcp.tool()
 async def footystats_get_league_stats(season_id: int) -> Any:
     """Get detailed statistics for a league season from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_league_stats(season_id))
 
-@mcp.tool()
 async def footystats_get_league_matches(season_id: int, page: int = 1) -> Any:
     """Get all matches for a specific league season from FootyStats.
 
@@ -146,44 +145,36 @@ async def footystats_get_league_matches(season_id: int, page: int = 1) -> Any:
     """
     return await handle_api_call("FootyStats", get_footystats().get_league_matches(season_id, page))
 
-@mcp.tool()
 async def footystats_get_league_teams(season_id: int) -> Any:
     """Get all teams and their stats for a league season from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_league_teams(season_id))
 
-@mcp.tool()
 async def footystats_get_league_tables(season_id: int) -> Any:
     """Get standings table for a specific league season from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_league_tables(season_id))
 
-@mcp.tool()
 async def footystats_get_match_details(match_id: int) -> Any:
     """Get detailed statistics, H2H, lineups, and odds for a specific match from FootyStats.
     Includes team stats, goal timings, and starting 11 if available.
     """
     return await handle_api_call("FootyStats", get_footystats().get_match_details(match_id))
 
-@mcp.tool()
 async def footystats_get_lineups(match_id: int) -> Any:
     """Get starting lineups and substitutes for a match from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_match_details(match_id))
 
-@mcp.tool()
 async def footystats_get_team_details(team_id: int) -> Any:
     """Get complete statistics for a specific team from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_team(team_id))
 
-@mcp.tool()
 async def footystats_get_team_last_x_stats(team_id: int) -> Any:
     """Get recent form statistics (last 5/6/10) for a specific team from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_team_last_x_stats(team_id))
 
-@mcp.tool()
 async def footystats_get_btts_stats() -> Any:
     """Get top teams and fixtures for BTTS (Both Teams To Score) from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_btts_stats())
 
-@mcp.tool()
 async def footystats_get_over25_stats() -> Any:
     """Get top teams and fixtures for Over 2.5 Goals from FootyStats."""
     return await handle_api_call("FootyStats", get_footystats().get_over_2_5_stats())
@@ -192,7 +183,6 @@ async def footystats_get_over25_stats() -> Any:
 # --- Understat Tools ---
 # Advanced football statistics (xG, xA) - Free, no API key required
 
-@mcp.tool()
 async def understat_get_league_players(league: str, season: str) -> Any:
     """Get player statistics for a league season from Understat.
     
@@ -268,7 +258,6 @@ async def understat_get_league_players(league: str, season: str) -> Any:
     return await handle_api_call("Understat", get_understat().get_league_players(league, season))
 
 
-@mcp.tool()
 async def understat_get_league_teams(league: str, season: str) -> Any:
     """Get team list for a league season from Understat.
     
@@ -325,7 +314,6 @@ async def understat_get_league_teams(league: str, season: str) -> Any:
     return await handle_api_call("Understat", get_understat().get_league_teams(league, season))
 
 
-@mcp.tool()
 async def understat_get_league_matches(league: str, season: str) -> Any:
     """Get match results for a league season from Understat.
     
@@ -391,7 +379,6 @@ async def understat_get_league_matches(league: str, season: str) -> Any:
     return await handle_api_call("Understat", get_understat().get_league_matches(league, season))
 
 
-@mcp.tool()
 async def understat_get_match_stats(match_id: int) -> Any:
     """Get detailed match statistics including shots and player performance.
     
@@ -474,7 +461,6 @@ async def understat_get_match_stats(match_id: int) -> Any:
     return await handle_api_call("Understat", get_understat().get_match_stats(match_id))
 
 
-@mcp.tool()
 async def understat_get_team_stats(team_id: int, season: str) -> Any:
     """Get team statistics for a specific season.
     
@@ -556,7 +542,6 @@ async def understat_get_team_stats(team_id: int, season: str) -> Any:
     return await handle_api_call("Understat", get_understat().get_team_stats(team_id, season))
 
 
-@mcp.tool()
 async def understat_get_player_stats(player_id: int) -> Any:
     """Get detailed player statistics across all seasons.
     
@@ -656,7 +641,6 @@ async def understat_get_player_stats(player_id: int) -> Any:
     return await handle_api_call("Understat", get_understat().get_player_stats(player_id))
 
 
-@mcp.tool()
 async def understat_get_player_shots(player_id: int) -> Any:
     """Get all shots for a specific player.
     
@@ -762,7 +746,6 @@ async def understat_get_player_shots(player_id: int) -> Any:
 
 # --- Sportmonks Tools ---
 
-@mcp.tool()
 async def sportmonks_get_livescores(include: Optional[str] = "events,lineups,statistics") -> Any:
     """Get current live scores from Sportmonks with default inclusions.
     Args:
@@ -770,7 +753,6 @@ async def sportmonks_get_livescores(include: Optional[str] = "events,lineups,sta
     """
     return await handle_api_call("Sportmonks", get_sportmonks().get_livescores(include))
 
-@mcp.tool()
 async def sportmonks_get_fixtures_by_date(date: str, include: Optional[str] = "league,participants") -> Any:
     """Get fixtures for a specific date from Sportmonks.
     Args:
@@ -779,26 +761,22 @@ async def sportmonks_get_fixtures_by_date(date: str, include: Optional[str] = "l
     """
     return await handle_api_call("Sportmonks", get_sportmonks().get_fixtures_by_date(date, include))
 
-@mcp.tool()
 async def sportmonks_get_fixture_by_id(fixture_id: int, include: Optional[str] = None) -> Any:
     """Get detailed fixture information by ID from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_fixture_by_id(fixture_id, include))
 
-@mcp.tool()
 async def sportmonks_get_lineups(fixture_id: int) -> Any:
     """Get detailed starting lineups, substitutes, and formations for a fixture from Sportmonks.
     Includes player names, positions, and ratings.
     """
     return await handle_api_call("Sportmonks", get_sportmonks().get_fixture_by_id(fixture_id, include="lineups.player,formations"))
 
-@mcp.tool()
 async def sportmonks_get_player_stats(fixture_id: int) -> Any:
     """Get individual player performance statistics for a specific fixture from Sportmonks.
     Includes passes, shots, tackles, etc., for each player.
     """
     return await handle_api_call("Sportmonks", get_sportmonks().get_fixture_by_id(fixture_id, include="statistics.player"))
 
-@mcp.tool()
 async def sportmonks_get_odds_movement(fixture_id: int, market_id: Optional[int] = None) -> Any:
     """Get historical odds movements for a fixture from Sportmonks to analyze market trends.
     Args:
@@ -807,35 +785,317 @@ async def sportmonks_get_odds_movement(fixture_id: int, market_id: Optional[int]
     """
     return await handle_api_call("Sportmonks", get_sportmonks().get_prematch_odds_by_fixture(fixture_id, include="bookmaker,market"))
 
-@mcp.tool()
 async def sportmonks_get_head_to_head(team1_id: int, team2_id: int, include: Optional[str] = None) -> Any:
     """Get Head-to-Head (H2H) fixtures between two teams from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_head_to_head(team1_id, team2_id, include))
 
-@mcp.tool()
 async def sportmonks_get_standings(season_id: int, include: Optional[str] = None) -> Any:
     """Get league standings for a specific season from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_standings_by_season(season_id, include))
 
-@mcp.tool()
 async def sportmonks_get_expected_goals(fixture_id: int) -> Any:
     """Get Expected Goals (xG) depth data for a fixture from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_expected_goals_by_fixture(fixture_id))
 
-@mcp.tool()
 async def sportmonks_get_prematch_odds(fixture_id: int, include: Optional[str] = None) -> Any:
     """Get pre-match odds for a fixture from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_prematch_odds_by_fixture(fixture_id, include))
 
-@mcp.tool()
 async def sportmonks_get_predictions(fixture_id: int) -> Any:
     """Get match predictions (probabilities) for a fixture from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_predictions_by_fixture(fixture_id))
 
-@mcp.tool()
 async def sportmonks_get_value_bets() -> Any:
     """Get currently identified Value Bets from Sportmonks."""
     return await handle_api_call("Sportmonks", get_sportmonks().get_value_bets())
+
+
+# ─── V4.0 专用工具：数据获取（直连 SportmonksResolver，跳过 DataFusion）────
+
+# Sportmonks 联赛名称 → 名称匹配关键词（子字符串，不区分大小写）
+# 用于 goalcast_sm_get_fixtures 的联赛过滤
+_SM_LEAGUE_KEYWORDS: Dict[str, List[str]] = {
+    "Premier League":  ["premier league"],
+    "Championship":    ["championship"],
+    "Serie A":         ["serie a"],
+    "La Liga":         ["la liga", "laliga"],
+    "Bundesliga":      ["bundesliga"],
+    "Ligue 1":         ["ligue 1", "ligue1"],
+    "Eredivisie":      ["eredivisie"],
+    "Primeira Liga":   ["primeira liga"],
+}
+
+
+def _infer_season(match_date: str) -> str:
+    """从比赛日期推断 Understat 赛季年份（赛季跨年取后一年）。"""
+    try:
+        year = int(match_date[:4])
+        month = int(match_date[5:7])
+        return str(year) if month >= 8 else str(year - 1)
+    except Exception:
+        return str(datetime.date.today().year - 1)
+
+
+def _extract_standing_for_team(raw_standings: Any, team_id: int) -> Optional[Dict[str, Any]]:
+    """从 Sportmonks standings 原始响应中提取指定球队的积分榜数据。"""
+    try:
+        data = raw_standings.get("data", []) if isinstance(raw_standings, dict) else []
+        for entry in data:
+            if isinstance(entry, dict) and entry.get("participant_id") == team_id:
+                details = entry.get("details", [])
+                stat = {d["type"]["name"]: d["value"] for d in details if isinstance(d, dict) and "type" in d and "value" in d}
+                return {
+                    "position": entry.get("position"),
+                    "points": stat.get("Points"),
+                    "wins": stat.get("Won"),
+                    "draws": stat.get("Draw"),
+                    "losses": stat.get("Lost"),
+                    "goals_for": stat.get("Goals For"),
+                    "goals_against": stat.get("Goals Against"),
+                    "goal_difference": stat.get("Goal Difference"),
+                    "matches_played": stat.get("Matches Played"),
+                }
+    except Exception:
+        pass
+    return None
+
+
+@mcp.tool()
+async def goalcast_sm_get_fixtures(
+    leagues: List[str],
+    date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    V4.0 专用：获取指定日期在目标联赛的所有比赛。
+
+    一次调用返回多联赛赛程，每条记录包含 goalcast_sm_fetch 所需的全部 ID。
+    内置联赛名称过滤，支持常见写法（不区分大小写子字符串匹配）。
+
+    Args:
+        leagues: 联赛名称列表，如 ["Premier League", "Championship", "Serie A"]
+                 支持的名称见 _SM_LEAGUE_KEYWORDS 映射。
+        date:    YYYY-MM-DD，默认今天。
+
+    Returns:
+        {
+          "date": "YYYY-MM-DD",
+          "count": N,
+          "fixtures": [
+            {
+              "fixture_id": int,
+              "home_team": str,  "home_team_id": int,
+              "away_team": str,  "away_team_id": int,
+              "season_id": int,
+              "league": str,
+              "kickoff_time": str,   # ISO 字符串
+            }, ...
+          ]
+        }
+    """
+    target_date = date or datetime.date.today().isoformat()
+    sm = get_sportmonks()
+
+    try:
+        raw = await sm.get_fixtures_by_date(
+            target_date,
+            include="participants;league;season",
+        )
+    except Exception as exc:
+        logger.error(f"[goalcast_sm_get_fixtures] API error: {exc}")
+        return {"error": str(exc), "date": target_date, "count": 0, "fixtures": []}
+
+    # 构建目标关键词集合（全部小写）
+    target_keywords: List[str] = []
+    for league_name in leagues:
+        kws = _SM_LEAGUE_KEYWORDS.get(league_name)
+        if kws:
+            target_keywords.extend(kws)
+        else:
+            target_keywords.append(league_name.lower())
+
+    fixtures = []
+    for fix in raw.get("data", []):
+        if not isinstance(fix, dict):
+            continue
+
+        league_obj = fix.get("league") or {}
+        league_name = league_obj.get("name", "") if isinstance(league_obj, dict) else ""
+        league_name_lower = league_name.lower()
+
+        # 联赛过滤
+        if not any(kw in league_name_lower for kw in target_keywords):
+            continue
+
+        participants = fix.get("participants", [])
+        home = next((p for p in participants if isinstance(p, dict) and
+                     p.get("meta", {}).get("location") == "home"), {})
+        away = next((p for p in participants if isinstance(p, dict) and
+                     p.get("meta", {}).get("location") == "away"), {})
+
+        if not home or not away:
+            continue
+
+        fixtures.append({
+            "fixture_id":   fix.get("id"),
+            "home_team":    home.get("name", ""),
+            "home_team_id": home.get("id"),
+            "away_team":    away.get("name", ""),
+            "away_team_id": away.get("id"),
+            "season_id":    fix.get("season_id"),
+            "league":       league_name,
+            "kickoff_time": fix.get("starting_at", ""),
+        })
+
+    return {"date": target_date, "count": len(fixtures), "fixtures": fixtures}
+
+
+@mcp.tool()
+async def goalcast_sm_fetch(
+    fixture_id: int,
+    home_team: str,
+    home_team_id: int,
+    away_team: str,
+    away_team_id: int,
+    season_id: int,
+    league: str,
+    match_date: str,
+    season: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    V4.0 专用数据获取。直连 SportmonksResolver，完全跳过 DataFusion。
+
+    并行拉取单场比赛的全部 V4.0 所需数据，返回 SportmonksMatchData 序列化字典。
+    Sportmonks 专有字段（亚盘、赔率时序、官方预测、原生 xG）原生保留，不经归一化。
+
+    Args:
+        fixture_id:    Sportmonks fixture ID（来自 goalcast_sm_get_fixtures）
+        home_team:     主队名称
+        home_team_id:  主队 Sportmonks ID
+        away_team:     客队名称
+        away_team_id:  客队 Sportmonks ID
+        season_id:     Sportmonks season ID
+        league:        联赛名（如 "Premier League"）
+        match_date:    YYYY-MM-DD
+        season:        Understat 赛季年（如 "2025"）；不传时从 match_date 自动推断
+
+    Returns:
+        SportmonksMatchData.to_dict() — V4.0 九层分析直接消费的数据结构
+    """
+    sm = get_sportmonks()
+    us = get_understat()
+    resolver = SportmonksResolver(sm, us)
+    effective_season = season or _infer_season(match_date)
+    fixture_id_str = str(fixture_id)
+    home_id_str    = str(home_team_id)
+    away_id_str    = str(away_team_id)
+    season_id_str  = str(season_id)
+
+    # ── 并行拉取所有数据层 ────────────────────────────────────────
+    results = await asyncio.gather(
+        resolver.resolve_xg(
+            home_team, away_team, league, effective_season,
+            home_id_str, away_id_str,
+        ),
+        resolver.resolve_standings(season_id_str),
+        resolver.resolve_odds(fixture_id_str),
+        resolver.resolve_odds_movement(fixture_id_str),
+        resolver.resolve_lineups(fixture_id_str, home_id_str, away_id_str),
+        resolver.resolve_head_to_head(home_id_str, away_id_str),
+        resolver.resolve_predictions(fixture_id_str),
+        return_exceptions=True,
+    )
+    xg_r, standings_r, odds_r, odds_mv_r, lineups_r, h2h_r, pred_r = results
+
+    # ── xG ───────────────────────────────────────────────────────
+    xg_data = xg_r.data if not isinstance(xg_r, Exception) and xg_r.data else {}
+    xg_source  = xg_r.source  if not isinstance(xg_r, Exception) else "league_avg"
+    xg_quality = xg_r.quality if not isinstance(xg_r, Exception) else 0.35
+
+    # ── 积分榜（主客分别提取）───────────────────────────────────
+    home_standing = None
+    away_standing = None
+    if not isinstance(standings_r, Exception) and standings_r.data:
+        raw_std = standings_r.data.get("raw", {})
+        home_standing = _extract_standing_for_team(raw_std, home_team_id)
+        away_standing = _extract_standing_for_team(raw_std, away_team_id)
+
+    # ── 赔率（1X2 + 亚盘）──────────────────────────────────────
+    odds_data = odds_r.data if not isinstance(odds_r, Exception) else {}
+    odds_mv   = odds_mv_r.data.get("movements") if (
+        not isinstance(odds_mv_r, Exception) and odds_mv_r.data
+    ) else None
+
+    # ── 阵容 ─────────────────────────────────────────────────────
+    lineups_data = lineups_r.data if not isinstance(lineups_r, Exception) else None
+
+    # ── H2H ──────────────────────────────────────────────────────
+    h2h_data = h2h_r.data if not isinstance(h2h_r, Exception) else None
+
+    # ── 官方预测 ─────────────────────────────────────────────────
+    pred_data = pred_r.data if not isinstance(pred_r, Exception) else None
+
+    # ── data_gaps ────────────────────────────────────────────────
+    data_gaps: List[str] = []
+    if xg_source == "league_avg":      data_gaps.append("xg")
+    if home_standing is None:          data_gaps.append("standings")
+    if not odds_data:                  data_gaps.append("odds")
+    if odds_mv is None:                data_gaps.append("odds_movement")
+    if lineups_data is None:           data_gaps.append("lineups")
+    if h2h_data is None:               data_gaps.append("h2h")
+    if pred_data is None:              data_gaps.append("predictions")
+
+    # ── 综合质量评分（简化：各层质量加权均值）────────────────────
+    qualities = [xg_quality]
+    if home_standing:  qualities.append(0.80)
+    if odds_data:      qualities.append(odds_r.quality if not isinstance(odds_r, Exception) else 0.0)
+    if odds_mv:        qualities.append(0.85)
+    if lineups_data:   qualities.append(0.90)
+    overall_quality = sum(qualities) / len(qualities) if qualities else 0.35
+
+    match_data = SportmonksMatchData(
+        fixture_id    = fixture_id,
+        home_team     = home_team,
+        away_team     = away_team,
+        home_team_id  = home_team_id,
+        away_team_id  = away_team_id,
+        league        = league,
+        season_id     = season_id,
+        season        = effective_season,
+        match_date    = match_date,
+        kickoff_time  = "",  # 由 goalcast_sm_get_fixtures 提供，此处无需重复
+        # xG
+        xg_home_for     = float(xg_data.get("home_xg_for", 0.0) or 0.0),
+        xg_home_against = float(xg_data.get("home_xg_against", 0.0) or 0.0),
+        xg_away_for     = float(xg_data.get("away_xg_for", 0.0) or 0.0),
+        xg_away_against = float(xg_data.get("away_xg_against", 0.0) or 0.0),
+        xg_source       = xg_source,
+        xg_quality      = xg_quality,
+        # 积分榜
+        home_standing = home_standing,
+        away_standing = away_standing,
+        # 欧盘
+        odds_home_win = odds_data.get("home_win"),
+        odds_draw     = odds_data.get("draw"),
+        odds_away_win = odds_data.get("away_win"),
+        odds_bookmaker = odds_data.get("bookmaker"),
+        # 亚盘（Sportmonks 专有，完整保留）
+        ah_line       = odds_data.get("ah_line"),
+        ah_home_odds  = odds_data.get("ah_home_odds"),
+        ah_away_odds  = odds_data.get("ah_away_odds"),
+        # 赔率时序
+        odds_movement = odds_mv,
+        # 阵容
+        lineups       = lineups_data,
+        # H2H
+        h2h           = h2h_data,
+        # 官方预测
+        predictions   = pred_data,
+        # 质量
+        overall_quality = round(overall_quality, 3),
+        data_gaps       = data_gaps,
+    )
+
+    return match_data.to_dict()
 
 
 # ─── Quantitative Model Tools (Poisson, EV, Kelly, Confidence) ──────────
@@ -872,6 +1132,46 @@ async def goalcast_calculate_poisson(
         return result
     except Exception as e:
         return {"error": "POISSON_CALC_ERROR", "message": str(e)}
+
+
+@mcp.tool()
+async def goalcast_calculate_ah_prob(
+    score_matrix: list,
+    ah_line: float,
+) -> Any:
+    """Calculate Asian Handicap coverage probability from a Poisson/Dixon-Coles score matrix.
+
+    Derives the probability that each side covers the Asian Handicap line by summing
+    the relevant cells of the score matrix returned by goalcast_calculate_poisson.
+
+    Supports all standard AH line types:
+      - Half-ball (±0.5, ±1.5, …): no push possible
+      - Whole-ball (0, ±1, ±2, …): push (refund) possible on exact margin
+      - Quarter-ball (±0.25, ±0.75, …): stake split across two adjacent lines
+
+    Args:
+        score_matrix: 2D list from goalcast_calculate_poisson result["score_matrix"].
+                      matrix[i][j] = P(home=i goals, away=j goals).
+        ah_line:      Home team handicap line.
+                      Negative = home gives goals (e.g. -0.5 = home -½).
+                      Positive = home receives goals (e.g. +0.5 = home +½).
+
+    Returns:
+        {
+          "ah_line": float,
+          "p_home_cover": float,    # raw probability (0-1)
+          "p_away_cover": float,
+          "p_push": float,          # refund probability (whole-ball lines only)
+          "p_home_cover_pct": float,
+          "p_away_cover_pct": float,
+          "p_push_pct": float,
+          "ah_type": "half" | "whole" | "quarter"
+        }
+    """
+    try:
+        return calculate_ah_probability(score_matrix, ah_line)
+    except Exception as e:
+        return {"error": "AH_PROB_CALC_ERROR", "message": str(e)}
 
 
 @mcp.tool()
@@ -1204,7 +1504,6 @@ def _normalize_footystats_fixtures(raw, league_filter: Optional[str]) -> List[Di
     return result
 
 
-@mcp.tool()
 async def goalcast_prefetch_today(
     data_provider: str,
     leagues: Optional[List[str]] = None,

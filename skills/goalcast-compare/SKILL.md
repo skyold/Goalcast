@@ -1,6 +1,6 @@
 ---
 name: goalcast-compare
-description: Use this skill to analyze a football match with one or more (data_provider × model) combinations, or to compare results across multiple combinations. Accepts any combination of sportmonks/footystats × v2.5/v3.0.
+description: "[DEPRECATED] This skill is retired. Use goalcast-daily for batch analysis or goalcast-analyzer-v40 for single-match analysis. V4.0 is permanently bound to Sportmonks; multi-provider dispatch is no longer needed."
 ---
 
 # Goalcast Compare — 统一分析调度器
