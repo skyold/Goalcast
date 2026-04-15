@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date as date_cls
 from typing import Any, Optional
 
@@ -200,12 +201,47 @@ class SportmonksDataService:
         if self.collector is None:
             raise RuntimeError("collector is required for prefetch()")
 
-        fixtures = await self.collector.get_fixtures_by_date(date)
+        # 1. 尝试在 API 层面进行过滤，减少后续处理量
+        filters = None
+        if leagues:
+            league_ids = []
+            for league_name in leagues:
+                if str(league_name).isdigit():
+                    league_ids.append(str(league_name))
+                else:
+                    found = self.get_leagues_by_name(league_name)
+                    if found:
+                        league_ids.append(str(found[0]["id"]))
+            if league_ids:
+                filters = f"leagues:{','.join(set(league_ids))}"
+
+        # 2. 一次性获取所有相关的赛程列表，包含尽可能多的信息
+        # 默认 include 包含基础字段，提高效率
+        fixtures = await self.collector.get_fixtures_by_date(
+            date, 
+            filters=filters,
+            include="participants;league;scores;season;venue;odds;predictions;lineups"
+        )
+
+        # 3. 如果 API 过滤后仍需进一步本地校验（例如 Specs 中的子字符串匹配或别名）
         if leagues:
             fixtures = [
                 fixture for fixture in fixtures
                 if self._matches_requested_leagues(fixture, leagues)
             ]
+
+        # 4. 并行获取所有比赛的深度数据（xG, H2H, Standings 等无法在列表包含的数据）
+        semaphore = asyncio.Semaphore(10)  # 限制并发请求数
+        
+        async def _safe_collect(fixture):
+            async with semaphore:
+                try:
+                    return await self.collector.collect_match_layers(fixture)
+                except Exception as exc:
+                    return exc
+
+        tasks = [_safe_collect(fixture) for fixture in fixtures]
+        results_raw = await asyncio.gather(*tasks)
 
         summaries: list[SportmonksFixtureSummary] = []
         warmed = 0
@@ -213,9 +249,11 @@ class SportmonksDataService:
         failed = 0
         results: list[dict[str, Any]] = []
 
-        for fixture in fixtures:
+        for fixture, raw_layers in zip(fixtures, results_raw):
             try:
-                raw_layers = await self.collector.collect_match_layers(fixture)
+                if isinstance(raw_layers, Exception):
+                    raise raw_layers
+
                 snapshot = build_match_snapshot(raw_layers)
 
                 self.store.write_match(

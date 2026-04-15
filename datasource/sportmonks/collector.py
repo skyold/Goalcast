@@ -21,8 +21,13 @@ class SportmonksCollector:
     def __init__(self, provider: Any):
         self.provider = provider
 
-    async def get_fixtures_by_date(self, date: str) -> list[dict]:
-        raw = await self.provider.get_fixtures_by_date(date, include="participants;league")
+    async def get_fixtures_by_date(self, date: str, include: Optional[str] = None, filters: Optional[str] = None) -> list[dict]:
+        """获取特定日期的赛程，支持过滤和数据包含。"""
+        # 默认包含常用信息，提高“一次拿回”效率
+        default_include = "participants;league;scores;season;venue"
+        actual_include = include or default_include
+        
+        raw = await self.provider.get_fixtures_by_date(date, include=actual_include, filters=filters)
         data = raw.get("data", []) if isinstance(raw, dict) else []
         return [item for item in data if isinstance(item, dict)]
 

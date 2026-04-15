@@ -152,6 +152,27 @@ Sportmonks 基于历史数据和 xG 模型生成的概率预测。
     - **ID 转换**: 如果您只有联赛名称，可以先通过同步后的索引找到对应的 `league_id`，再进行精确查询。
 - **最佳实践**: 建议每周运行一次同步工具，以确保本地联赛列表（包括新赛季升降级联赛）是最新的。
 
+### 9. 高效采集与本地快照机制 (Bulk & Parallel Prefetching) ⭐
+系统针对大规模数据采集进行了深度优化，确保您能以最少的 API 调用次数获取最完整的数据。
+
+#### **A. 批量包含 (Bulk Includes)**
+通过在 `get_fixtures` 中使用复合 `include` 参数，可以在一次请求中拿回比赛的绝大部分核心信息：
+```python
+# 一次性拿回：比赛基础信息 + 球队 + 比分 + 赛季 + 场馆 + 赔率 + 预测 + 阵容
+fixtures = await provider.get_fixtures_by_date(
+    date="2024-04-15",
+    filters="leagues:8,501",
+    include="participants;league;scores;season;venue;odds;predictions;lineups"
+)
+```
+**优势**：避免了“先拿列表，再逐场查询详情”的低效模式，显著降低 API 配额消耗。
+
+#### **B. 并发预热 (Parallel Prefetching)**
+对于无法通过 `include` 一次性获取的深度数据（如 H2H 交锋、实时积分榜、xG 历史），系统在 `prefetch` 过程中采用了并发机制：
+- **并发控制**：使用 `asyncio.Semaphore(10)` 同时处理 10 场比赛。
+- **本地快照**：采集完成后，所有 9 层数据都会被打包成一个 `match.json` 快照存入本地磁盘。
+- **本地化处理**：一旦 `prefetch` 完成，后续所有分析函数（如 `get_match`）将直接从本地快照读取，实现**零延迟**和**离线处理**。
+
 ---
 
 ## 💰 下注实战指南 (Betting Insights)

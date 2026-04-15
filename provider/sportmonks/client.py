@@ -101,9 +101,12 @@ class SportmonksProvider(BaseProvider):
         if filters: params["filters"] = filters
         return await self._request_raw("/fixtures", params)
 
-    async def get_fixtures_by_date(self, date: str, include: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_fixtures_by_date(self, date: str, include: Optional[str] = None, filters: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """获取特定日期的比赛 (YYYY-MM-DD)"""
-        return await self._request_raw(f"/fixtures/date/{date}", {"include": include} if include else None)
+        params = {}
+        if include: params["include"] = include
+        if filters: params["filters"] = filters
+        return await self._request_raw(f"/fixtures/date/{date}", params)
 
     async def get_fixtures_between(self, start_date: str, end_date: str, include: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """获取日期范围内的比赛 (YYYY-MM-DD)"""
