@@ -26,9 +26,9 @@ from analytics.poisson import poisson_distribution, dixon_coles_distribution, ca
 from analytics.ev_calculator import calculate_ev, calculate_kelly, calculate_risk_adjusted_ev, best_bet_recommendation
 from analytics.confidence import calculate_confidence, calculate_confidence_v25, confidence_breakdown
 from utils.logger import logger
-from data_strategy.fusion import DataFusion
-from data_strategy.resolvers.sportmonks_resolver import SportmonksResolver
-from data_strategy.sportmonks.models import SportmonksMatchData
+from datasource.datafusion.fusion import DataFusion
+from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
+from datasource.sportmonks.models import SportmonksMatchData
 
 # ── 联赛关键词映射（供 goalcast_sm_get_fixtures 使用）──────────────────────────
 _SM_LEAGUE_KEYWORDS: Dict[str, List[str]] = {

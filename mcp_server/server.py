@@ -48,11 +48,11 @@ from analytics.poisson import poisson_distribution, dixon_coles_distribution, ca
 from analytics.ev_calculator import calculate_ev, calculate_kelly, calculate_risk_adjusted_ev, best_bet_recommendation
 from analytics.confidence import calculate_confidence, calculate_confidence_v25, confidence_breakdown
 from utils.logger import logger
-from data_strategy.fusion import DataFusion
-from data_strategy.resolvers.sportmonks_resolver import SportmonksResolver
-from data_strategy.sportmonks.collector import SportmonksCollector
-from data_strategy.sportmonks.models import SportmonksMatchData
-from data_strategy.sportmonks.service import SportmonksDataService
+from datasource.datafusion.fusion import DataFusion
+from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
+from datasource.sportmonks.collector import SportmonksCollector
+from datasource.sportmonks.models import SportmonksMatchData
+from datasource.sportmonks.service import SportmonksDataService
 from mcp_server.tools.goalcast_sportmonks import (
     legacy_goalcast_sm_fetch,
     legacy_goalcast_sm_get_fixtures,

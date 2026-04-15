@@ -42,3 +42,4 @@
 
 - [Data 目录 README](../data/README.md)
 - [FootyStats Provider README](../provider/footystats/README.md)
+- [Sportmonks 数据可用性调查（2026-04-14 / 2026-04-18）](SPORTMONKS_DATA_AVAILABILITY_INVESTIGATION_2026-04-14_2026-04-18.md)

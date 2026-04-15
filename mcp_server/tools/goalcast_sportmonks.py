@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from data_strategy.sportmonks.models import SportmonksMatchData
+from datasource.sportmonks.models import SportmonksMatchData
 
 
 def register_goalcast_sportmonks_tools(mcp: Any, service_factory: Callable[[], Any]) -> None:
@@ -145,6 +145,31 @@ def register_goalcast_sportmonks_tools(mcp: Any, service_factory: Callable[[], A
         return {
             "ok": True,
             "data": _serialize(payload),
+        }
+
+    @mcp.tool(
+        description="同步 Sportmonks 全量联赛数据到本地索引，用于支持名称模糊查找与 ID 匹配。"
+    )
+    async def goalcast_sportmonks_sync_leagues() -> dict[str, Any]:
+        """同步 Sportmonks 全量联赛数据到本地索引。"""
+        result = await _service().sync_leagues()
+        return {
+            "ok": True,
+            "data": result,
+        }
+
+    @mcp.tool(
+        description="根据名称模糊搜索本地已同步的联赛，返回联赛 ID、名称、国家等信息。"
+    )
+    async def goalcast_sportmonks_get_leagues_by_name(
+        name: str,
+    ) -> dict[str, Any]:
+        """根据名称模糊搜索本地已同步的联赛。"""
+        leagues = _service().get_leagues_by_name(name)
+        return {
+            "ok": True,
+            "count": len(leagues),
+            "data": _serialize(leagues),
         }
 
 

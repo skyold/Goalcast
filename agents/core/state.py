@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
-from data_strategy.models import MatchContext
+from datasource.datafusion.models import MatchContext
 
 @dataclass
 class WorkflowState:
