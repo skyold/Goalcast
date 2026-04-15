@@ -1,7 +1,7 @@
 """Sportmonks 数据模型定义"""
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
 
@@ -257,3 +257,88 @@ class SportmonksMatchData:
             "overall_quality": self.overall_quality,
             "data_gaps": self.data_gaps,
         }
+
+
+def _to_jsonable(value: Any) -> Any:
+    """将 dataclass/tuple 递归转换为 JSON 友好的结构。"""
+    if hasattr(value, "__dataclass_fields__"):
+        return _to_jsonable(asdict(value))
+    if isinstance(value, dict):
+        return {key: _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    return value
+
+
+@dataclass
+class SportmonksFixtureSummary:
+    """日期级比赛摘要，供 today/fixtures 列表与预热汇总使用。"""
+
+    fixture_id: int
+    match_date: str
+    kickoff_time: str
+    league_id: int
+    league_name: str
+    season_id: int
+    home_team_id: int
+    home_team_name: str
+    away_team_id: int
+    away_team_name: str
+    cache_status: str
+    last_updated_at: Optional[str] = None
+    league_country_id: Optional[int] = None
+    league_short_code: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _to_jsonable(self)
+
+
+@dataclass
+class SportmonksMatchSnapshot:
+    """Sportmonks 独立数据层的单场比赛快照。"""
+
+    fixture_id: int
+    match_date: str
+    kickoff_time: str
+    league: str
+    season_id: int
+    home_team: str
+    away_team: str
+    home_team_id: int
+    away_team_id: int
+    xg: Optional[Dict[str, Any]] = None
+    standings: Optional[Dict[str, Any]] = None
+    odds: Optional[Dict[str, Any]] = None
+    asian_handicap: Optional[Dict[str, Any]] = None
+    odds_movement: Optional[Dict[str, Any]] = None
+    lineups: Optional[Dict[str, Any]] = None
+    h2h: Optional[Dict[str, Any]] = None
+    predictions: Optional[Dict[str, Any]] = None
+    available_layers: Tuple[str, ...] = field(default_factory=tuple)
+    missing_layers: Tuple[str, ...] = field(default_factory=tuple)
+    cache_status: str = "missing"
+    overall_quality: float = 0.0
+    warmed_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    source_versions: Dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _to_jsonable(self)
+
+
+@dataclass
+class SportmonksWarmupResult:
+    """批量预热结果摘要。"""
+
+    date: str
+    leagues: List[str]
+    fixtures_found: int
+    fixtures_warmed: int
+    fixtures_partial: int
+    fixtures_failed: int
+    output_path: str
+    results: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _to_jsonable(self)

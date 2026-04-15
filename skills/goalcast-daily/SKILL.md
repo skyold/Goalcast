@@ -54,9 +54,16 @@ description: Use this skill when the user wants to analyze all matches today (or
 
 调用：
 ```
-goalcast_sm_get_fixtures(
+goalcast_sportmonks_get_todays_matches(
     leagues = <联赛名列表>,   # 如 ["Premier League", "Championship", "Serie A"]
+)
+```
+
+如需指定非今日日期，改用：
+```
+goalcast_sportmonks_get_fixtures(
     date    = <date>,
+    leagues = <联赛名列表>,
 )
 ```
 
@@ -109,6 +116,9 @@ match_type    = <match_type>
 
 **顺序执行**（不并行）：每场完成后立即输出，再进入下一场。
 任意一场报错时注明"[比赛名] 分析失败：[原因]"，继续下一场。
+
+兼容说明：
+- 旧 `goalcast_sm_get_fixtures` 仍可用，但新流程优先使用 `goalcast_sportmonks_*`
 
 ### Step 5：汇总输出
 

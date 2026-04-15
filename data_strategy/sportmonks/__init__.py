@@ -11,6 +11,9 @@ from .models import (
     HeadToHead,
     Standings,
     SportmonksMatchData,
+    SportmonksFixtureSummary,
+    SportmonksMatchSnapshot,
+    SportmonksWarmupResult,
 )
 from .extractor import SportmonksExtractor
 from .transformer import SportmonksTransformer
@@ -27,6 +30,9 @@ __all__ = [
     'HeadToHead',
     'Standings',
     'SportmonksMatchData',
+    'SportmonksFixtureSummary',
+    'SportmonksMatchSnapshot',
+    'SportmonksWarmupResult',
     'SportmonksExtractor',
     'SportmonksTransformer',
     'SportmonksUtils'

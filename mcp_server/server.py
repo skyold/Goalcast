@@ -50,13 +50,34 @@ from analytics.confidence import calculate_confidence, calculate_confidence_v25,
 from utils.logger import logger
 from data_strategy.fusion import DataFusion
 from data_strategy.resolvers.sportmonks_resolver import SportmonksResolver
+from data_strategy.sportmonks.collector import SportmonksCollector
 from data_strategy.sportmonks.models import SportmonksMatchData
+from data_strategy.sportmonks.service import SportmonksDataService
+from mcp_server.tools.goalcast_sportmonks import (
+    legacy_goalcast_sm_fetch,
+    legacy_goalcast_sm_get_fixtures,
+    register_goalcast_sportmonks_tools,
+)
 
 mcp = FastMCP(
     "Goalcast Data Providers",
     host=os.environ.get("FASTMCP_HOST", "127.0.0.1"),
     port=int(os.environ.get("FASTMCP_PORT", "8000")),
 )
+
+_sportmonks_data_service: Optional[SportmonksDataService] = None
+
+
+def get_sportmonks_data_service() -> SportmonksDataService:
+    global _sportmonks_data_service
+    if _sportmonks_data_service is None:
+        _sportmonks_data_service = SportmonksDataService(
+            collector=SportmonksCollector(get_sportmonks()),
+        )
+    return _sportmonks_data_service
+
+
+register_goalcast_sportmonks_tools(mcp, service_factory=get_sportmonks_data_service)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -97,60 +118,11 @@ async def goalcast_sm_get_fixtures(
         }
     """
     target_date = date or datetime.date.today().isoformat()
-    sm = get_sportmonks()
-
-    try:
-        raw = await sm.get_fixtures_by_date(
-            target_date,
-            include="participants;league;season",
-        )
-    except Exception as exc:
-        logger.error(f"[goalcast_sm_get_fixtures] API error: {exc}")
-        return {"error": str(exc), "date": target_date, "count": 0, "fixtures": []}
-
-    # 构建目标关键词集合（全部小写）
-    target_keywords: List[str] = []
-    for league_name in leagues:
-        kws = _SM_LEAGUE_KEYWORDS.get(league_name)
-        if kws:
-            target_keywords.extend(kws)
-        else:
-            target_keywords.append(league_name.lower())
-
-    fixtures = []
-    for fix in raw.get("data", []):
-        if not isinstance(fix, dict):
-            continue
-
-        league_obj = fix.get("league") or {}
-        league_name = league_obj.get("name", "") if isinstance(league_obj, dict) else ""
-        league_name_lower = league_name.lower()
-
-        # 联赛过滤
-        if not any(kw in league_name_lower for kw in target_keywords):
-            continue
-
-        participants = fix.get("participants", [])
-        home = next((p for p in participants if isinstance(p, dict) and
-                     p.get("meta", {}).get("location") == "home"), {})
-        away = next((p for p in participants if isinstance(p, dict) and
-                     p.get("meta", {}).get("location") == "away"), {})
-
-        if not home or not away:
-            continue
-
-        fixtures.append({
-            "fixture_id":   fix.get("id"),
-            "home_team":    home.get("name", ""),
-            "home_team_id": home.get("id"),
-            "away_team":    away.get("name", ""),
-            "away_team_id": away.get("id"),
-            "season_id":    fix.get("season_id"),
-            "league":       league_name,
-            "kickoff_time": fix.get("starting_at", ""),
-        })
-
-    return {"date": target_date, "count": len(fixtures), "fixtures": fixtures}
+    return await legacy_goalcast_sm_get_fixtures(
+        get_sportmonks_data_service(),
+        leagues=leagues,
+        date=target_date,
+    )
 
 
 @mcp.tool()
@@ -185,121 +157,18 @@ async def goalcast_sm_fetch(
     Returns:
         SportmonksMatchData.to_dict() — V4.0 九层分析直接消费的数据结构
     """
-    sm = get_sportmonks()
-    us = get_understat()
-    resolver = SportmonksResolver(sm, us)
-    effective_season = season or _infer_season(match_date)
-    fixture_id_str = str(fixture_id)
-    home_id_str    = str(home_team_id)
-    away_id_str    = str(away_team_id)
-    season_id_str  = str(season_id)
-
-    # ── 并行拉取所有数据层 ────────────────────────────────────────
-    results = await asyncio.gather(
-        resolver.resolve_xg(
-            home_team, away_team, league, effective_season,
-            home_id_str, away_id_str,
-        ),
-        resolver.resolve_standings(season_id_str),
-        resolver.resolve_odds(fixture_id_str),
-        resolver.resolve_odds_movement(fixture_id_str),
-        resolver.resolve_lineups(fixture_id_str, home_id_str, away_id_str),
-        resolver.resolve_head_to_head(home_id_str, away_id_str),
-        resolver.resolve_predictions(fixture_id_str),
-        return_exceptions=True,
+    return await legacy_goalcast_sm_fetch(
+        get_sportmonks_data_service(),
+        fixture_id=fixture_id,
+        home_team=home_team,
+        home_team_id=home_team_id,
+        away_team=away_team,
+        away_team_id=away_team_id,
+        season_id=season_id,
+        league=league,
+        match_date=match_date,
+        season=season or _infer_season(match_date),
     )
-    xg_r, standings_r, odds_r, odds_mv_r, lineups_r, h2h_r, pred_r = results
-
-    # ── xG ───────────────────────────────────────────────────────
-    xg_data = xg_r.data if not isinstance(xg_r, Exception) and xg_r.data else {}
-    xg_source  = xg_r.source  if not isinstance(xg_r, Exception) else "league_avg"
-    xg_quality = xg_r.quality if not isinstance(xg_r, Exception) else 0.35
-
-    # ── 积分榜（主客分别提取）───────────────────────────────────
-    home_standing = None
-    away_standing = None
-    if not isinstance(standings_r, Exception) and standings_r.data:
-        raw_std = standings_r.data.get("raw", {})
-        home_standing = _extract_standing_for_team(raw_std, home_team_id)
-        away_standing = _extract_standing_for_team(raw_std, away_team_id)
-
-    # ── 赔率（1X2 + 亚盘）──────────────────────────────────────
-    odds_data = odds_r.data if not isinstance(odds_r, Exception) else {}
-    odds_mv   = odds_mv_r.data.get("movements") if (
-        not isinstance(odds_mv_r, Exception) and odds_mv_r.data
-    ) else None
-
-    # ── 阵容 ─────────────────────────────────────────────────────
-    lineups_data = lineups_r.data if not isinstance(lineups_r, Exception) else None
-
-    # ── H2H ──────────────────────────────────────────────────────
-    h2h_data = h2h_r.data if not isinstance(h2h_r, Exception) else None
-
-    # ── 官方预测 ─────────────────────────────────────────────────
-    pred_data = pred_r.data if not isinstance(pred_r, Exception) else None
-
-    # ── data_gaps ────────────────────────────────────────────────
-    data_gaps: List[str] = []
-    if xg_source == "league_avg":      data_gaps.append("xg")
-    if home_standing is None:          data_gaps.append("standings")
-    if not odds_data:                  data_gaps.append("odds")
-    if odds_mv is None:                data_gaps.append("odds_movement")
-    if lineups_data is None:           data_gaps.append("lineups")
-    if h2h_data is None:               data_gaps.append("h2h")
-    if pred_data is None:              data_gaps.append("predictions")
-
-    # ── 综合质量评分（简化：各层质量加权均值）────────────────────
-    qualities = [xg_quality]
-    if home_standing:  qualities.append(0.80)
-    if odds_data:      qualities.append(odds_r.quality if not isinstance(odds_r, Exception) else 0.0)
-    if odds_mv:        qualities.append(0.85)
-    if lineups_data:   qualities.append(0.90)
-    overall_quality = sum(qualities) / len(qualities) if qualities else 0.35
-
-    match_data = SportmonksMatchData(
-        fixture_id    = fixture_id,
-        home_team     = home_team,
-        away_team     = away_team,
-        home_team_id  = home_team_id,
-        away_team_id  = away_team_id,
-        league        = league,
-        season_id     = season_id,
-        season        = effective_season,
-        match_date    = match_date,
-        kickoff_time  = "",  # 由 goalcast_sm_get_fixtures 提供，此处无需重复
-        # xG
-        xg_home_for     = float(xg_data.get("home_xg_for", 0.0) or 0.0),
-        xg_home_against = float(xg_data.get("home_xg_against", 0.0) or 0.0),
-        xg_away_for     = float(xg_data.get("away_xg_for", 0.0) or 0.0),
-        xg_away_against = float(xg_data.get("away_xg_against", 0.0) or 0.0),
-        xg_source       = xg_source,
-        xg_quality      = xg_quality,
-        # 积分榜
-        home_standing = home_standing,
-        away_standing = away_standing,
-        # 欧盘
-        odds_home_win = odds_data.get("home_win"),
-        odds_draw     = odds_data.get("draw"),
-        odds_away_win = odds_data.get("away_win"),
-        odds_bookmaker = odds_data.get("bookmaker"),
-        # 亚盘（Sportmonks 专有，完整保留）
-        ah_line       = odds_data.get("ah_line"),
-        ah_home_odds  = odds_data.get("ah_home_odds"),
-        ah_away_odds  = odds_data.get("ah_away_odds"),
-        # 赔率时序
-        odds_movement = odds_mv,
-        # 阵容
-        lineups       = lineups_data,
-        # H2H
-        h2h           = h2h_data,
-        # 官方预测
-        predictions   = pred_data,
-        # 质量
-        overall_quality = round(overall_quality, 3),
-        data_gaps       = data_gaps,
-    )
-
-    return match_data.to_dict()
 
 
 # ─── Quantitative Model Tools (Poisson, EV, Kelly, Confidence) ──────────

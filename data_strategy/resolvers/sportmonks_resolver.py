@@ -12,6 +12,7 @@ Sportmonks + Understat データ解析器
 """
 
 import asyncio
+import re
 from typing import Optional, List, TYPE_CHECKING, Any
 
 from utils.cache import cache_get, cache_set
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
 
 
 _ODDS_MOVEMENT_WINDOW_HOURS = 48  # Sportmonks provides ~48h of pre-match odds history
+_EXPECTED_GOALS_TYPE_ID = 5304
+_EXPECTED_GOALS_AGAINST_TYPE_ID = 9687
 
 
 class SportmonksResolver:
@@ -69,8 +72,8 @@ class SportmonksResolver:
                 self._sm.get_expected_goals_by_team(int(away_team_id)),
                 return_exceptions=True,
             )
-            home_xg = _extract_team_xg_avg(home_xg_raw)
-            away_xg = _extract_team_xg_avg(away_xg_raw)
+            home_xg = _extract_team_xg_avg(home_xg_raw, participant_id=int(home_team_id))
+            away_xg = _extract_team_xg_avg(away_xg_raw, participant_id=int(away_team_id))
 
             if home_xg is not None and away_xg is not None:
                 data = {
@@ -179,7 +182,7 @@ class SportmonksResolver:
             )
 
         try:
-            raw = await self._sm.get_prematch_odds(int(match_id))
+            raw = await _get_prematch_odds(self._sm, int(match_id))
             if raw and not _is_error_response(raw):
                 odds_data = _extract_sportmonks_odds_local(raw)
                 if odds_data:
@@ -319,7 +322,7 @@ class SportmonksResolver:
 # ── Private helpers ─────────────────────────────────────────
 
 
-def _extract_team_xg_avg(raw: Any) -> Optional[dict]:
+def _extract_team_xg_avg(raw: Any, participant_id: Optional[int] = None) -> Optional[dict]:
     """
     Parse Sportmonks /expected/fixtures response for a single team.
 
@@ -340,22 +343,42 @@ def _extract_team_xg_avg(raw: Any) -> Optional[dict]:
     if not isinstance(data, list) or not data:
         return None
 
+    entries = [entry for entry in data if isinstance(entry, dict)]
+    if participant_id is not None:
+        matching_entries = [
+            entry for entry in entries
+            if str(entry.get("participant_id")) == str(participant_id)
+        ]
+        if matching_entries:
+            entries = matching_entries
+        elif any(entry.get("participant_id") is not None for entry in entries):
+            return None
+
     xg_values: list[float] = []
     xga_values: list[float] = []
 
-    for entry in data:
-        if not isinstance(entry, dict):
-            continue
+    for entry in entries:
         # Sportmonks v3 field names vary by subscription tier
+        nested_data = entry.get("data") if isinstance(entry.get("data"), dict) else {}
+        type_id = entry.get("type_id")
         xg_val = (
             entry.get("xg")
             or entry.get("expected_goals")
-            or entry.get("value")  # some tiers nest under "value"
         )
         xga_val = (
             entry.get("xga")
             or entry.get("expected_goals_against")
         )
+
+        if xg_val is None and type_id == _EXPECTED_GOALS_TYPE_ID:
+            xg_val = nested_data.get("value") or entry.get("value")
+        if xga_val is None and type_id == _EXPECTED_GOALS_AGAINST_TYPE_ID:
+            xga_val = (
+                nested_data.get("value")
+                or nested_data.get("xga")
+                or nested_data.get("expected_goals_against")
+                or entry.get("value")
+            )
         try:
             if xg_val is not None:
                 xg_values.append(float(xg_val))
@@ -373,22 +396,135 @@ def _extract_team_xg_avg(raw: Any) -> Optional[dict]:
     }
 
 
+async def _get_prematch_odds(provider: Any, fixture_id: int) -> Any:
+    if hasattr(provider, "get_prematch_odds"):
+        return await provider.get_prematch_odds(fixture_id)
+    if hasattr(provider, "get_prematch_odds_by_fixture"):
+        return await provider.get_prematch_odds_by_fixture(fixture_id)
+    return None
+
+
 def _extract_sportmonks_odds_local(raw: Any) -> Optional[dict]:
     data = (
         raw.get("data", [])
         if isinstance(raw, dict)
         else (raw if isinstance(raw, list) else [])
     )
+
     for item in data:
         if not isinstance(item, dict):
             continue
         odds = item.get("odds") or item
-        home = float(odds.get("home") or odds.get("dp3") or 0)
-        draw = float(odds.get("draw") or odds.get("dp1") or 0)
-        away = float(odds.get("away") or odds.get("dp2") or 0)
+        home = _to_float(odds.get("home") or odds.get("dp3"))
+        draw = _to_float(odds.get("draw") or odds.get("dp1"))
+        away = _to_float(odds.get("away") or odds.get("dp2"))
         if home > 1.0 and draw > 1.0 and away > 1.0:
             return {"home_win": home, "draw": draw, "away_win": away}
+
+    preferred_markets = ("fulltime result", "full time result", "3way result", "match winner")
+    fallback_markets = ("result", "winner")
+    for market_group in (preferred_markets, fallback_markets):
+        market_values: dict[str, float] = {}
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            market_desc = str(item.get("market_description") or item.get("market_name") or "").lower()
+            if "handicap" in market_desc:
+                continue
+            if market_group is preferred_markets:
+                if market_desc not in preferred_markets:
+                    continue
+            else:
+                if not any(token in market_desc for token in fallback_markets):
+                    continue
+            label = str(item.get("label") or item.get("name") or "").strip().lower()
+            value = _to_float(item.get("value") or item.get("dp3"))
+            if value <= 1.0:
+                continue
+            normalized = _normalize_1x2_label(label)
+            if normalized is not None and normalized not in market_values:
+                market_values[normalized] = value
+
+        if {"home_win", "draw", "away_win"} <= set(market_values):
+            return {
+                "home_win": market_values["home_win"],
+                "draw": market_values["draw"],
+                "away_win": market_values["away_win"],
+            }
     return None
+
+
+def _extract_sportmonks_asian_handicap_local(raw: Any) -> Optional[dict]:
+    data = (
+        raw.get("data", [])
+        if isinstance(raw, dict)
+        else (raw if isinstance(raw, list) else [])
+    )
+    candidates: dict[float, dict[str, float]] = {}
+
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        market_desc = str(item.get("market_description") or item.get("market_name") or "").lower()
+        if "asian handicap" not in market_desc or "corners" in market_desc or "1st half" in market_desc:
+            continue
+        label = str(item.get("label") or item.get("name") or "").strip()
+        parsed_line = _parse_ah_label(
+            str(item.get("original_label") or item.get("handicap") or label)
+        )
+        value = _to_float(item.get("value") or item.get("dp3"))
+        if parsed_line is None or value <= 1.0:
+            continue
+
+        key = abs(parsed_line)
+        candidate = candidates.setdefault(key, {})
+        label_lower = label.lower()
+        if label_lower.startswith("home"):
+            candidate["ah_line"] = parsed_line
+            candidate["ah_home_odds"] = value
+        elif label_lower.startswith("away"):
+            candidate["ah_line"] = candidate.get("ah_line", parsed_line)
+            candidate["ah_away_odds"] = value
+
+    for key in sorted(candidates):
+        candidate = candidates[key]
+        if {"ah_line", "ah_home_odds", "ah_away_odds"} <= set(candidate):
+            return {
+                "ah_line": candidate["ah_line"],
+                "ah_home_odds": candidate["ah_home_odds"],
+                "ah_away_odds": candidate["ah_away_odds"],
+            }
+    return None
+
+
+def _normalize_1x2_label(label: str) -> Optional[str]:
+    mapping = {
+        "1": "home_win",
+        "home": "home_win",
+        "x": "draw",
+        "draw": "draw",
+        "2": "away_win",
+        "away": "away_win",
+    }
+    return mapping.get(label)
+
+
+def _parse_ah_label(label: str) -> Optional[float]:
+    if re.match(r"^[+-]?\d+(?:\.\d+)?$", label.strip()):
+        return float(label)
+    match = re.match(r"^(Home|Away)\s+([+-]?\d+(?:\.\d+)?)$", label, re.IGNORECASE)
+    if not match:
+        return None
+    side = match.group(1).lower()
+    value = float(match.group(2))
+    return value if side == "home" else -value
+
+
+def _to_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _extract_lineups(

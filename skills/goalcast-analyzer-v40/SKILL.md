@@ -48,28 +48,28 @@ season_id, league, match_date, kickoff_time, match_type
 ```
 
 **独立调用时**：
-- 调用 `goalcast_sm_get_fixtures(leagues=[<联赛名>], date=<日期>)`
+- 优先调用 `goalcast_sportmonks_get_todays_matches(leagues=[<联赛名>])`
+- 分析非今日比赛时，调用 `goalcast_sportmonks_get_fixtures(date=<日期>, leagues=[<联赛名>])`
 - 按队名模糊匹配提取目标比赛的 `fixture_id / home_team_id / away_team_id / season_id`
 - 未找到时：回复"未找到符合条件的比赛"，停止
 
 ### Step 2：数据采集（V4.0 唯一数据入口）
 
-调用 `goalcast_sm_fetch`：
+优先调用 `goalcast_sportmonks_get_match`：
 
 ```
-goalcast_sm_fetch(
+goalcast_sportmonks_get_match(
     fixture_id    = <fixture_id>,
-    home_team     = <home_team>,
-    home_team_id  = <home_team_id>,
-    away_team     = <away_team>,
-    away_team_id  = <away_team_id>,
-    season_id     = <season_id>,
-    league        = <league>,
-    match_date    = <match_date>,
+    date          = <match_date>,
+    refresh_if_stale = True,
 )
 ```
 
-返回 `SportmonksMatchData` 字典，字段读取规则：
+兼容说明：
+- 旧 `goalcast_sm_fetch(...)` 仍可用，并已转调新 Sportmonks 数据层
+- 新调用优先使用 `goalcast_sportmonks_get_match(...)`
+
+返回 Sportmonks 数据字典；新旧入口都应满足以下字段读取规则：
 
 | 分析层字段 | SportmonksMatchData 路径 |
 |-----------|------------------------|

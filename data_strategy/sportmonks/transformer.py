@@ -1,9 +1,21 @@
 """Sportmonks 数据转换模块"""
 
+from copy import deepcopy
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
-from .models import Match, Team, Player, League, XGData, Odds, TeamForm, HeadToHead, Standings
+from .models import (
+    Match,
+    Team,
+    Player,
+    League,
+    XGData,
+    Odds,
+    TeamForm,
+    HeadToHead,
+    Standings,
+    SportmonksMatchSnapshot,
+)
 
 
 class SportmonksTransformer:
@@ -677,3 +689,107 @@ class SportmonksTransformer:
                 transformed_data['standings'].extend(standings_list)
         
         return transformed_data
+
+
+_SNAPSHOT_LAYERS = (
+    "xg",
+    "standings",
+    "odds",
+    "asian_handicap",
+    "odds_movement",
+    "lineups",
+    "h2h",
+    "predictions",
+)
+
+
+def build_match_snapshot(
+    raw_layers: Dict[str, Any],
+    existing_snapshot: Optional[Dict[str, Any]] = None,
+) -> SportmonksMatchSnapshot:
+    """将原始分层数据组装为 Sportmonks 单场比赛快照。"""
+    snapshot = deepcopy(existing_snapshot or {})
+    fixture = raw_layers.get("fixture") or {}
+
+    participants = fixture.get("participants", []) if isinstance(fixture, dict) else []
+    home = next(
+        (
+            item for item in participants
+            if isinstance(item, dict) and isinstance(item.get("meta"), dict)
+            and item["meta"].get("location") == "home"
+        ),
+        {},
+    )
+    away = next(
+        (
+            item for item in participants
+            if isinstance(item, dict) and isinstance(item.get("meta"), dict)
+            and item["meta"].get("location") == "away"
+        ),
+        {},
+    )
+
+    if fixture:
+        snapshot.update(
+            {
+                "fixture_id": fixture.get("id", snapshot.get("fixture_id")),
+                "match_date": str(fixture.get("starting_at", snapshot.get("match_date", "")))[:10],
+                "kickoff_time": fixture.get("starting_at", snapshot.get("kickoff_time", "")),
+                "league": (fixture.get("league") or {}).get("name", snapshot.get("league", "")),
+                "season_id": fixture.get("season_id", snapshot.get("season_id")),
+                "home_team": home.get("name", snapshot.get("home_team", "")),
+                "away_team": away.get("name", snapshot.get("away_team", "")),
+                "home_team_id": home.get("id", snapshot.get("home_team_id")),
+                "away_team_id": away.get("id", snapshot.get("away_team_id")),
+            }
+        )
+
+    if "xg" in raw_layers:
+        snapshot["xg"] = raw_layers.get("xg")
+    if "standings" in raw_layers:
+        snapshot["standings"] = raw_layers.get("standings")
+    if "odds" in raw_layers:
+        snapshot["odds"] = raw_layers.get("odds")
+    if "asian_handicap" in raw_layers:
+        snapshot["asian_handicap"] = raw_layers.get("asian_handicap")
+    if "odds_movement" in raw_layers:
+        snapshot["odds_movement"] = raw_layers.get("odds_movement")
+    if "lineups" in raw_layers:
+        snapshot["lineups"] = raw_layers.get("lineups")
+    if "h2h" in raw_layers:
+        snapshot["h2h"] = raw_layers.get("h2h")
+    if "predictions" in raw_layers:
+        snapshot["predictions"] = raw_layers.get("predictions")
+
+    available_layers = tuple(layer for layer in _SNAPSHOT_LAYERS if snapshot.get(layer) is not None)
+    missing_layers = tuple(layer for layer in _SNAPSHOT_LAYERS if snapshot.get(layer) is None)
+    cache_status = "fresh" if not missing_layers else "partial"
+
+    snapshot["available_layers"] = available_layers
+    snapshot["missing_layers"] = missing_layers
+    snapshot["cache_status"] = cache_status
+    snapshot["overall_quality"] = snapshot.get("overall_quality", _compute_quality(available_layers))
+
+    now_iso = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    snapshot["warmed_at"] = snapshot.get("warmed_at", now_iso)
+    snapshot["updated_at"] = now_iso
+    snapshot["expires_at"] = snapshot.get("expires_at")
+    snapshot["source_versions"] = snapshot.get("source_versions", {"sportmonks": "v3"})
+
+    return SportmonksMatchSnapshot(**snapshot)
+
+
+def _compute_quality(available_layers: tuple[str, ...]) -> float:
+    if not available_layers:
+        return 0.0
+    weights = {
+        "xg": 0.20,
+        "standings": 0.10,
+        "odds": 0.20,
+        "asian_handicap": 0.10,
+        "odds_movement": 0.10,
+        "lineups": 0.10,
+        "h2h": 0.10,
+        "predictions": 0.10,
+    }
+    return round(sum(weights.get(layer, 0.0) for layer in available_layers), 3)
