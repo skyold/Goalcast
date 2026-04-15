@@ -31,7 +31,6 @@ from datasource.datafusion.quality import (
 
 if TYPE_CHECKING:
     from provider.footystats.client import FootyStatsProvider
-    from provider.sportmonks.client import SportmonksProvider
     from provider.understat.client import UnderstatProvider
 
 
@@ -112,11 +111,9 @@ class DataResolver:
         self,
         footystats: "FootyStatsProvider",
         understat: "UnderstatProvider",
-        sportmonks: Optional["SportmonksProvider"] = None,
     ) -> None:
         self._fs = footystats
         self._us = understat
-        self._sm = sportmonks
 
     # ── xG 解析 ──────────────────────────────────────────────
 
@@ -324,7 +321,6 @@ class DataResolver:
         """
         解析联赛积分榜。
         Primary：FootyStats get_league_tables
-        Fallback：Sportmonks get_standings（如已配置）
         """
         cache_key = f"standings_{season_id}"
         cached = cache_get("data_strategy_standings", cache_key)
@@ -349,25 +345,6 @@ class DataResolver:
         except Exception as exc:
             logger.warning(f"[Resolver] FootyStats standings error: {exc}")
 
-        # Fallback：Sportmonks（可选）
-        if self._sm:
-            try:
-                raw = await self._sm.get_standings(int(season_id))
-                if raw and not _is_error_response(raw):
-                    quality = assess_standings_quality(raw, raw, source="sportmonks")
-                    result = ResolvedData(
-                        data={"raw": raw}, source="sportmonks", quality=quality, fallback_used=True
-                    )
-                    cache_set(
-                        "data_strategy_standings",
-                        cache_key,
-                        {"data": result.data, "source": result.source, "quality": result.quality},
-                        ttl_hours=CACHE_TTL["standings"],
-                    )
-                    return result
-            except Exception as exc:
-                logger.warning(f"[Resolver] Sportmonks standings fallback error: {exc}")
-
         logger.warning(f"[Resolver] Standings unavailable for season_id={season_id}")
         return ResolvedData.missing("standings")
 
@@ -377,7 +354,6 @@ class DataResolver:
         """
         解析开盘赔率。
         Primary：FootyStats get_match_details（odds_ft_1/x/2 字段）
-        Fallback：Sportmonks get_prematch_odds（如已配置）
         """
         cache_key = f"odds_{match_id}"
         cached = cache_get("data_strategy_odds", cache_key)
@@ -407,31 +383,6 @@ class DataResolver:
         except Exception as exc:
             logger.warning(f"[Resolver] FootyStats odds error: {exc}")
 
-        # Fallback：Sportmonks prematch odds
-        if self._sm:
-            try:
-                raw = await self._sm.get_prematch_odds(int(match_id))
-                if raw and not _is_error_response(raw):
-                    odds_data = _extract_sportmonks_odds(raw)
-                    if odds_data:
-                        quality = assess_odds_quality(odds_data, source="sportmonks")
-                        if quality > 0.0:
-                            result = ResolvedData(
-                                data=odds_data,
-                                source="sportmonks",
-                                quality=quality,
-                                fallback_used=True,
-                            )
-                            cache_set(
-                                "data_strategy_odds",
-                                cache_key,
-                                {"data": odds_data, "source": "sportmonks", "quality": quality},
-                                ttl_hours=CACHE_TTL["odds"],
-                            )
-                            return result
-            except Exception as exc:
-                logger.warning(f"[Resolver] Sportmonks odds fallback error: {exc}")
-
         logger.info(f"[Resolver] Odds unavailable for match_id={match_id}")
         return ResolvedData.missing("odds")
 
@@ -440,35 +391,8 @@ class DataResolver:
     async def resolve_predictions(self, fixture_id: str) -> ResolvedData:
         """
         解析胜平负预测概率。
-        仅 Sportmonks 提供，FootyStats 返回 missing。
+        FootyStats 返回 missing。
         """
-        if self._sm:
-            cache_key = f"predictions_{fixture_id}"
-            cached = cache_get("data_strategy_predictions", cache_key)
-            if cached:
-                return ResolvedData(
-                    data=cached["data"], source=cached["source"], quality=cached["quality"]
-                )
-
-            try:
-                raw = await self._sm.get_predictions_by_fixture(int(fixture_id))
-                if raw and not _is_error_response(raw):
-                    from datasource.datafusion.resolvers.sportmonks_resolver import _extract_predictions
-                    pred_data = _extract_predictions(raw)
-                    if pred_data:
-                        result = ResolvedData(
-                            data=pred_data, source="sportmonks", quality=0.90
-                        )
-                        cache_set(
-                            "data_strategy_predictions",
-                            cache_key,
-                            {"data": pred_data, "source": "sportmonks", "quality": 0.90},
-                            ttl_hours=12.0,
-                        )
-                        return result
-            except Exception as exc:
-                logger.warning(f"[Resolver] Sportmonks predictions error: {exc}")
-
         return ResolvedData.missing("predictions")
 
 
@@ -580,27 +504,6 @@ def _extract_footystats_odds(raw: Any) -> Optional[dict[str, Any]]:
         return None
 
     return {"home_win": home, "draw": draw, "away_win": away}
-
-
-def _extract_sportmonks_odds(raw: Any) -> Optional[dict[str, Any]]:
-    """
-    从 Sportmonks prematch_odds 响应中提取 1X2 赔率。
-    Sportmonks v3 返回 data 数组，包含多个博彩公司的赔率。
-    取第一个（通常为 Pinnacle 或平均值）。
-    """
-    data = raw if isinstance(raw, list) else (raw.get("data") or [] if isinstance(raw, dict) else [])
-
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        odds = item.get("odds") or item
-        home = _safe_float(odds, "home") or _safe_float(odds, "dp3")
-        draw = _safe_float(odds, "draw") or _safe_float(odds, "dp1")
-        away = _safe_float(odds, "away") or _safe_float(odds, "dp2")
-        if home > 1.0 and draw > 1.0 and away > 1.0:
-            return {"home_win": home, "draw": draw, "away_win": away}
-
-    return None
 
 
 def _is_error_response(raw: Any) -> bool:

@@ -93,25 +93,7 @@ class OddsSnapshot:
     home_win: float              # 主胜赔率
     draw: float                  # 平局赔率
     away_win: float              # 客胜赔率
-    source: str                  # "footystats" | "sportmonks"
-    quality: float               # 0.0 – 1.0
-
-
-@dataclass(frozen=True)
-class AsianHandicapOdds:
-    """
-    亚盘（Asian Handicap）赔率快照。
-    来源：Sportmonks prematch_odds → Asian Handicap market（主盘线）
-
-    ah_line 含义：
-      - 负值：主队让球（如 -0.5 = 主队让半球，-1.0 = 主队让一球）
-      - 正值：客队让球（如 +0.5 = 主队受让半球）
-      - 四分之一盘：-0.25 / -0.75（上下盘各半，仅一半注金退还）
-    """
-    ah_line: float               # 主队让球线（主盘线）
-    ah_home_odds: float          # 主队（让球后）赔率
-    ah_away_odds: float          # 客队（受让后）赔率
-    source: str                  # "sportmonks_cached" | "sportmonks"
+    source: str                  # "footystats"
     quality: float               # 0.0 – 1.0
 
 
@@ -126,7 +108,7 @@ class XGStats:
     同理适用于客队。
 
     source 优先级（由 resolver 保证）：
-      "sportmonks_direct" > "understat_direct" > "footystats_proxy" > "league_avg"
+    - "understat_direct" > "footystats_proxy" > "league_avg"
     """
 
     home_xg_for: float
@@ -135,59 +117,6 @@ class XGStats:
     away_xg_against: float
     source: str                  # 见上方优先级说明
     quality: float               # 0.0 – 1.0
-
-
-@dataclass(frozen=True)
-class MatchLineups:
-    """
-    双方阵型与首发确认状态。
-    来源：Sportmonks lineups include
-    """
-    home_formation: Optional[str]   # "4-3-3"，未公布时为 None
-    away_formation: Optional[str]
-    home_confirmed: bool            # 是否已确认首发
-    away_confirmed: bool
-
-
-@dataclass(frozen=True)
-class OddsMovement:
-    """
-    赔率变动快照（开盘 vs 当前）。
-    来源：Sportmonks odds_movement
-    """
-    home_open: float
-    home_current: float
-    draw_open: float
-    draw_current: float
-    away_open: float
-    away_current: float
-    movement_hours: int             # 赔率变动时间跨度（小时）
-
-
-@dataclass(frozen=True)
-class H2HEntry:
-    """
-    单场历史交锋记录。
-    来源：Sportmonks head_to_head
-    """
-    date: str                       # YYYY-MM-DD
-    home_team: str
-    away_team: str
-    home_goals: int
-    away_goals: int
-
-
-@dataclass(frozen=True)
-class PredictionSnapshot:
-    """
-    Sportmonks 预测概率快照。
-    来源：Sportmonks predictions/probabilities
-    """
-    home_win: float              # 主胜概率 (0.0 - 1.0)
-    draw: float                  # 平局概率 (0.0 - 1.0)
-    away_win: float              # 客胜概率 (0.0 - 1.0)
-    source: str                  # "sportmonks"
-    quality: float               # 0.0 - 1.0
 
 
 # ── 主契约对象 ────────────────────────────────────────────────
@@ -211,7 +140,7 @@ class MatchContext:
     """
 
     # ── 新增：provider 标识（最重要，放首位）─────────────────
-    data_provider: str               # "sportmonks" | "footystats"
+    data_provider: str               # "footystats"
 
     # ── 比赛标识（原有，不变）─────────────────────────────────
     match_id: str                # FootyStats match ID
@@ -243,15 +172,6 @@ class MatchContext:
 
     # ── L3：赔率 ──────────────────────────────────────────
     odds: Optional[OddsSnapshot] # None → 见 data_gaps
-
-    # ── Layer AH：亚盘赔率快照 ────────────────────────────
-    asian_handicap: Optional["AsianHandicapOdds"]  # None → AH 数据缺失，见 data_gaps
-
-    # ── 新增：Sportmonks 独有字段──────────────────────────────
-    lineups: Optional[MatchLineups]
-    odds_movement: Optional[OddsMovement]
-    head_to_head: Optional[tuple]    # tuple[H2HEntry, ...] or None
-    predictions: Optional[PredictionSnapshot] # 官方胜平负预测概率
 
     # ── 元数据 ────────────────────────────────────────────
     data_gaps: tuple             # 缺失数据项列表，如 ("lineups", "injuries")

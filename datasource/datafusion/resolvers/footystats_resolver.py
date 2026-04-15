@@ -34,7 +34,6 @@ class FootyStatsResolver:
         self._delegate = DataResolver(
             footystats=footystats,
             understat=understat,
-            sportmonks=None,
         )
 
     async def resolve_xg(self, **kwargs) -> ResolvedData:

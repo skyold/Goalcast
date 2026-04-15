@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
-from datasource.datafusion.resolvers.sportmonks_resolver import (
+from .transformer import (
     _build_sportmonks_xg_payload,
     _extract_h2h,
     _extract_lineups,
@@ -75,19 +75,30 @@ class SportmonksCollector:
         home_id = int(home.get("id", 0) or 0)
         away_id = int(away.get("id", 0) or 0)
 
-        fixture_with_lineups, standings_raw, odds_raw, predictions_raw, xg_home_raw, xg_away_raw, h2h_raw = await asyncio.gather(
+        results = await asyncio.gather(
             self.provider.get_fixture_by_id(
                 fixture_id,
                 include="lineups;xGFixture;lineups.xGLineup",
             ),
             self.provider.get_standings_by_season(int(season_id)) if season_id else _return_none(),
             self._get_prematch_odds(fixture_id),
-            self.provider.get_predictions_by_fixture(fixture_id),
-            self.provider.get_expected_goals_by_team(home_id) if home_id else _return_none(),
-            self.provider.get_expected_goals_by_team(away_id) if away_id else _return_none(),
+            self.provider.get_probabilities_by_fixture(fixture_id),
+            self.provider.get_expected_by_team(home_id) if home_id else _return_none(),
+            self.provider.get_expected_by_team(away_id) if away_id else _return_none(),
             self.provider.get_head_to_head(home_id, away_id) if home_id and away_id else _return_none(),
             return_exceptions=True,
         )
+        
+        # 调试：打印结果类型
+        from utils.logger import logger
+        layer_names = ["fixture", "standings", "odds", "predictions", "xg_home", "xg_away", "h2h"]
+        for name, res in zip(layer_names, results):
+            if isinstance(res, Exception):
+                logger.error(f"Error collecting {name}: {res}")
+            elif res is None:
+                logger.warning(f"Layer {name} returned None")
+        
+        fixture_with_lineups, standings_raw, odds_raw, predictions_raw, xg_home_raw, xg_away_raw, h2h_raw = results
 
         odds_movement_raw = None
         if hasattr(self.provider, "get_odds_movement"):
@@ -122,10 +133,12 @@ class SportmonksCollector:
         }
 
     async def _get_prematch_odds(self, fixture_id: int) -> Any:
-        if hasattr(self.provider, "get_prematch_odds"):
-            return await self.provider.get_prematch_odds(fixture_id)
         if hasattr(self.provider, "get_prematch_odds_by_fixture"):
             return await self.provider.get_prematch_odds_by_fixture(fixture_id)
+        if hasattr(self.provider, "get_prematch_odds"):
+            # 注意：某些旧版 provider 的 get_prematch_odds 可能接受 fixture_id，
+            # 但在 SportmonksProvider v3 中，该方法是分页获取全量赔率。
+            return await self.provider.get_prematch_odds(fixture_id)
         return None
 
 

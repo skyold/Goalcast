@@ -23,23 +23,42 @@ server.py — Goalcast MCP Server 接口层
 import os
 from mcp.server.fastmcp import FastMCP
 
-from internal import (
-    # Provider 初始化
-    get_footystats, get_sportmonks, get_understat, handle_api_call,
-    # V4.0 helpers
-    _SM_LEAGUE_KEYWORDS, _infer_season, _extract_standing_for_team,
-    # 遗留 helpers
-    _normalize_sportmonks_fixtures, _normalize_footystats_fixtures,
-    goalcast_prefetch_today,
-    # 所有内部 API 包装函数（供 DataFusion 间接使用）
-    footystats_get_league_list, footystats_get_country_list,
-    footystats_get_todays_matches, footystats_get_league_stats,
-    footystats_get_league_matches, footystats_get_league_teams,
-    footystats_get_league_tables, footystats_get_match_details,
-    footystats_get_lineups, footystats_get_team_details,
-    footystats_get_team_last_x_stats, footystats_get_btts_stats,
-    footystats_get_over25_stats,
-)
+try:
+    from internal import (
+        # Provider 初始化
+        get_footystats, get_sportmonks, get_understat, handle_api_call,
+        # V4.0 helpers
+        _SM_LEAGUE_KEYWORDS, _infer_season, _extract_standing_for_team,
+        # 遗留 helpers
+        _normalize_sportmonks_fixtures, _normalize_footystats_fixtures,
+        goalcast_prefetch_today,
+        # 所有内部 API 包装函数（供 DataFusion 间接使用）
+        footystats_get_league_list, footystats_get_country_list,
+        footystats_get_todays_matches, footystats_get_league_stats,
+        footystats_get_league_matches, footystats_get_league_teams,
+        footystats_get_league_tables, footystats_get_match_details,
+        footystats_get_lineups, footystats_get_team_details,
+        footystats_get_team_last_x_stats, footystats_get_btts_stats,
+        footystats_get_over25_stats,
+    )
+except ImportError:
+    from mcp_server.internal import (
+        # Provider 初始化
+        get_footystats, get_sportmonks, get_understat, handle_api_call,
+        # V4.0 helpers
+        _SM_LEAGUE_KEYWORDS, _infer_season, _extract_standing_for_team,
+        # 遗留 helpers
+        _normalize_sportmonks_fixtures, _normalize_footystats_fixtures,
+        goalcast_prefetch_today,
+        # 所有内部 API 包装函数（供 DataFusion 间接使用）
+        footystats_get_league_list, footystats_get_country_list,
+        footystats_get_todays_matches, footystats_get_league_stats,
+        footystats_get_league_matches, footystats_get_league_teams,
+        footystats_get_league_tables, footystats_get_match_details,
+        footystats_get_lineups, footystats_get_team_details,
+        footystats_get_team_last_x_stats, footystats_get_btts_stats,
+        footystats_get_over25_stats,
+    )
 import asyncio
 import datetime
 from typing import Optional, List, Dict, Any
@@ -49,7 +68,6 @@ from analytics.ev_calculator import calculate_ev, calculate_kelly, calculate_ris
 from analytics.confidence import calculate_confidence, calculate_confidence_v25, confidence_breakdown
 from utils.logger import logger
 from datasource.datafusion.fusion import DataFusion
-from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
 from datasource.sportmonks.collector import SportmonksCollector
 from datasource.sportmonks.models import SportmonksMatchData
 from datasource.sportmonks.service import SportmonksDataService
@@ -407,8 +425,6 @@ async def goalcast_resolve_match(
     league: str,
     match_date: Optional[str] = None,
     season: Optional[str] = None,
-    data_provider: str = "footystats",
-    fixture_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     数据策略层核心工具：并行采集并融合单场比赛所需的全部数据，
@@ -427,9 +443,6 @@ async def goalcast_resolve_match(
         league:        联赛名（如 "Premier League"，用于 Understat 映射 + 联赛参数）
         match_date:    比赛日期 YYYY-MM-DD（可选，帮助推断 Understat 赛季）
         season:        Understat 赛季年份（如 "2025"），不传时自动从 match_date 推断
-        data_provider: 数据提供商，"footystats"（默认）或 "sportmonks"
-        fixture_id:    Sportmonks fixture ID（当 data_provider="sportmonks" 时使用）；
-                       不传时回退到 match_id
 
     Returns:
         MatchContext 序列化字典，包含以下顶层字段：
@@ -445,22 +458,17 @@ async def goalcast_resolve_match(
     数据策略（自动处理，Skill 无需关心）：
         xG    : Understat 球队统计（6 大联赛）→ FootyStats 近况代理 → 联赛均值
         近况   : FootyStats get_team_last_x_stats（主/客并行）
-        积分榜  : FootyStats get_league_tables → Sportmonks get_standings
-        赔率   : FootyStats match_details → Sportmonks prematch_odds
+        积分榜  : FootyStats get_league_tables
+        赔率   : FootyStats match_details
         伤停/阵容: v1 标注缺失（data_gaps 中可见）
     """
     try:
-        effective_fixture_id = fixture_id or match_id
-        sportmonks = get_sportmonks() if data_provider == "sportmonks" else None
-
         fusion = DataFusion(
-            data_provider=data_provider,
             footystats=get_footystats(),
             understat=get_understat(),
-            sportmonks=sportmonks,
         )
         ctx = await fusion.build(
-            fixture_id=str(effective_fixture_id),
+            fixture_id=str(match_id),
             match_id=str(match_id),
             home_team=home_team,
             home_team_id=str(home_team_id),
@@ -485,16 +493,14 @@ async def goalcast_resolve_match(
 
 @mcp.tool()
 async def goalcast_get_todays_matches(
-    data_provider: str,
     date: Optional[str] = None,
     league_filter: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
-    通过指定 data_provider 获取今日/指定日期的比赛列表。
-    返回标准化 MatchSummary 列表，字段与 provider 无关。
+    获取今日/指定日期的比赛列表（标准模式：仅限 FootyStats）。
+    返回标准化 MatchSummary 列表。
 
     Args:
-        data_provider: "sportmonks" | "footystats"
         date:          YYYY-MM-DD，默认今天
         league_filter: 联赛名过滤（子字符串匹配，不区分大小写）
 
@@ -505,25 +511,11 @@ async def goalcast_get_todays_matches(
     target_date = date or datetime.date.today().isoformat()
 
     try:
-        if data_provider == "sportmonks":
-            raw = await handle_api_call(
-                "Sportmonks",
-                get_sportmonks().get_fixtures_by_date(
-                    target_date,
-                    include="participants;scores;league;season",
-                ),
-            )
-            return _normalize_sportmonks_fixtures(raw, league_filter)
-
-        elif data_provider == "footystats":
-            raw = await handle_api_call(
-                "FootyStats",
-                get_footystats().get_todays_matches(target_date, timezone=None),
-            )
-            return _normalize_footystats_fixtures(raw, league_filter)
-
-        else:
-            return [{"error": f"Unknown data_provider: {data_provider}"}]
+        raw = await handle_api_call(
+            "FootyStats",
+            get_footystats().get_todays_matches(target_date, timezone=None),
+        )
+        return _normalize_footystats_fixtures(raw, league_filter)
 
     except Exception as exc:
         logger.error(f"[goalcast_get_todays_matches] {exc}")

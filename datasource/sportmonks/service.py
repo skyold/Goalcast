@@ -231,7 +231,7 @@ class SportmonksDataService:
             ]
 
         # 4. 并行获取所有比赛的深度数据（xG, H2H, Standings 等无法在列表包含的数据）
-        semaphore = asyncio.Semaphore(10)  # 限制并发请求数
+        semaphore = asyncio.Semaphore(3)  # 降低并发请求数以减少超时风险
         
         async def _safe_collect(fixture):
             async with semaphore:

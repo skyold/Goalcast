@@ -44,62 +44,38 @@ async def _load_watchlist(provider: str, league_filter: str | None) -> list[str]
         return [None]
 
 
-async def run_prefetch(provider: str, date: str, league_filter: str | None) -> dict:
+async def run_prefetch(date: str, league_filter: str | None) -> dict:
     from provider.footystats.client import FootyStatsProvider
-    from provider.sportmonks.client import SportmonksProvider
     from provider.understat.client import UnderstatProvider
-    from data_strategy.fusion import DataFusion
+    from datasource.datafusion.fusion import DataFusion
 
     fs = FootyStatsProvider()
     us = UnderstatProvider(use_library=True)
-    sm = SportmonksProvider() if provider == "sportmonks" else None
 
-    leagues = await _load_watchlist(provider, league_filter)
-    logger.info(f"Prefetching {provider} data for {date} | leagues: {leagues}")
+    leagues = await _load_watchlist("footystats", league_filter)
+    logger.info(f"Prefetching FootyStats data for {date} | leagues: {leagues}")
 
     # Step 1: List all matches
     all_matches: list[dict] = []
     for league in leagues:
-        if provider == "sportmonks" and sm:
-            raw = await sm.get_fixtures_by_date(date, include="participants;scores;league;season")
-        elif provider == "footystats":
-            raw = await fs.get_todays_matches(date, timezone=None)
-        else:
-            continue
+        raw = await fs.get_todays_matches(date, timezone=None)
 
         data = raw.get("data", []) if isinstance(raw, dict) else []
         for item in data:
             if not isinstance(item, dict):
                 continue
-            if provider == "sportmonks":
-                lg_name = item.get("league", {}).get("name", "") if isinstance(item.get("league"), dict) else ""
-                if league and league.lower() not in lg_name.lower():
-                    continue
-                participants = item.get("participants", [])
-                home = next((p for p in participants if p.get("meta", {}).get("location") == "home"), {})
-                away = next((p for p in participants if p.get("meta", {}).get("location") == "away"), {})
-                all_matches.append({
-                    "home_team": home.get("name", ""),
-                    "away_team": away.get("name", ""),
-                    "competition": lg_name,
-                    "match_id": str(item.get("id", "")),
-                    "home_team_id": str(home.get("id", "")),
-                    "away_team_id": str(away.get("id", "")),
-                    "season_id": str(item.get("season_id", "")),
-                })
-            else:  # footystats
-                comp_name = item.get("competition_name", "")
-                if league and league.lower() not in comp_name.lower():
-                    continue
-                all_matches.append({
-                    "home_team": item.get("home_name", ""),
-                    "away_team": item.get("away_name", ""),
-                    "competition": comp_name,
-                    "match_id": str(item.get("id", "")),
-                    "home_team_id": str(item.get("homeID", "")),
-                    "away_team_id": str(item.get("awayID", "")),
-                    "season_id": str(item.get("competition_id", "")),
-                })
+            comp_name = item.get("competition_name", "")
+            if league and league.lower() not in comp_name.lower():
+                continue
+            all_matches.append({
+                "home_team": item.get("home_name", ""),
+                "away_team": item.get("away_name", ""),
+                "competition": comp_name,
+                "match_id": str(item.get("id", "")),
+                "home_team_id": str(item.get("homeID", "")),
+                "away_team_id": str(item.get("awayID", "")),
+                "season_id": str(item.get("competition_id", "")),
+            })
 
     logger.info(f"Found {len(all_matches)} matches")
 
@@ -107,10 +83,8 @@ async def run_prefetch(provider: str, date: str, league_filter: str | None) -> d
     async def _warm_one(match: dict) -> bool:
         try:
             fusion = DataFusion(
-                data_provider=provider,
                 footystats=fs,
                 understat=us,
-                sportmonks=sm,
             )
             await fusion.build(
                 fixture_id=match["match_id"],
@@ -135,13 +109,13 @@ async def run_prefetch(provider: str, date: str, league_filter: str | None) -> d
     # Save match list for agent consumption
     output_dir = Path(__file__).resolve().parent.parent / "data" / "cache"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"today_matches_{provider}.json"
+    output_path = output_dir / f"today_matches_footystats.json"
     with open(output_path, "w") as f:
-        json.dump({"date": date, "provider": provider, "matches": all_matches}, f, ensure_ascii=False, indent=2)
+        json.dump({"date": date, "provider": "footystats", "matches": all_matches}, f, ensure_ascii=False, indent=2)
 
     summary = {
         "date": date,
-        "provider": provider,
+        "provider": "footystats",
         "matches_found": len(all_matches),
         "matches_cached": cached,
         "errors": errors,
@@ -153,12 +127,11 @@ async def run_prefetch(provider: str, date: str, league_filter: str | None) -> d
 
 def main():
     parser = argparse.ArgumentParser(description="Goalcast batch data prefetcher")
-    parser.add_argument("--provider", choices=["sportmonks", "footystats"], required=True)
     parser.add_argument("--date", default=datetime.date.today().isoformat(), help="YYYY-MM-DD")
     parser.add_argument("--league", default=None, help="League name filter")
     args = parser.parse_args()
 
-    result = asyncio.run(run_prefetch(args.provider, args.date, args.league))
+    result = asyncio.run(run_prefetch(args.date, args.league))
     print(json.dumps(result, indent=2))
 
 

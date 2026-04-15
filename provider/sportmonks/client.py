@@ -15,7 +15,7 @@ class SportmonksProvider(BaseProvider):
     """Sportmonks API v3 提供者 - 完整实现"""
     
     BASE_URL = "https://api.sportmonks.com/v3/football"
-    DEFAULT_TIMEOUT = 30.0
+    DEFAULT_TIMEOUT = 60.0
 
     def __init__(self, api_key: str = "", timeout: float = DEFAULT_TIMEOUT, debug: bool = False):
         """
@@ -26,7 +26,7 @@ class SportmonksProvider(BaseProvider):
             timeout: 请求超时时间（秒）
             debug: 是否打印调试信息
         """
-        super().__init__(api_key or settings.SPORTMONKS_API_KEY, timeout)
+        super().__init__(api_key=api_key or settings.SPORTMONKS_API_KEY, timeout=timeout)
         self.debug = debug
         if not self.api_key:
             logger.warning("Sportmonks API key not configured")

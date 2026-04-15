@@ -18,7 +18,6 @@ from typing import Any, Optional
 # Understat 覆盖联赛的 xG 是黄金标准
 _XG_SOURCE_BASE: dict[str, float] = {
     "understat_direct": 0.95,
-    "sportmonks_xg": 0.80,
     "footystats_proxy": 0.60,   # 近况进球均值代理
     "league_avg": 0.35,         # 联赛均值兜底
     "missing": 0.0,
@@ -103,12 +102,12 @@ def assess_standings_quality(
     Args:
         home:   主队积分榜条目原始数据
         away:   客队积分榜条目原始数据
-        source: "footystats" | "sportmonks" | "missing"
+        source: "footystats" | "missing"
     """
     if home is None or away is None:
         return 0.0 if (home is None and away is None) else 0.35
 
-    score = 0.90 if source in ("footystats", "sportmonks") else 0.50
+    score = 0.90 if source == "footystats" else 0.50
 
     # 关键字段完整性
     for entry in (home, away):

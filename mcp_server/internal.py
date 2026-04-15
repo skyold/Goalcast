@@ -12,7 +12,7 @@ import sys
 import yaml
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from mcp.server.fastmcp import FastMCP
+# from mcp.server.fastmcp import FastMCP
 
 # 确保项目根目录在 sys.path 中，无论从哪里启动 server 都能找到各包
 _project_root = str(Path(__file__).parent.parent)
@@ -27,7 +27,7 @@ from analytics.ev_calculator import calculate_ev, calculate_kelly, calculate_ris
 from analytics.confidence import calculate_confidence, calculate_confidence_v25, confidence_breakdown
 from utils.logger import logger
 from datasource.datafusion.fusion import DataFusion
-from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
+# from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
 from datasource.sportmonks.models import SportmonksMatchData
 
 # ── 联赛关键词映射（供 goalcast_sm_get_fixtures 使用）──────────────────────────
@@ -81,14 +81,8 @@ def _extract_standing_for_team(raw_standings: Any, team_id: int) -> Optional[Dic
     return None
 
 
-# Initialize FastMCP server.
-# FASTMCP_HOST defaults to 127.0.0.1 (local) but can be overridden via env var,
-# e.g. set FASTMCP_HOST=0.0.0.0 in docker-compose.yml for remote access.
-mcp = FastMCP(
-    "Goalcast Data Providers",
-    host=os.environ.get("FASTMCP_HOST", "127.0.0.1"),
-    port=int(os.environ.get("FASTMCP_PORT", "8000")),
-)
+# FastMCP initialization moved to server.py to avoid port conflicts and duplicate instances.
+# from mcp.server.fastmcp import FastMCP
 
 # Initialize providers
 # Using lazy initialization to ensure the providers are only created when needed
@@ -859,7 +853,7 @@ async def sportmonks_get_standings(season_id: int, include: Optional[str] = None
 
 async def sportmonks_get_expected_goals(fixture_id: int) -> Any:
     """Get Expected Goals (xG) depth data for a fixture from Sportmonks."""
-    return await handle_api_call("Sportmonks", get_sportmonks().get_expected_goals_by_fixture(fixture_id))
+    return await handle_api_call("Sportmonks", get_sportmonks().get_expected_by_fixture(fixture_id))
 
 async def sportmonks_get_prematch_odds(fixture_id: int, include: Optional[str] = None) -> Any:
     """Get pre-match odds for a fixture from Sportmonks."""
@@ -867,7 +861,7 @@ async def sportmonks_get_prematch_odds(fixture_id: int, include: Optional[str] =
 
 async def sportmonks_get_predictions(fixture_id: int) -> Any:
     """Get match predictions (probabilities) for a fixture from Sportmonks."""
-    return await handle_api_call("Sportmonks", get_sportmonks().get_predictions_by_fixture(fixture_id))
+    return await handle_api_call("Sportmonks", get_sportmonks().get_probabilities_by_fixture(fixture_id))
 
 async def sportmonks_get_value_bets() -> Any:
     """Get currently identified Value Bets from Sportmonks."""
