@@ -75,7 +75,7 @@ class SportmonksCollector:
         home_id = int(home.get("id", 0) or 0)
         away_id = int(away.get("id", 0) or 0)
 
-        results = await asyncio.gather(
+        fixture_with_lineups, standings_raw, odds_raw, predictions_raw, xg_home_raw, xg_away_raw, h2h_raw = await asyncio.gather(
             self.provider.get_fixture_by_id(
                 fixture_id,
                 include="lineups;xGFixture;lineups.xGLineup",
@@ -88,17 +88,6 @@ class SportmonksCollector:
             self.provider.get_head_to_head(home_id, away_id) if home_id and away_id else _return_none(),
             return_exceptions=True,
         )
-        
-        # 调试：打印结果类型
-        from utils.logger import logger
-        layer_names = ["fixture", "standings", "odds", "predictions", "xg_home", "xg_away", "h2h"]
-        for name, res in zip(layer_names, results):
-            if isinstance(res, Exception):
-                logger.error(f"Error collecting {name}: {res}")
-            elif res is None:
-                logger.warning(f"Layer {name} returned None")
-        
-        fixture_with_lineups, standings_raw, odds_raw, predictions_raw, xg_home_raw, xg_away_raw, h2h_raw = results
 
         odds_movement_raw = None
         if hasattr(self.provider, "get_odds_movement"):
