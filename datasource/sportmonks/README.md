@@ -145,8 +145,8 @@ League ──► Standings
 ### 3.1 提取来源
 
 1. **JSON 文件**：
-   - `data/cache/{date}/sportmonks/matches.json`
-   - `data/cache/{date}/sportmonks/extended_data.json`
+   - `data/cache/sportmonks/{date}/matches.json`
+   - `data/cache/sportmonks/{date}/extended_data.json`
 
 2. **SQLite 数据库**：
    - `data/cache/goalcast.db`

@@ -135,7 +135,7 @@ class DataResolver:
           3. league_avg 兜底（由 fusion 层填充联赛参数均值）
         """
         cache_key = f"xg_{home_team}_{away_team}_{league}_{season}"
-        cached = cache_get("data_strategy_xg", cache_key)
+        cached = cache_get("datafusion", cache_key)
         if cached:
             logger.debug(f"[Resolver] xG cache hit: {cache_key}")
             return ResolvedData(
@@ -153,7 +153,7 @@ class DataResolver:
             )
             if result.ok and result.quality >= MIN_QUALITY["xg"]:
                 cache_set(
-                    "data_strategy_xg",
+                    "datafusion",
                     cache_key,
                     {"data": result.data, "source": result.source, "quality": result.quality},
                     ttl_hours=CACHE_TTL["xg"],
@@ -167,7 +167,7 @@ class DataResolver:
         result = await self._resolve_xg_footystats_proxy(home_team_id, away_team_id)
         if result.ok:
             cache_set(
-                "data_strategy_xg",
+                "datafusion",
                 cache_key,
                 {"data": result.data, "source": result.source, "quality": result.quality},
                 ttl_hours=CACHE_TTL["xg"],
@@ -272,7 +272,7 @@ class DataResolver:
         Primary：FootyStats get_team_last_x_stats
         """
         cache_key = f"form_{home_team_id}_{away_team_id}"
-        cached = cache_get("data_strategy_form", cache_key)
+        cached = cache_get("datafusion", cache_key)
         if cached:
             return ResolvedData(
                 data=cached["data"], source=cached["source"], quality=cached["quality"]
@@ -304,7 +304,7 @@ class DataResolver:
             )
             result = ResolvedData(data=data, source="footystats", quality=quality)
             cache_set(
-                "data_strategy_form",
+                "datafusion",
                 cache_key,
                 {"data": data, "source": "footystats", "quality": quality},
                 ttl_hours=CACHE_TTL["form"],
@@ -323,7 +323,7 @@ class DataResolver:
         Primary：FootyStats get_league_tables
         """
         cache_key = f"standings_{season_id}"
-        cached = cache_get("data_strategy_standings", cache_key)
+        cached = cache_get("datafusion", cache_key)
         if cached:
             return ResolvedData(
                 data=cached["data"], source=cached["source"], quality=cached["quality"]
@@ -336,7 +336,7 @@ class DataResolver:
                 quality = assess_standings_quality(raw, raw, source="footystats")
                 result = ResolvedData(data={"raw": raw}, source="footystats", quality=quality)
                 cache_set(
-                    "data_strategy_standings",
+                    "datafusion",
                     cache_key,
                     {"data": result.data, "source": result.source, "quality": result.quality},
                     ttl_hours=CACHE_TTL["standings"],
@@ -356,7 +356,7 @@ class DataResolver:
         Primary：FootyStats get_match_details（odds_ft_1/x/2 字段）
         """
         cache_key = f"odds_{match_id}"
-        cached = cache_get("data_strategy_odds", cache_key)
+        cached = cache_get("datafusion", cache_key)
         if cached:
             return ResolvedData(
                 data=cached["data"], source=cached["source"], quality=cached["quality"]
@@ -374,7 +374,7 @@ class DataResolver:
                             data=odds_data, source="footystats", quality=quality
                         )
                         cache_set(
-                            "data_strategy_odds",
+                            "datafusion",
                             cache_key,
                             {"data": odds_data, "source": "footystats", "quality": quality},
                             ttl_hours=CACHE_TTL["odds"],

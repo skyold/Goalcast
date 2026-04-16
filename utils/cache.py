@@ -14,7 +14,7 @@ class Cache:
 
     def _get_path(self, source: str, key: str) -> Path:
         source_dir = self.cache_dir / source
-        source_dir.mkdir(exist_ok=True)
+        source_dir.mkdir(parents=True, exist_ok=True)
         safe_key = key.replace("/", "_").replace(":", "_")
         return source_dir / f"{safe_key}.json"
 

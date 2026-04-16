@@ -16,7 +16,7 @@
 ### 2.2 双写存储策略 (Dual-Write Storage)
 获取到的原始数据将同时写入以下两种存储介质：
 1. **JSON 文件系统 (主用)**:
-   - **路径规则**: `data/cache/{YYYY-MM-DD}/{provider}/matches.json`
+   - **路径规则**: `data/cache/{provider}/{YYYY-MM-DD}/matches.json`
    - **用途**: 供分析 Agent 直接读取，具备人类可读性，便于调试。
 2. **SQLite 本地数据库 (备份与未来扩展)**:
    - **数据库文件**: `data/cache/goalcast.db`
@@ -27,7 +27,7 @@
 ## 3. 轻量级读取层 (Cache Reader)
 取代原有的 `DataFusion` 和庞大的 `MatchContext`，引入极简的数据读取接口：
 - `get_cached_matches(provider: str, date: str, leagues: list[str] = None) -> list[dict]`
-- 直接从 `data/cache/{YYYY-MM-DD}/{provider}/matches.json` 中反序列化并返回 Python 字典列表。
+- 直接从 `data/cache/{provider}/{YYYY-MM-DD}/matches.json` 中反序列化并返回 Python 字典列表。
 - 在内存中缓存已读取的 JSON（如 Python Dict），确保同一分析任务中的极速响应。
 
 ## 4. 专属分析技能 (Provider-Specific Analyst Skills)

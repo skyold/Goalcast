@@ -24,7 +24,6 @@ try:
 except ImportError:
     from mcp_server.internal import get_sportmonks
 
-from datasource.sportmonks.collector import SportmonksCollector
 from datasource.sportmonks.service import SportmonksDataService
 from mcp_server.tools.footystats import register_goalcast_footystats_tools
 from mcp_server.tools.sportmonks import register_goalcast_sportmonks_tools
@@ -45,7 +44,7 @@ def get_sportmonks_data_service() -> SportmonksDataService:
     global _sportmonks_data_service
     if _sportmonks_data_service is None:
         _sportmonks_data_service = SportmonksDataService(
-            collector=SportmonksCollector(get_sportmonks()),
+            provider=get_sportmonks(),
         )
     return _sportmonks_data_service
 

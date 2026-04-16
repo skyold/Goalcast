@@ -28,7 +28,6 @@ from analytics.confidence import calculate_confidence, calculate_confidence_v25,
 from utils.logger import logger
 from datasource.datafusion.fusion import DataFusion
 # from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
-from datasource.sportmonks.models import SportmonksMatchData
 
 # ── 联赛关键词映射（供 Sportmonks v4 赛程工具使用）──────────────────────────
 _SM_LEAGUE_KEYWORDS: Dict[str, List[str]] = {

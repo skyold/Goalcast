@@ -1,39 +1,8 @@
 """Sportmonks 数据层模块"""
 
-from .models import (
-    Match,
-    Team,
-    Player,
-    League,
-    XGData,
-    Odds,
-    TeamForm,
-    HeadToHead,
-    Standings,
-    SportmonksMatchData,
-    SportmonksFixtureSummary,
-    SportmonksMatchSnapshot,
-    SportmonksWarmupResult,
-)
-from .extractor import SportmonksExtractor
-from .transformer import SportmonksTransformer
-from .utils import SportmonksUtils
+from .service import SportmonksDataService, SimpleCache
 
 __all__ = [
-    'Match',
-    'Team',
-    'Player',
-    'League',
-    'XGData',
-    'Odds',
-    'TeamForm',
-    'HeadToHead',
-    'Standings',
-    'SportmonksMatchData',
-    'SportmonksFixtureSummary',
-    'SportmonksMatchSnapshot',
-    'SportmonksWarmupResult',
-    'SportmonksExtractor',
-    'SportmonksTransformer',
-    'SportmonksUtils'
+    'SportmonksDataService',
+    'SimpleCache',
 ]

@@ -12,7 +12,7 @@ def get_cached_matches(
     Reads pre-warmed JSON cache for a given provider and date.
     Filters by league_id if provided.
     """
-    file_path = base_path / date / provider / "matches.json"
+    file_path = base_path / provider / date / "matches.json"
     if not file_path.exists():
         return []
         

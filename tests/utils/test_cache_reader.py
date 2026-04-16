@@ -7,7 +7,7 @@ def test_get_cached_matches(tmp_path):
     # Setup mock cache
     date_str = "2026-04-14"
     provider = "sportmonks"
-    cache_dir = tmp_path / "cache" / date_str / provider
+    cache_dir = tmp_path / "cache" / provider / date_str
     cache_dir.mkdir(parents=True, exist_ok=True)
     
     mock_data = [{"id": 1, "league_id": 10}, {"id": 2, "league_id": 20}]

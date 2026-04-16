@@ -107,9 +107,9 @@ async def run_prefetch(date: str, league_filter: str | None) -> dict:
     errors = len(results) - cached
 
     # Save match list for agent consumption
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "cache"
+    output_dir = Path(__file__).resolve().parent.parent / "data" / "cache" / "footystats" / date
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"today_matches_footystats.json"
+    output_path = output_dir / "matches.json"
     with open(output_path, "w") as f:
         json.dump({"date": date, "provider": "footystats", "matches": all_matches}, f, ensure_ascii=False, indent=2)
 
