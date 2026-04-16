@@ -1,36 +1,30 @@
 # Goalcast Quant — 智能体指令 (Agent Instructions)
 
-## 核心工作流：单场比赛分析
+## 核心工作流：单场与多场比赛分析
+
+无论是单场还是多场比赛，所有分析请求都必须**统一通过 `goalcast-analysis-orchestrator` 进行调度**。
 
 当用户请求比赛分析时：
 
-1. **解析意图** — 提取：主队、客队、联赛、日期（默认：今天）
-2. **选择模型** — 如果用户指定了分析模型(25/30/40)，则调用对应的 skill。如果未指定，默认调用 `goalcast-compare`（同时运行两者）。**注意：你必须调用你自己工作目录下的 skills 进行分析。**
-3. **执行分析** — 选定的 skill 将处理：比赛发现 → 数据收集 → 零层数据检查 → 多层模型分析 → 输出 JSON
-4. **持久化结果** — 将 AnalysisResult 保存至 `team/data/predictions/YYYY-MM-DD_<home>_<away>_<method>.json`
-5. **总结汇报** — 向用户展示核心发现（胜平负概率、最高概率比分、EV 期望值、投注建议、置信度）
-
-## 核心工作流：多场比赛分析
-
-当需要分析多场比赛时（例如：“今天英超的所有比赛”）：
-
-1. 通过 MCP 发现所有符合条件的比赛
-2. 使用 `sessions_spawn` 为每场比赛拉起并行的子智能体 (Sub-agents)
-3. 收集并合并所有的 AnalysisResult
-4. 将每场比赛的结果保存至 `team/data/predictions/`，并向用户展示汇总表格
+1. **解析意图** — 提取：目标联赛、日期（默认：今天）、指定的数据源（默认：Sportmonks）或模型版本（默认：v4.0）、以及是否需要对比分析（mode=compare）。
+2. **调用 Orchestrator** — 将解析出的参数传递给 `goalcast-analysis-orchestrator` skill。**不要直接调用底层的 analyzer skill（如 v25/v30/v40）**，Orchestrator 会自动为你完成模型和数据源的路由。
+3. **获取分析结果** — Orchestrator 将负责拉取赛程、过滤数据并逐场调用对应的 analyzer skill 生成分析结果。
+4. **持久化与汇报** — Orchestrator 返回结果后：
+   - 将最终的 JSON 结果保存至 `team/data/predictions/YYYY-MM-DD_<home>_<away>_<method>.json`。
+   - 向用户展示核心发现的汇总表格（胜平负概率、最优投注、EV、置信度等）。
+   
+5. **批处理时的上下文与错误隔离**：
+   - **即刻落盘与遗忘**：多场分析时，每分析完一场，**必须立刻将其 JSON 结果持久化并清除详细数据**。只在对话中保留核心汇总信息（如：胜率/EV）。不要将几十场比赛的原始 JSON 全部囤积在对话历史中，否则会导致上下文窗口溢出或大模型“失忆”。
+   - **单场错误隔离**：若某场比赛由于 API 挂掉或数据缺失而报错，记录该场失败，**并强制进入下一场比赛的分析**，绝不允许整个分析任务被单场的异常打断。
 
 ## MCP 数据协议 (Data Protocol)
 
-- **服务器**: 通过环境变量 `MCP_SERVER_URL` 连接
-- **工具调用模式**: 始终使用内置的 MCP 工具调用
-- **FootyStats** → 硬数据（联赛积分榜、球队近况、比赛详情、BTTS/O2.5 概率）
-- **Sportmonks** → 软数据（xG 预期进球、首发阵容、赔率变动、实时比分）
-- **数据量控制**: 在调用发现类工具时，必须使用过滤器（例如 `league_filter`）以避免触发 1MB+ 的超大响应限制
-- **超时恢复**: 如果调用超时，请缩小查询范围（例如：指定具体的 match\_id/team\_id 而不是扫描整个联赛）后重试
+- **工具调用模式**: Agent 本身不再直接调用 MCP 数据工具获取赛程和详情，所有数据流均由 `goalcast-analysis-orchestrator` 及底层的 analyzer skills 内部处理。
+- **职责边界**: Agent 的主要职责是意图识别、调用 Orchestrator 并将最终的分析结果进行本地持久化和用户展示。
 
 ## 网络搜索协议 (Web Search Protocol)
 
-对于 MCP 无法提供的数据，请使用 `web_search` 工具：
+对于 MCP 无法提供的数据，请使用 Agent 平台内置的搜索插件（如 `web_search` 或 `browser` 工具）：
 
 - 球队新闻（伤病、停赛）— 搜索开赛前 24 小时内的资讯
 - 预测首发阵容 — 搜索开赛前 12 小时内的资讯
@@ -39,11 +33,11 @@
 
 ## 输出标准 (Output Standards)
 
-### AnalysisResult JSON Schema (适用于 v2.5 和 v3.0)
+### AnalysisResult JSON Schema (适用于 v2.5, v3.0 和 v4.0)
 
 ```json
 {
-  "method": "v2.5 | v3.0",
+  "method": "v2.5 | v3.0 | v4.0",
   "match_info": {
     "home_team": "string",
     "away_team": "string",

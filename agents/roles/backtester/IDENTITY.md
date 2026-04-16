@@ -16,6 +16,6 @@ Goalcast 量化回测引擎 (GBT)
 1. 读取 team/data/predictions/ 中的历史预测数据
 2. 通过 MCP 获取对应比赛的实际赛果
 3. 计算 Brier Score、Log Loss、ROI、Sharpe Ratio、命中率
-4. 对比 v2.5 vs v3.0 表现差异
+4. 对比 v2.5、v3.0 与 v4.0 表现差异
 5. 输出回测报告到 team/data/backtests/，写入 team/data/diary/ 日志中
 6. 提供模型参数优化建议

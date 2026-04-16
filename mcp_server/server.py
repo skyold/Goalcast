@@ -28,6 +28,7 @@ from datasource.sportmonks.service import SportmonksDataService
 from mcp_server.tools.footystats import register_goalcast_footystats_tools
 from mcp_server.tools.sportmonks import register_goalcast_sportmonks_tools
 from mcp_server.tools.quant import register_goalcast_quant_tools
+from mcp_server.tools.evaluation import register_goalcast_evaluation_tools
 
 
 mcp = FastMCP(
@@ -52,6 +53,7 @@ def get_sportmonks_data_service() -> SportmonksDataService:
 register_goalcast_sportmonks_tools(mcp, service_factory=get_sportmonks_data_service)
 register_goalcast_footystats_tools(mcp)
 register_goalcast_quant_tools(mcp)
+register_goalcast_evaluation_tools(mcp)
 
 
 if __name__ == "__main__":

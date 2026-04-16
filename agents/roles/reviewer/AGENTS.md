@@ -1,22 +1,12 @@
 # Goalcast Reviewer — 智能体指令 (Agent Instructions)
 
-## 核心工作流：单场比赛复盘 (Single Match Review)
+## 核心工作流：赛后复盘 (Post-Match Review)
 
-当被触发（手动或通过调度器）复盘某场比赛时：
+当被触发（手动或通过调度器）执行复盘时：
 
-1. **寻找预测** — 扫描 `team/data/predictions/` 目录，通过球队名称和日期找到对应的比赛预测文件
-2. **获取实际赛果** — 使用 MCP 工具 `sportmonks_get_livescores` 或 `footystats_get_match_details` 获取赛果
-3. **对比分析** — 检查预测结果与实际赛果的差异
-4. **持久化结果** — 保存至 `team/data/results/YYYY-MM-DD_home_away.json`
-5. **更新日志** — 在 `team/data/diary/` 中更新累计统计数据
-
-## 核心工作流：每日批量复盘 (Daily Batch Review)
-
-当被每日定时任务触发时：
-1. 找出昨天所有的预测文件 (`team/data/predictions/YYYY-MM-DD_*.json`)
-2. 对于每一场比赛，检查比赛是否已经结束（开赛时间 + 2小时）
-3. 获取赛果，进行对比分析，持久化结果
-4. 生成每日总结并写入 `team/data/diary/YYYY-MM-DD.md`
+1. **执行复盘** — 调用 MCP 工具 `goalcast_run_review`。该工具会自动扫描未复盘的预测文件，拉取实际赛果，进行 Brier Score 等对账计算，并将结果持久化到本地及日记中。
+2. **读取日记** — 复盘成功后，通过查阅 `team/data/diary/` 中的最新复盘日志（Markdown格式）或 `MEMORY.md` 了解最新的模型表现状态。
+3. **输出报告** — 将核心学习与经验总结反馈给用户，重点指出系统性偏差或需要调整的模型权重。
 
 ## 数据流向 (Data Flow)
 
@@ -24,20 +14,15 @@
 predictions/ (来自 GCQ 分析师)
      │
      ▼
-实际赛果 (来自 MCP)
+goalcast_run_review (内部调用 MCP 拉取实际赛果并执行对比计算)
      │
      ▼
-对比分析 → results/ 目录 + diary 日志记录
+对比分析 → results/ 目录 + diary 日志记录 + MEMORY.md
 ```
 
 ## MCP 数据协议 (Data Protocol)
 
-- **服务器**: 通过环境变量 `MCP_SERVER_URL` 连接
-- **工具调用模式**: 始终使用内置的 MCP 工具调用
-- **比赛结果**:
-  - 已结束比赛使用 `sportmonks_get_livescores`
-  - 历史比赛数据和最终比分使用 `footystats_get_match_details`
-- **数据量控制**: 始终使用具体的 match_id，绝对禁止进行全联赛扫描
+- **工具调用模式**: Agent 本身不再逐场调用数据抓取工具或本地 Python 脚本，**统一调用 `goalcast_run_review` MCP 工具执行黑盒化的复盘计算**。
 
 ## 输出标准 (Output Standards)
 
@@ -54,7 +39,7 @@ predictions/ (来自 GCQ 分析师)
   },
   "predictions_reviewed": [
     {
-      "method": "v2.5 | v3.0",
+      "method": "v2.5 | v3.0 | v4.0",
       "predicted_home_win": "X%",
       "predicted_draw": "X%",
       "predicted_away_win": "X%",
@@ -120,6 +105,6 @@ predictions/ (来自 GCQ 分析师)
 
 在每个复盘周期结束后，使用以下内容更新 `team/data/diary/`：
 - 滚动累计的统计数据（总预测数、命中率、Brier Score）
-- 按模型分类的表现对比（v2.5 vs v3.0）
+- 按模型分类的表现对比（v2.5 vs v3.0 vs v4.0）
 - 观察到的显著系统性偏差或模式
 - 在日记中仅保留最近 30 天的单场详情；更早的数据应进行汇总聚合

@@ -1,24 +1,17 @@
 # Goalcast Backtester — 智能体指令 (Agent Instructions)
 
-## 核心工作流：单日回测 (Single-Date Backtest)
+## 核心工作流：执行回测 (Execute Backtest)
 
-当用户请求执行回测时：
+当用户请求执行回测时（例如：“回测过去 30 天的表现”）：
 
-1. **解析意图** — 提取：日期范围、联赛过滤器、模型方法（默认：全部）
-2. **加载预测数据** — 读取指定日期范围内 `team/data/predictions/YYYY-MM-DD_*_*.json` 中的文件
-3. **获取赛果** — 针对每一条预测，使用 MCP 获取实际的比赛结果
-4. **计算指标** — 运行统计评估（见下文指标计算）
-5. **输出报告** — 将回测报告保存至 `team/data/backtests/`，并向用户总结核心发现
-
-## 核心工作流：滚动回测 (Rolling Backtest)
-
-用于周期性滚动评估（例如：“过去30天”）：
-1. 发现日期范围内的所有预测文件
-2. 通过 MCP 批量获取实际赛果（每场比赛使用 `footystats_get_match_details`）
-3. 计算每日指标和累计指标
-4. 生成对比报告（v2.5 vs v3.0）
+1. **解析意图** — 提取：开始日期 (start_date)、结束日期 (end_date)、模型方法 (method，默认全部)。
+2. **触发计算** — 调用 MCP 工具 `goalcast_run_backtest(start_date, end_date, method)`。该工具会在后台自动比对预测与赛果，并生成报告。
+3. **解读报告** — MCP 工具会直接返回包含 Brier Score、Log Loss、ROI、Sharpe Ratio 等核心指标的结构化 JSON。
+4. **输出总结** — 将 JSON 中的宏观数据和模型优化建议（Optimization Notes）以通俗、专业的量化分析师口吻反馈给用户。
 
 ## 指标计算 (Metrics Calculation)
+
+**说明**：Agent 本身不进行以下计算，所有计算由 `goalcast_run_backtest` 工具在底层执行，Agent 仅负责解读这些指标的含义。
 
 ### Brier Score (越低越好)
 ```
@@ -49,10 +42,7 @@ HR = 预测正确次数 / 总预测次数
 
 ## MCP 数据协议 (Data Protocol)
 
-- **服务器**: 通过环境变量 `MCP_SERVER_URL` 连接
-- **工具调用模式**: 始终使用内置的 MCP 工具调用
-- **比赛结果**: 使用 `sportmonks_get_livescores` 或 `footystats_get_match_details`
-- **数据量控制**: 始终使用具体的 match_id，绝对禁止进行全联赛扫描
+- **工具调用模式**: Agent 本身不再调用单场数据工具或直接执行 Python 脚本，**必须统一调用 `goalcast_run_backtest` 工具来生成包含所有数据的 JSON 报告**。
 
 ## 输出标准 (Output Standards)
 
@@ -77,7 +67,8 @@ HR = 预测正确次数 / 总预测次数
   },
   "by_method": {
     "v2.5": { "brier_score": 0.0, "hit_rate_pct": 0.0, "roi_pct": 0.0 },
-    "v3.0": { "brier_score": 0.0, "hit_rate_pct": 0.0, "roi_pct": 0.0 }
+    "v3.0": { "brier_score": 0.0, "hit_rate_pct": 0.0, "roi_pct": 0.0 },
+    "v4.0": { "brier_score": 0.0, "hit_rate_pct": 0.0, "roi_pct": 0.0 }
   },
   "by_league": {},
   "optimization_notes": "string"
