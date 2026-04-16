@@ -164,6 +164,19 @@ class SportmonksDataService:
             warm_if_missing=warm_if_missing,
         )
 
+    async def get_matches(
+        self,
+        date: Optional[str] = None,
+        leagues: Optional[list[str]] = None,
+    ) -> list[SportmonksFixtureSummary]:
+        """Agent 只读入口：读取指定日期（默认今天）的比赛列表。"""
+        target_date = date or date_cls.today().isoformat()
+        return await self.get_fixtures(
+            date=target_date,
+            leagues=leagues,
+            warm_if_missing=True,
+        )
+
     async def prefetch_today(
         self,
         leagues: Optional[list[str]] = None,
@@ -344,6 +357,34 @@ class SportmonksDataService:
                 layers=None,
             )
         return SportmonksMatchSnapshot(**payload)
+
+    async def get_match_for_analysis(
+        self,
+        fixture_id: int,
+        match_date: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Agent 只读入口：读取单场数据；缺失时自动尝试预热。"""
+        try:
+            snapshot = await self.get_match(
+                fixture_id=fixture_id,
+                date=match_date,
+                refresh_if_stale=True,
+            )
+            return snapshot.to_dict()
+        except FileNotFoundError:
+            if self.collector is None or not match_date:
+                raise
+            await self.prefetch(
+                date=match_date,
+                leagues=None,
+                refresh_stale=False,
+            )
+            snapshot = await self.get_match(
+                fixture_id=fixture_id,
+                date=match_date,
+                refresh_if_stale=True,
+            )
+            return snapshot.to_dict()
 
     async def refresh_match(
         self,

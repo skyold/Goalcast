@@ -6,13 +6,14 @@ description: Use this skill when the user wants a single-match Goalcast football
 # Goalcast Analyzer v2.5
 
 版本：v2.5 | 框架：五层分析模型
-适用：独立调用或被 `goalcast-compare` 作为 sub-agent 调用
+适用：独立调用，或被 `goalcast-analysis-orchestrator`（mode=analyze）直接调度，或被 `goalcast-compare`（mode=compare）作为 sub-agent 调用
 
 ## 触发条件
 
 以下任意情况激活此 skill：
 - 用户说"用 v2.5 分析 [比赛]"
 - 用户说"v2.5 方法分析 [比赛]"
+- 被 `goalcast-analysis-orchestrator` 在 `mode=analyze` 下按场次调度
 - 被 `goalcast-compare` 作为 sub-agent 调用（比赛信息通过 context 传入）
 
 ## 核心约束
@@ -35,10 +36,9 @@ description: Use this skill when the user wants a single-match Goalcast football
 
 ### Step 1：定位比赛
 
-**注**：通过 `goalcast_get_todays_matches` 获取比赛 ID，无需直接调用 provider 工具。
+**注**：通过 `goalcast_footystats_get_todays_matches` 获取比赛 ID，无需直接调用 provider 工具。
 
-调用 `goalcast_get_todays_matches`：
-- 参数 `data_provider`：由调用方传入（如 "sportmonks" / "footystats"）
+调用 `goalcast_footystats_get_todays_matches`：
 - 参数 `date`：用户指定日期（YYYY-MM-DD），默认今天
 - 参数 `league_filter`：从用户意图提取，如 "Premier League"
 
@@ -51,40 +51,34 @@ description: Use this skill when the user wants a single-match Goalcast football
 如未找到：回复"未找到符合条件的比赛"，停止。
 
 **被 goalcast-compare 作为子 agent 调用时**：
-接收参数包含 `home_team`, `away_team`, `competition`, `date`, `data_provider`, `model`, `match_type`。
-此时跳过用户交互，直接以队名在 `goalcast_get_todays_matches` 结果中定位比赛。
+接收参数包含 `fixture_id`, `home_team`, `away_team`, `league`, `match_date`, `model_version`, `data_source`, `match_type`。
+调用方在 compare 层做字段映射：`league -> competition`，`match_date -> date`，`model_version -> model`。
+此时跳过用户交互，直接以队名在 `goalcast_footystats_get_todays_matches` 结果中定位比赛。
 
 ### Step 2：数据采集（统一接口）
 
-调用 `goalcast_resolve_match` 工具：
+调用 `goalcast_footystats_resolve_match` 工具：
 
 ```
-goalcast_resolve_match(
+goalcast_footystats_resolve_match(
     match_id=<match_id>,
-    fixture_id=<fixture_id>,      ← Sportmonks provider 时传入
     home_team=<home_team>,
     home_team_id=<home_team_id>,
     away_team=<away_team>,
     away_team_id=<away_team_id>,
     season_id=<season_id>,
     league=<competition>,
-    data_provider=<data_provider>,  ← 必填，来自 Step 1 参数
     match_date=<date>
 )
 ```
 
-**该工具自动处理**：数据源选择、resolver 路由、缓存、质量评分。
-
-**Sportmonks provider 新增字段**（v3.0 分析层可使用）：
-- `ctx.lineups` → L6 贝叶斯调整启用条件
-- `ctx.odds_movement` → L3 市场行为权重提升至 20%
-- `ctx.head_to_head` → 交锋记录参考
+**该工具自动处理**：FootyStats 主数据整合、Understat xG 补充、缓存与质量评分。
 
 **子 agent 静默规则**：收到 `match_type` 参数时，零层检查直接采用该值，不询问用户。
 
 ### Step 3：零层数据检查
 
-使用 `goalcast_resolve_match` 返回的 `MatchContext` 进行数据质量评估：
+使用 `goalcast_footystats_resolve_match` 返回的 `MatchContext` 进行数据质量评估：
 
 | 数据项 | 检查方式 | 降级处理 |
 |--------|----------|----------|

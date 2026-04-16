@@ -152,7 +152,7 @@ class SportmonksMatchData:
     """
     V4.0 专用数据容器。
 
-    由 goalcast_sm_fetch MCP 工具填充，直连 SportmonksResolver，
+    由 `goalcast_sportmonks_get_match` MCP 工具填充，直连 SportmonksResolver，
     完全绕过 DataFusion 和 MatchContext 归一化层。
     所有 Sportmonks 专有字段（亚盘、预测、赔率时序）原生保留，不被截断。
     """

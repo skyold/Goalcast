@@ -44,7 +44,7 @@ class DataFusion:
     """
     将多个 provider 的数据融合为单个 MatchContext。
 
-    使用示例（由 goalcast_resolve_match MCP 工具调用）：
+    使用示例（由 goalcast_footystats_resolve_match MCP 工具调用）：
         fusion = DataFusion(
             data_provider="footystats",
             footystats=fs,

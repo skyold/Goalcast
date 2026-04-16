@@ -6,20 +6,21 @@ Goalcast 是一个基于 Python 的足球赛事数据聚合与量化分析工具
 
 项目采用了清晰的分层架构（Layered Architecture）和“异步优先 (Async-first)”的设计理念，主要分为以下几个层次：
 
-- **Provider 接入层**：负责与外部数据源（FootyStats, Sportmonks, Understat）进行底层 HTTP 交互，统一处理请求超时、重试和并发速率限制。
-- **数据策略与融合层**：作为系统的核心数据引擎，负责将多个异构数据源的数据进行并行拉取、降级兜底和结构化映射，最终向上层输出统一的数据契约。
-- **量化分析层**：纯函数式的确定性数学模型引擎，不依赖大语言模型的“心算”，直接进行泊松分布、预期价值 (EV) 计算和置信度评分。
-- **MCP Server 层**：使用 `FastMCP` 将底层的数据接口和分析模型包装为 AI 可直接调用的标准化 Tool，供外部集成。
+- **Provider 接入层**：负责与外部数据源（FootyStats, Sportmonks, Understat）进行底层 HTTP 交互。
+- **生数据缓存层 (Raw Data Cache)**：由 `prewarm_cache.py` 驱动，每日定时拉取原始 JSON 并双写至文件系统 (`data/cache/`) 和 SQLite 数据库。
+- **轻量级读取与专属分析层**：取代了旧有的强统一 `DataFusion`。使用 `CacheReader` 直接读取缓存，并挂载 `sportmonks-analyst-v1` 等专属 Skill 直接解析原始 JSON 结构。
+- **量化分析层**：纯函数式的确定性数学模型引擎。
+- **MCP Server 层**：将底层功能包装为 AI 可直接调用的标准化 Tool。
 
 ---
 
 ## 2. 主要模块职责
 
-### 2.1 数据策略与融合层 (`data_strategy/`)
-这是代码库中最复杂且最重要的模块，它解决了异构数据源（API）的数据拼装问题。
-- **[fusion.py](file:///Users/zhengningdai/workspace/skyold/Goalcast/data_strategy/fusion.py)**: 包含核心的数据融合引擎类，负责并行拉取和降级兜底。
-- **[models.py](file:///Users/zhengningdai/workspace/skyold/Goalcast/data_strategy/models.py)**: 定义了数据模型契约，明确声明所有可用数据及缺失项。
-- **[resolvers/](file:///Users/zhengningdai/workspace/skyold/Goalcast/data_strategy/resolvers/)**: 包含对具体 Provider 原始响应进行解析的解析器，如 `FootyStatsResolver` 和 `SportmonksResolver`。
+### 2.1 生数据缓存与轻量级读取 (`data/cache/` & `utils/cache_reader.py`)
+为了充分利用各数据源的独有深度数据，系统已从“强统一抽象”重构为“生数据缓存 + 专属分析技能”模式。
+- **[prewarm_cache.py](file:///Users/zhengningdai/workspace/skyold/Goalcast/scripts/prewarm_cache.py)**: 核心预热引擎，支持 JSON 与 SQLite 双写。
+- **[cache_reader.py](file:///Users/zhengningdai/workspace/skyold/Goalcast/utils/cache_reader.py)**: 极简读取接口，直接返回原始字典列表。
+- **专属技能 (`skills/`)**: 包含 `sportmonks-analyst-v1` 等，指导 LLM 如何解析特定 Provider 的 JSON。
 
 ### 2.2 量化分析层 (`analytics/`)
 该模块包含比赛预测的核心算法，提供纯粹的数学计算支持。
@@ -70,7 +71,7 @@ Goalcast 是一个基于 Python 的足球赛事数据聚合与量化分析工具
 - **方法**: `_request()` - 封装了带有重试机制的异步 `httpx.AsyncClient` 请求，并自动处理 `429 Rate Limited` 的退避逻辑。
 
 ### 3.6 MCP 核心工具
-- **函数**: `goalcast_resolve_match` ([mcp_server/server.py](file:///Users/zhengningdai/workspace/skyold/Goalcast/mcp_server/server.py))
+- **函数**: `goalcast_footystats_resolve_match` ([footystats.py](file:///Users/zhengningdai/workspace/skyold/Goalcast/mcp_server/tools/footystats.py))
 - **说明**: 封装了 `DataFusion` 逻辑，使得 AI 只需要一次调用即可获取完整且经过清洗的单场比赛数据包。
 
 ### 3.7 多 Agent 工作流核心对象
@@ -136,7 +137,7 @@ docker-compose up -d
 ### 5.4 与 AI 客户端集成 (MCP)
 若要将 Goalcast 作为 AI（如 Claude Desktop 或 Cursor）的工具集成：
 1. 复制 MCP 配置模板：`cp mcporter.json.example mcporter.json`。
-2. 将此 Server 的路径（或 Docker SSE 端点）配置到 AI 的 MCP Config 中，随后 AI 便能调用诸如 `goalcast_resolve_match`、`footystats_get_todays_matches` 以及 `goalcast_calculate_poisson` 等海量工具。
+2. 将此 Server 的路径（或 Docker SSE 端点）配置到 AI 的 MCP Config 中，随后 AI 便能调用诸如 `goalcast_footystats_resolve_match`、`goalcast_footystats_get_todays_matches` 以及 `goalcast_calculate_poisson` 等工具。
 
 ### 5.5 多 Agent 定时运行（实验性）
 当前 `agents/` 层提供了可测试的骨架与定时调度入口，适合用作“批处理分析管线”的基础设施。注意：`agents/scheduler.py` 内的 `scheduled_task()` 目前为占位实现，后续可在其中实例化 `Coordinator` 并串起 `DataGatherer → Analyst → Supervisor → Reviewer`。

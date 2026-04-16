@@ -2,7 +2,7 @@
 internal.py — Goalcast MCP Server 内部实现层
 
 包含所有 provider 包装函数、helper 工具函数和内部逻辑。
-MCP 接口见 server.py。
+MCP 接口入口见 server.py，具体工具按数据源/能力拆分在 tools/ 目录下。
 """
 
 import asyncio
@@ -30,7 +30,7 @@ from datasource.datafusion.fusion import DataFusion
 # from datasource.datafusion.resolvers.sportmonks_resolver import SportmonksResolver
 from datasource.sportmonks.models import SportmonksMatchData
 
-# ── 联赛关键词映射（供 goalcast_sm_get_fixtures 使用）──────────────────────────
+# ── 联赛关键词映射（供 Sportmonks v4 赛程工具使用）──────────────────────────
 _SM_LEAGUE_KEYWORDS: Dict[str, List[str]] = {
     "Premier League":  ["premier league"],
     "Championship":    ["championship"],
@@ -139,8 +139,8 @@ async def handle_api_call(provider_name: str, coro):
         }
 
 # --- FootyStats Tools ---
-# 内部函数：不暴露为 MCP tool，由 goalcast_resolve_match 通过 DataFusion 内部调用。
-# V4.0 路径不使用这些函数；v2.5/v3.0 通过 DataFusion 调用。
+# 内部函数：不暴露为 MCP tool，由 FootyStats/DataFusion 工具通过内部编排调用。
+# Sportmonks 路径不使用这些函数。
 
 async def footystats_get_league_list(chosen_leagues_only: bool = False, country: Optional[int] = None) -> Any:
     """Get list of available leagues from FootyStats.
@@ -922,13 +922,13 @@ async def goalcast_prefetch_today(
     date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    预热今日/指定日期比赛的数据缓存。
+    预热 FootyStats/DataFusion 路径的今日/指定日期比赛缓存。
 
-    适合在批量分析前调用：并发拉取所有比赛的原始数据，
-    写入 data/cache/，后续 goalcast_resolve_match 调用均为缓存命中。
+    Sportmonks 路径已有独立的 `goalcast_sportmonks_prefetch*` 工具；
+    此 helper 仅服务于以 FootyStats 为核心的数据编排链路。
 
     Args:
-        data_provider: "sportmonks" | "footystats"
+        data_provider: 仅支持 "footystats"
         leagues:       联赛名列表。为 None 时读取 config/watchlist.yaml。
         date:          YYYY-MM-DD，默认今天
 
@@ -936,6 +936,13 @@ async def goalcast_prefetch_today(
         { matches_found, matches_cached, provider, date, leagues, match_list }
     """
     target_date = date or datetime.date.today().isoformat()
+
+    if data_provider != "footystats":
+        return {
+            "error": "UNSUPPORTED_PROVIDER",
+            "message": "goalcast_prefetch_today 仅用于 FootyStats/DataFusion 路径。",
+            "provider": data_provider,
+        }
 
     # 读取 watchlist（未指定 leagues 时使用）
     if leagues is None:
@@ -951,11 +958,12 @@ async def goalcast_prefetch_today(
     all_matches: List[Dict[str, Any]] = []
     for league in (leagues or [None]):
         try:
-            matches = await goalcast_get_todays_matches(
-                data_provider=data_provider,
+            raw_matches = await footystats_get_todays_matches(
                 date=target_date,
+                timezone=None,
                 league_filter=league,
             )
+            matches = _normalize_footystats_fixtures(raw_matches, league)
             all_matches.extend(m for m in matches if "error" not in m)
         except Exception as exc:
             logger.warning(f"[prefetch] Failed to list {league}: {exc}")
@@ -963,17 +971,21 @@ async def goalcast_prefetch_today(
     # 并发预热每场比赛
     async def _prefetch_one(match: Dict[str, Any]) -> bool:
         try:
-            await goalcast_resolve_match(
-                match_id=match["match_id"],
-                fixture_id=match.get("fixture_id") or match["match_id"],
+            fusion = DataFusion(
+                footystats=get_footystats(),
+                understat=get_understat(),
+            )
+            await fusion.build(
+                fixture_id=str(match["match_id"]),
+                match_id=str(match["match_id"]),
                 home_team=match["home_team"],
-                home_team_id=match["home_team_id"],
+                home_team_id=str(match["home_team_id"]),
                 away_team=match["away_team"],
-                away_team_id=match["away_team_id"],
-                season_id=match["season_id"],
+                away_team_id=str(match["away_team_id"]),
+                season_id=str(match["season_id"]),
                 league=match["competition"],
-                data_provider=data_provider,
                 match_date=target_date,
+                season=None,
             )
             return True
         except Exception as exc:
@@ -1009,5 +1021,4 @@ def _sportmonks_available() -> bool:
     """检查 Sportmonks API key 是否已配置。"""
     from config.settings import settings
     return bool(getattr(settings, "SPORTMONKS_API_KEY", ""))
-
 

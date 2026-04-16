@@ -1,20 +1,21 @@
 ---
 name: goalcast-analyzer-v40
-description: Use this skill when the user wants a single-match Goalcast football analysis with the v4.0 nine-layer model, or when goalcast-daily dispatches a match for analysis.
+description: Use this skill when the user wants a single-match Goalcast football analysis with the v4.0 nine-layer model, or when goalcast-analysis-orchestrator dispatches a match for analysis.
 ---
 
 # Goalcast Analyzer v4.0
 
 版本：v4.0 | 框架：九层量化分析模型 + 零层强制检查
 数据层：**永久绑定 Sportmonks**（直连 SportmonksResolver，跳过 DataFusion）
-适用：独立调用 或 由 `goalcast-daily` 按场次调度
+适用：独立调用，或由 `goalcast-analysis-orchestrator`（mode=analyze）按场次调度，或被 `goalcast-compare`（mode=compare）作为 sub-agent 调用
 
 ## 触发条件
 
 以下任意情况激活此 skill：
 - 用户说"用 v4.0 分析 [比赛]"
 - 用户未指定版本的单方法分析（默认使用 v4.0）
-- 被 `goalcast-daily` 按场次调度（接收完整参数，跳过 Step 1）
+- 被 `goalcast-analysis-orchestrator` 在 `mode=analyze` 下按场次调度（接收完整参数，跳过 Step 1）
+- 被 `goalcast-compare` 在 `mode=compare` 下作为子分析器调度
 
 ## 核心约束（绝对禁止违反）
 
@@ -23,13 +24,14 @@ description: Use this skill when the user wants a single-match Goalcast football
 3. **置信度上限 90** - 禁止输出超过 90 的置信度
 4. **投注建议仅在 EV_adj > 0.05 时输出** - 否则 `bet_rating="不推荐"`
 5. **禁止跳过零层数据检查**
-6. **禁止直接调用任何 sportmonks_get_* 工具** - 数据获取统一通过 `goalcast_sm_fetch`
+6. **禁止直接调用任何 sportmonks_get_* 工具** - v4 数据获取统一通过 `goalcast_sportmonks_get_match`
 
 ## 可用 MCP 工具（仅以下 8 个，禁止调用其他工具）
 
 | 工具 | 用途 |
 |------|------|
-| `goalcast_sm_fetch` | Step 2 数据获取（唯一数据入口） |
+| `goalcast_sportmonks_get_matches` | Step 1 赛程定位（唯一列表入口） |
+| `goalcast_sportmonks_get_match` | Step 2 数据获取（唯一单场入口） |
 | `goalcast_calculate_poisson` | L5 Dixon-Coles 分布 |
 | `goalcast_calculate_ah_prob` | Layer AH 亚盘概率 |
 | `goalcast_calculate_ev` | L8 EV 计算 |
@@ -41,35 +43,30 @@ description: Use this skill when the user wants a single-match Goalcast football
 
 ### Step 1：定位比赛
 
-**被 goalcast-daily 调度时**：直接接收以下参数，跳过 Step 1 所有操作：
+**被 goalcast-analysis-orchestrator 调度时**：直接接收以下参数，跳过 Step 1 所有操作：
 ```
 fixture_id, home_team, home_team_id, away_team, away_team_id,
 season_id, league, match_date, kickoff_time, match_type
 ```
 
 **独立调用时**：
-- 优先调用 `goalcast_sportmonks_get_todays_matches(leagues=[<联赛名>])`
-- 分析非今日比赛时，调用 `goalcast_sportmonks_get_fixtures(date=<日期>, leagues=[<联赛名>])`
+- 今日比赛优先调用 `goalcast_sportmonks_get_matches(leagues=[<联赛名>])`
+- 分析非今日比赛时，调用 `goalcast_sportmonks_get_matches(date=<日期>, leagues=[<联赛名>])`
 - 按队名模糊匹配提取目标比赛的 `fixture_id / home_team_id / away_team_id / season_id`
 - 未找到时：回复"未找到符合条件的比赛"，停止
 
 ### Step 2：数据采集（V4.0 唯一数据入口）
 
-优先调用 `goalcast_sportmonks_get_match`：
+调用 `goalcast_sportmonks_get_match`：
 
 ```
 goalcast_sportmonks_get_match(
     fixture_id    = <fixture_id>,
-    date          = <match_date>,
-    refresh_if_stale = True,
+    match_date    = <match_date>,  # 可选；不确定可省略
 )
 ```
 
-兼容说明：
-- 旧 `goalcast_sm_fetch(...)` 仍可用，并已转调新 Sportmonks 数据层
-- 新调用优先使用 `goalcast_sportmonks_get_match(...)`
-
-返回 Sportmonks 数据字典；新旧入口都应满足以下字段读取规则：
+返回 SportmonksMatchData 字典，字段读取规则如下：
 
 | 分析层字段 | SportmonksMatchData 路径 |
 |-----------|------------------------|
@@ -182,7 +179,7 @@ base_xg_away = xG_proxy_away
 5. 联赛均值 → base_xg = 联赛均值（最低，置信度 -8）
 ```
 
-**注意**：xG 数据源的选择由 `goalcast_sm_fetch`（SportmonksResolver 层）负责，Skill 不直接调用任何 provider 工具。
+**注意**：xG 数据源的选择由 `goalcast_sportmonks_get_match`（SportmonksResolver 适配层）负责，Skill 不直接调用任何 provider 工具。
 Skill 只读取 `xg.source` 来了解数据来源，并据此调整置信度扣分。
 
 ### 第二层：情境调整模型（权重 20%）

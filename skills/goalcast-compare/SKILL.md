@@ -1,111 +1,143 @@
 ---
 name: goalcast-compare
-description: Use this skill to analyze a football match with one or more (data_provider × model) combinations, or to compare results across multiple combinations. Accepts any combination of sportmonks/footystats × v2.5/v3.0.
+description: Use this skill as the comparison engine for one match across multiple (model_version, data_source) routes. It is usually called by goalcast-analysis-orchestrator after fixture routing.
 ---
 
-# Goalcast Compare — 统一分析调度器
+# Goalcast Compare — 对比分析引擎
 
-版本：2.0 | 职责：解析组合列表 → 并行调度子 agent → 输出对比报告
+版本：3.0 | 职责：接收单场上下文 → 解析对比组合 → 调度 analyzer skills → 输出差异报告
 
 ## 重要约束
 
-**本 skill 不包含任何分析逻辑。** 分析由子 agent 完成。
-本 skill 只负责：解析请求 → 批量调度 → 收集结果 → 输出报告。
+1. **本 skill 不做具体分析计算。** 分析由 analyzer skills 完成。
+2. **本 skill 默认只做“单场多方案对比”**，不负责赛程批量拉取。
+3. **批量入口由 `goalcast-analysis-orchestrator` 负责**，compare 作为其子能力。
+4. **禁止生成非法组合**（如 `v4.0 + footystats`）并给出清晰报错。
+5. **不修改 MCP 入口函数**：仅做 analyzer 调度与结果汇总。
 
 ## 触发条件
 
-- 用户指定"用 sportmonks+v3.0 分析"→ 单组合，直接输出结果
-- 用户指定"分别用 sportmonks+v3.0 和 footystats+v3.0 分析"→ 多组合，输出对比
-- 用户未指定 provider → 默认 `sportmonks+v3.0`
-- 被 `goalcast-daily` 调用时，所有参数均由调用方传入
+- 用户要求“同一场比赛用多个模型/数据源对比”
+- 用户要求“基线方案 vs 备选方案”差异解释
+- 被 `goalcast-analysis-orchestrator` 调用并传入 `mode=compare`
 
 ## 执行步骤
 
-### Step 1：解析分析请求
+### Step 1：接收输入并标准化
 
-从用户输入或调用方参数中提取：
-
-```
-matches: [{home_team, away_team, competition, date}, ...]   ← 比赛列表
-combinations: [(data_provider, model), ...]                 ← 组合列表
-match_type: "A"  ← 默认 A，可由用户指定
-```
-
-**默认组合**：未指定时使用 `[("sportmonks", "v3.0")]`
-
-**合法的 data_provider 值**：`"sportmonks"` | `"footystats"`
-**合法的 model 值**：`"v2.5"` | `"v3.0"`
-
-### Step 2：批量规模检查
+优先接收 orchestrator 传入的单场参数：
 
 ```
-总子 agent 数 = len(matches) × len(combinations)
+fixture_id
+home_team, away_team
+home_team_id, away_team_id
+season_id, league
+match_date, kickoff_time
+match_type
+comparison_set: [{model_version, data_source}, ...]
 ```
 
-超过 10 个时：展示规模并等待用户确认后再继续。
-10 个以内：直接执行，不打扰用户。
+若独立调用且未传 `fixture_id`，允许按队名+日期定位单场后继续。
 
-### Step 3：并行启动所有子 agent
+### Step 2：构建对比组合（含默认）
 
-**每个子 agent 收到以下参数（纯文本，不含 provider ID）：**
+合法字段：
+- `model_version`: `v2.5` | `v3.0` | `v4.0`
+- `data_source`: `footystats` | `sportmonks`
 
+推荐映射（强约束）：
+- `v2.5` -> `footystats` -> `goalcast-analyzer-v25`
+- `v3.0` -> `footystats` -> `goalcast-analyzer-v30`
+- `v4.0` -> `sportmonks` -> `goalcast-analyzer-v40`
+
+默认 `comparison_set`（未指定时）：
 ```
-home_team:     "Arsenal"
-away_team:     "Chelsea"
-competition:   "Premier League"
-date:          "2026-04-12"
-data_provider: "sportmonks"          ← 每个 agent 独立
-model:         "v3.0"                ← 每个 agent 独立
-match_type:    "A"
+[
+  {"model_version":"v4.0","data_source":"sportmonks"},
+  {"model_version":"v3.0","data_source":"footystats"}
+]
 ```
 
-**子 agent 映射**：
-- model="v2.5" → 使用 goalcast-analyzer-v25 skill
-- model="v3.0" → 使用 goalcast-analyzer-v30 skill
+非法组合处理：
+- 若组合不在映射表中：标记该组合失败并写入原因
+- 其他合法组合继续执行，不因单个非法组合整体中断
 
-**并行启动所有子 agent，等待全部完成后继续。**
+### Step 3：调度 analyzer skills（有界并行）
 
-子 agent 内部流程（固定，不与用户交互）：
-1. `goalcast_get_todays_matches(data_provider=X, date, league_filter=competition)` → 定位比赛
-2. `goalcast_resolve_match(..., data_provider=X)` → 获取 MatchContext（极大概率缓存命中）
-3. 执行指定模型分析层
-4. 返回 `AnalysisResult` JSON
+每个组合都传入相同比赛参数，差异仅在 `model_version/data_source`。
 
-### Step 4：收集结果并输出
+调用参数（标准化）：
+```
+fixture_id
+home_team, home_team_id
+away_team, away_team_id
+season_id, league
+match_date, kickoff_time
+match_type
+model_version
+data_source
+```
 
-**单组合单场**：直接输出完整分析结果，无需对比表。
+字段映射规则（与 analyzer 文档对齐）：
+- `league` -> analyzer 内部 `competition`
+- `match_date` -> analyzer 内部 `date`
+- `model_version` -> analyzer 内部 `model`
 
-**多组合**（任意场数）：
+执行策略：
+- 并行度上限建议 2（避免上下文和工具争用）
+- 单组合失败继续其他组合
+- 保留每个组合的 `status / error / result`
+
+### Step 4：统一结果口径
+
+从各组合 `AnalysisResult` 提取统一字段：
+- `data_quality`
+- `probabilities.home_win/draw/away_win`
+- `decision.best_bet`
+- `decision.risk_adjusted_ev`
+- `decision.confidence`
+- `missing_data`
+
+如字段缺失，标记 `N/A`，禁止推断填充。
+
+### Step 5：输出对比报告
 
 ```markdown
-## [主队] vs [客队] — 多方案分析对比
-日期：YYYY-MM-DD | 联赛：[联赛名] | 比赛类型：A
+## [home_team] vs [away_team] — 路由对比
+日期：[match_date] | 联赛：[league] | 比赛类型：[match_type]
 
-### 结论对比
+### 组合概览
 
-| 维度 | sportmonks+v3.0 | footystats+v3.0 | 差异 |
-|------|----------------|----------------|------|
-| 数据质量 | 0.82 | 0.74 | — |
-| 已启用层 | L3完整+L6阵容 | L2近况 | — |
-| 主队胜率 | 52% | 49% | ±3% |
-| 平局概率 | 25% | 27% | ±2% |
-| 客队胜率 | 23% | 24% | ±1% |
-| 最佳投注 | 主胜 | 主胜 | ✓一致 |
-| EV（风险调整后）| +0.09 | +0.06 | ±0.03 |
-| 置信度 | 73 | 67 | ±6 |
+| 组合 | 状态 | 数据质量 | 最优投注 | EV_adj | 置信度 |
+|------|------|----------|----------|-------:|------:|
+| sportmonks+v4.0 | 成功 | 0.82 | 主胜 | +0.09 | 73 |
+| footystats+v3.0 | 成功 | 0.74 | 主胜 | +0.06 | 67 |
 
-### 各方案完整结果
+### 概率差异（百分点）
 
-[各方案 AnalysisResult JSON，按组合顺序排列]
+| 方向 | sportmonks+v4.0 | footystats+v3.0 | 差值 |
+|------|-----------------|-----------------|------|
+| 主胜 | 52% | 49% | +3 |
+| 平局 | 25% | 27% | -2 |
+| 客胜 | 23% | 24% | -1 |
+
+### 解释摘要
+- 一致结论：两方案都推荐主胜
+- 分歧来源：数据源差异导致 EV_adj 与置信度不同
+- 风险提示：若任一方案失败，明确列出失败原因并提示“该组合未参与结论投票”
 ```
 
-**单组合批量**：每场一个卡片，末尾附汇总表（高 EV 比赛优先）。
+## 与 orchestrator 的协作边界
 
-**多组合批量**：每场展示对比，末尾附全场汇总（各方案置信度 ≥ 60 的推荐汇总）。
+- `goalcast-analysis-orchestrator` 负责：
+  - 解析用户意图（单场/批量、普通/compare）
+  - 赛程获取与场次选择
+  - 在 `mode=compare` 时逐场调用 `goalcast-compare`
+- `goalcast-compare` 负责：
+  - 单场的多组合执行与差异报告
 
-### 结果失败处理
+## 失败处理
 
-某子 agent 失败时：
-- 在报告中注明 `[组合名] 分析失败`
-- 展示可用结果
-- 不重试，不估算缺失数据
+- 组合级失败：标记失败并继续其他组合
+- 全部失败：返回失败清单并停止，禁止输出投注建议
+- 工具超时：记录超时，不自动重试超过 1 次

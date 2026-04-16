@@ -129,6 +129,36 @@ async def test_get_todays_matches_delegates_to_get_fixtures():
 
 
 @pytest.mark.asyncio
+async def test_get_matches_defaults_to_today_and_auto_warm():
+    service = SportmonksDataService(store=object(), collector=object())
+    expected = [
+        SportmonksFixtureSummary(
+            fixture_id=19374628,
+            match_date="2026-04-15",
+            kickoff_time="2026-04-15T19:00:00Z",
+            league_id=8,
+            league_name="Premier League",
+            season_id=23614,
+            home_team_id=1,
+            home_team_name="Arsenal",
+            away_team_id=2,
+            away_team_name="Chelsea",
+            cache_status="fresh",
+            last_updated_at="2026-04-15T10:00:00Z",
+        )
+    ]
+    service.get_fixtures = AsyncMock(return_value=expected)
+
+    result = await service.get_matches(leagues=["Premier League"])
+
+    assert result == expected
+    service.get_fixtures.assert_awaited_once()
+    assert service.get_fixtures.await_args.kwargs["warm_if_missing"] is True
+    assert service.get_fixtures.await_args.kwargs["leagues"] == ["Premier League"]
+    assert service.get_fixtures.await_args.kwargs["date"] is not None
+
+
+@pytest.mark.asyncio
 async def test_get_match_reads_existing_snapshot_from_store():
     store = MagicMock()
     store.read_match.return_value = {
@@ -165,6 +195,53 @@ async def test_get_match_reads_existing_snapshot_from_store():
     assert snapshot.fixture_id == 19374628
     assert snapshot.cache_status == "fresh"
     store.read_match.assert_called_once_with(19374628, "2026-04-15")
+
+
+@pytest.mark.asyncio
+async def test_get_match_for_analysis_prefetches_on_missing_snapshot_then_returns_data():
+    snapshot_payload = {
+        "fixture_id": 19374628,
+        "match_date": "2026-04-15",
+        "kickoff_time": "2026-04-15T19:00:00Z",
+        "league": "Premier League",
+        "season_id": 23614,
+        "home_team": "Arsenal",
+        "away_team": "Chelsea",
+        "home_team_id": 1,
+        "away_team_id": 2,
+        "xg": {"home_xg_for": 1.8},
+        "standings": None,
+        "odds": None,
+        "asian_handicap": None,
+        "odds_movement": None,
+        "lineups": None,
+        "h2h": None,
+        "predictions": None,
+        "available_layers": ["xg"],
+        "missing_layers": [],
+        "cache_status": "fresh",
+        "overall_quality": 0.72,
+        "warmed_at": "2026-04-15T10:00:00Z",
+        "updated_at": "2026-04-15T10:15:00Z",
+        "expires_at": "2026-04-15T12:15:00Z",
+        "source_versions": {"sportmonks": "v3"},
+    }
+    store = MagicMock()
+    store.read_match.side_effect = [None, snapshot_payload]
+    service = SportmonksDataService(store=store, collector=object())
+    service.prefetch = AsyncMock()
+
+    result = await service.get_match_for_analysis(
+        fixture_id=19374628,
+        match_date="2026-04-15",
+    )
+
+    assert result["fixture_id"] == 19374628
+    service.prefetch.assert_awaited_once_with(
+        date="2026-04-15",
+        leagues=None,
+        refresh_stale=False,
+    )
 
 
 @pytest.mark.asyncio

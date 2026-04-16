@@ -1291,7 +1291,11 @@ def _extract_fixture_expected_entries(fixture_raw: Any) -> list[dict[str, Any]]:
     data = fixture_raw.get("data")
     if not isinstance(data, dict):
         return []
-    entries = data.get("expected", [])
+    entries = data.get("xgfixture", [])
+    if not entries:
+        entries = data.get("xGFixture", [])
+    if not entries:
+        entries = data.get("expected", [])
     if not isinstance(entries, list):
         return []
     return [entry for entry in entries if isinstance(entry, dict)]
