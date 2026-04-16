@@ -61,6 +61,7 @@ comparison_set: [{model_version, data_source}, ...]
 非法组合处理：
 - 若组合不在映射表中：标记该组合失败并写入原因
 - 其他合法组合继续执行，不因单个非法组合整体中断
+- 非法组合的标准错误码：`unsupported_route`
 
 ### Step 3：调度 analyzer skills（有界并行）
 
@@ -87,11 +88,35 @@ data_source
 - 并行度上限建议 2（避免上下文和工具争用）
 - 单组合失败继续其他组合
 - 保留每个组合的 `status / error / result`
+- 标准状态值：
+  - `success`
+  - `failed`
+- 标准错误码优先使用：
+  - `unsupported_route`
+  - `fixture_not_found_in_route`
+  - `route_unavailable`
+  - `analyzer_unavailable`
+  - `tool_timeout`
+
+当某组合对应路由无法定位到目标比赛时：
+- 标记该组合 `status=failed`
+- `error="fixture_not_found_in_route"`
+- 不自动切换到其他组合或其他路由替代该组合
+
+当某组合对应 MCP 工具或 analyzer 不可用时：
+- 标记该组合 `status=failed`
+- `error="route_unavailable"` 或 `error="analyzer_unavailable"`
+- 其他合法组合继续执行
 
 ### Step 4：统一结果口径
 
 从各组合 `AnalysisResult` 提取统一字段：
+- `route`
+- `status`
+- `error`
 - `data_quality`
+- `analysis_context.analysis_mode`
+- `analysis_context.mode_trigger`
 - `probabilities.home_win/draw/away_win`
 - `decision.best_bet`
 - `decision.risk_adjusted_ev`
@@ -99,6 +124,12 @@ data_source
 - `missing_data`
 
 如字段缺失，标记 `N/A`，禁止推断填充。
+- 若组合执行失败，则 `result` 字段保持空，并仅输出 `route / status / error`
+
+对 `goalcast-analyzer-v40` 的额外约束：
+- compare 只读取 analyzer 返回的 `analysis_context`
+- compare 不重判某场“本该是完整分析还是早盘分析”
+- 若 `sportmonks+v4.0` 返回 `early_market`，应在解释摘要中明确这是 analyzer 的内部模式判定结果
 
 ### Step 5：输出对比报告
 
@@ -113,6 +144,12 @@ data_source
 | sportmonks+v4.0 | 成功 | 0.82 | 主胜 | +0.09 | 73 |
 | footystats+v3.0 | 成功 | 0.74 | 主胜 | +0.06 | 67 |
 
+若组合失败，可展示为：
+
+| 组合 | 状态 | 错误码 | 说明 |
+|------|------|--------|------|
+| sportmonks+v4.0 | failed | fixture_not_found_in_route | 该比赛未在该路由中找到 |
+
 ### 概率差异（百分点）
 
 | 方向 | sportmonks+v4.0 | footystats+v3.0 | 差值 |
@@ -124,6 +161,7 @@ data_source
 ### 解释摘要
 - 一致结论：两方案都推荐主胜
 - 分歧来源：数据源差异导致 EV_adj 与置信度不同
+- 模式说明：若 `sportmonks+v4.0` 进入 `early_market`，需注明该场按早盘模式运行，EV 与置信度应按模式内语义理解
 - 风险提示：若任一方案失败，明确列出失败原因并提示“该组合未参与结论投票”
 ```
 
@@ -141,3 +179,7 @@ data_source
 - 组合级失败：标记失败并继续其他组合
 - 全部失败：返回失败清单并停止，禁止输出投注建议
 - 工具超时：记录超时，不自动重试超过 1 次
+- 缺赛失败：统一使用 `fixture_not_found_in_route`
+- 路由不可用：统一使用 `route_unavailable`
+- analyzer 不可用：统一使用 `analyzer_unavailable`
+- 失败组合不得被其他路由结果“顶替”，避免破坏对比语义
