@@ -627,9 +627,12 @@ class SportmonksProvider(BaseProvider):
         """获取特定联赛的预测准确度 (Predictability)"""
         return await self._request_raw(f"/predictions/probabilities/leagues/{league_id}", {"include": include} if include else None)
 
-    async def get_probabilities_by_fixture(self, fixture_id: int, include: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_probabilities_by_fixture(self, fixture_id: int, include: Optional[str] = None, page: int = 1) -> Optional[Dict[str, Any]]:
         """获取特定比赛的胜平负概率预测"""
-        return await self._request_raw(f"/predictions/probabilities/fixtures/{fixture_id}", {"include": include} if include else None)
+        params = {"page": page}
+        if include:
+            params["include"] = include
+        return await self._request_raw(f"/predictions/probabilities/fixtures/{fixture_id}", params)
 
     async def get_value_bets(self, page: int = 1, include: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """获取当前具有价值的投注项 (Value Bets)"""

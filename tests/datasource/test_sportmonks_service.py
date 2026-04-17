@@ -20,7 +20,7 @@ def mock_provider():
     }
     
     # Mock get_probabilities_by_fixture
-    provider.get_probabilities_by_fixture.return_value = {"data": {"home_win": 0.5}}
+    provider.get_probabilities_by_fixture.return_value = {"data": [{"type_id": 233, "predictions": {"home_win": 0.5}}]}
     
     # Mock get_prematch_odds_by_fixture
     provider.get_prematch_odds_by_fixture.return_value = {"data": {"home": 1.5}}
@@ -30,6 +30,9 @@ def mock_provider():
     
     # Mock get_standings_by_season
     provider.get_standings_by_season.return_value = {"data": [{"team_id": 10}]}
+    
+    # Mock _request_raw for XGAnalyzer
+    provider._request_raw.return_value = {"data": []}
     
     return provider
 
@@ -48,7 +51,7 @@ async def test_get_matches_no_leagues(mock_provider, mock_cache):
     
     assert len(matches) == 2
     assert matches[0]["id"] == 1
-    mock_provider.get_fixtures_by_date.assert_called_once_with("2026-04-15", include="participants;league;scores;season;venue")
+    mock_provider.get_fixtures_by_date.assert_called_once_with("2026-04-15", include="participants;league;scores;season;venue;predictions")
     mock_cache.write_json.assert_called_once()
 
 @pytest.mark.asyncio
@@ -66,14 +69,14 @@ async def test_get_match_for_analysis_cache_miss(mock_provider, mock_cache):
     match_data = await service.get_match_for_analysis(fixture_id=1)
     
     assert match_data["fixture"]["id"] == 1
-    assert match_data["predictions"]["home_win"] == 0.5
+    assert match_data["predictions_summary"]["1x2"]["home_win"] == 0.5
     assert match_data["odds"]["home"] == 1.5
     assert match_data["h2h"][0]["fixture_id"] == 99
     assert match_data["standings"][0]["team_id"] == 10
     
     # Ensure provider was called
     mock_provider.get_fixture_by_id.assert_called_once()
-    mock_provider.get_probabilities_by_fixture.assert_called_once()
+    mock_provider.get_probabilities_by_fixture.assert_called()
     mock_provider.get_head_to_head.assert_called_once_with(10, 20)
     mock_provider.get_standings_by_season.assert_called_once_with(100)
     mock_cache.write_json.assert_called_once()
