@@ -22,7 +22,7 @@
   //   include: 额外注册的内置工具（追加到 preset）
   //   exclude: 从 preset 中移除的内置工具
   // 两者冲突时 exclude 优先。
-  "builtin": {"include":["web_search","web_fetch","memory_search","memory_get","task_create","task_get","task_update","task_list","sessions_spawn","sessions_list","sessions_history","sessions_send","bash","process","cron","question","get_weather","get_time","get_location","listen_gmail_reply","unlisten_gmail"],"exclude":[]},
+  "builtin": {"include":["web_search","web_fetch","bash","process","cron","question","get_weather","get_time","get_location","listen_gmail_reply","unlisten_gmail","memory_search","memory_get","task_create","task_get","task_update","task_list","sessions_spawn","sessions_list","sessions_history","sessions_send"],"exclude":[]},
 
   // ─── MCP 工具 ─────────────────────────────────────────────────────────
   // 注册来自 MCP Server 的远程工具。

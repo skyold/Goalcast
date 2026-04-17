@@ -1,0 +1,14 @@
+{
+  "skills": [
+    {
+      "id": "goalcast-trade-executor",
+      "name": "goalcast-trade-executor",
+      "version": "",
+      "enabled": true,
+      "kind": "directory",
+      "entryName": "goalcast-trade-executor",
+      "description": "Execution logic for Trader. Reads analyst predictions, evaluates market odds, calculates Kelly criterion, and generates trade instructions.",
+      "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-TRADER/agent-core/skills/goalcast-trade-executor"
+    }
+  ]
+}

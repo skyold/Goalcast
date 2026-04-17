@@ -1,0 +1,14 @@
+{
+  "skills": [
+    {
+      "id": "goalcast-report-generator",
+      "name": "goalcast-report-generator",
+      "version": "",
+      "enabled": true,
+      "kind": "directory",
+      "entryName": "goalcast-report-generator",
+      "description": "Reporting logic for Reporter. Reads predictions and trades JSONs, synthesizes data, and formats an insightful Markdown report for users.",
+      "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-REPORTER/agent-core/skills/goalcast-report-generator"
+    }
+  ]
+}
