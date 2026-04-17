@@ -481,7 +481,9 @@ goalcast_calculate_confidence(
 - `full_analysis`：`confidence <= 90`
 - `early_market`：建议控制在 `<= 78`
 
-### Step 5：输出 `AnalysisResult`
+### Step 5：输出与落盘持久化 (AnalysisResult)
+
+**强制要求**：当本分析器被 Orchestrator 调度或作为批量任务运行时，生成的 JSON 结果**必须被写入本地文件系统**，路径格式为 `team/data/predictions/YYYY-MM-DD_<home>_<away>_v4.0.json`。绝不允许仅仅将 JSON 打印到终端。
 
 ```json
 {

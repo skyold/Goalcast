@@ -15,7 +15,11 @@ description: Use this skill as the unified analysis entrypoint. It routes by use
 4. **入口层只负责编排和调度**，分析细节由 analyzer skills 执行。
 5. **统一双模式**：`mode=analyze`（普通分析）与 `mode=compare`（对比分析）。
 6. **不修改 MCP 入口函数**：仅在 skill 层做参数映射、结果过滤、格式标准化。
-7. **极简上下文与防熔断**：在批量分析时，强制执行单场隔离与即时持久化，防止上下文超载和全盘崩溃。
+7. **批处理时的上下文与错误隔离**：
+   - **即刻落盘与遗忘**：多场分析时，每分析完一场，**必须立刻将其 JSON 结果持久化并清除详细数据**。只在对话中保留核心汇总信息（如：胜率/EV）。不要将几十场比赛的原始 JSON 全部囤积在对话历史中，否则会导致上下文窗口溢出或大模型“失忆”。
+   - **单场错误隔离**：若某场比赛由于 API 挂掉或数据缺失而报错，记录该场失败，**并强制进入下一场比赛的分析**，绝不允许整个分析任务被单场的异常打断。
+8. **透明诊断记录 (Diagnostic Logging)**：Orchestrator 在调度的每一个关键节点（获取赛程、派发 Analyst、派发 Trader、发生降级或熔断），必须向系统写入诊断日志，实现步步有痕，方便后续 Reporter 生成系统健康度报告。
+9. **新增 Reporter 洞察报告**：在所有并发分析和交易指令生成完毕后，调度 Reporter 角色将 JSON 转化为用户友好的赛事洞察报告。
 
 ## 路由规则（必须遵守）
 
@@ -226,27 +230,24 @@ comparison_set  # 可选；未给则由 compare 使用默认对比集
 - 失败原因统一写为 `fixture_not_found_in_route` 或 `route_unavailable`
 - 其他合法组合继续执行；仅成功组合参与结论汇总
 
-### Step 6：汇总输出
+### Step 6：汇总与 Reporter 洞察生成
 
-`mode=analyze` 输出批量汇总表，至少包含：
-- 比赛
-- 联赛
-- 请求路由（requested_route）
-- 实际路由（actual_route）
-- 是否触发降级（fallback_applied）
-- 降级原因（fallback_reason）
-- 实际模型（resolved_model_version）
-- 实际数据源（resolved_data_source）
-- 实际分析模式（如 `full_analysis` / `early_market`）
-- 最优投注
-- EV_adj
-- 置信度
-- 推荐等级
+在所有赛事的 Analyst 分析和 Trader 资金分配计算完毕后，**必须唤醒 Reporter 角色**进行最终的报告生成：
 
-仅对 `bet_rating != "不推荐"` 的场次展示投注方向与 EV_adj。
-若 analyzer 返回 `analysis_context.user_notice`，可在汇总中显示简化版本，帮助用户识别哪些场次按早盘模式运行。
+1. **唤醒 Reporter**：指示 Reporter 读取本次批处理生成的所有 `team/data/predictions/` 和 `team/data/trades/` 文件。
+2. **生成洞察报告**：Reporter 将接管输出，将机器数据转化为人类易读的《赛事洞察报告》，重点解析 `EV > 0` 且 Trader 决定下注的比赛，解释战术逻辑、赔率偏差和潜在风险。
+3. **生成系统诊断与健康度报告 (Diagnostic & Health Check)**：要求 Reporter 一并读取 `team/data/logs/` 中的 Orchestrator 执行日志，在报告末尾输出一段“系统运行诊断记录”（如：有多少比赛因为 API 失败被跳过，触发了几次路由降级），方便用户了解整个自动化流水线的运行状态。
+4. **展示形式**：
+   - 可以在对话框中直接输出 Reporter 生成的 Markdown 报告。
+   - 或者生成极简表格，并提供指向本地详细报告（如 `team/data/reports/YYYY-MM-DD_Insight.md`）的文件链接。
 
-`mode=compare` 输出逐场对比摘要 + 全场汇总（推荐差异、EV 差异、置信度差异）。
+## 诊断日志 (Diagnostic Logs) 的生成规则
+
+Orchestrator 作为主调度器，必须在执行批处理时维持一个**运行日志流 (Run Log)**。
+- 每次获取赛程后记录：`[Info] 获取到 X 场比赛，准备进入分析流水线。`
+- 遇到数据缺失或 API 熔断跳过单场比赛时记录：`[Warn] 比赛 A vs B 触发单场错误隔离，跳过分析。原因：XXX。`
+- 触发路由降级时记录：`[Warn] 首选路由不可用，触发降级从 sportmonks 到 footystats。`
+- **持久化要求**：所有日志必须被追加 (append) 写入到 `team/data/logs/orchestrator_YYYY-MM-DD.log` 文件中。
 
 ## 触发条件
 
