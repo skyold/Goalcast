@@ -40,7 +40,7 @@ description: Reporting logic for Reporter. Reads predictions and trades JSONs, s
 4. **资金指引**：明确说明 Trader 给出的具体仓位（占比及金额）。
 
 ### Step 3: 渲染 Markdown 报告 (Report Rendering)
-严格按照以下模板生成报告内容。
+严格按照以下模板生成报告内容。在生成比赛标题时，必须从 JSON 的 `match_info.data_source` 字段中提取数据源并明确标注。
 
 **报告模板结构**：
 ```markdown
@@ -53,16 +53,16 @@ description: Reporting logic for Reporter. Reads predictions and trades JSONs, s
 ## 🎯 核心交易指令 (Top Value Bets)
 *系统发现并执行的具有正期望值（+EV）的投注指令。*
 
-| 比赛 | 推荐方向 | 目标赔率 | 胜率偏差 | 建议仓位 | EV |
-|---|---|---|---|---|---|
-| A vs B | 客胜 | 3.50 | 模型35% vs 市场28% | 1.5% | +0.12 |
-| C vs D | 主胜 | 1.95 | 模型55% vs 市场51% | 2.0% | +0.08 |
+| 比赛 | 推荐方向 | 目标赔率 | 胜率偏差 | 建议仓位 | EV | 数据源 |
+|---|---|---|---|---|---|---|
+| A vs B | 客胜 | 3.50 | 模型35% vs 市场28% | 1.5% | +0.12 | Sportmonks |
+| C vs D | 主胜 | 1.95 | 模型55% vs 市场51% | 2.0% | +0.08 | FootyStats (降级) |
 
 ---
 
 ## 🔍 深度对局拆解 (Match Insights)
 
-### ⚔️ [主队 A] vs [客队 B]
+### ⚔️ [主队 A] vs [客队 B] `[Source: Sportmonks]`
 **交易方向**: 客胜 | **目标赔率**: 3.50 | **预期收益**: +0.12
 
 **💡 价值洼地分析**

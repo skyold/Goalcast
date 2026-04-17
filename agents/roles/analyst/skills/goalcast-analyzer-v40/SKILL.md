@@ -503,7 +503,8 @@ goalcast_calculate_confidence(
     "competition": "<ctx.match_info.league>",
     "match_type": "A|B|C|D",
     "data_quality": "<根据 ctx.overall_quality 确定>",
-    "missing_data": "<ctx.data_gaps>"
+    "missing_data": "<ctx.data_gaps>",
+    "data_source": "sportmonks"
   },
   "probabilities": {
     "home_win": "<X%>",

@@ -209,12 +209,14 @@ cmd_config() {
 
     if [ -z "$server_ip" ]; then
         # stdio 模式：无网络，server.py 与 Claude Code 同机直连
+        # Ensure path is properly escaped for JSON by converting backslashes to forward slashes (common issue in Git Bash on Windows)
+        local escaped_root="${PROJECT_ROOT//\\//}"
         cat > .mcp.json << EOF
 {
   "mcpServers": {
     "goalcast-local": {
       "type": "stdio",
-      "command": "$PROJECT_ROOT/scripts/goalcast.sh",
+      "command": "$escaped_root/scripts/goalcast.sh",
       "args": ["start"]
     }
   }

@@ -149,9 +149,10 @@ class Settings:
         if self.FOOTYSTATS_API_KEY:
             return
         user_config = Path.home() / ".config" / "football-datakit" / ".env"
-        print(
+        # Use safe encoding print to avoid UnicodeEncodeError on Windows
+        warning_msg = (
             "\n"
-            "⚠️  未检测到 FOOTYSTATS_API_KEY\n"
+            "[WARN] 未检测到 FOOTYSTATS_API_KEY\n"
             "\n"
             "请通过以下任意方式配置：\n"
             "\n"
@@ -167,6 +168,11 @@ class Settings:
             "\n"
             "获取 API Key：https://footystats.org/api\n"
         )
+        try:
+            print(warning_msg)
+        except UnicodeEncodeError:
+            # Fallback for strict charmap consoles on Windows
+            print(warning_msg.encode('utf-8').decode('ascii', 'replace'))
 
     def get_league_params(self, league: str) -> Dict:
         return self.LEAGUE_PARAMS.get(
