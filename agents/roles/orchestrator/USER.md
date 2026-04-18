@@ -23,4 +23,5 @@ The user has connected the following third-party services. You can use the corre
 
 - **X (Twitter)**: tokenlessman
 - **GitHub**: 885581@qq.com
+- **Alibaba.com**: sky***@gmail.com
 <!-- ACCIO_WORK:END_CONNECTED_ACCOUNTS -->

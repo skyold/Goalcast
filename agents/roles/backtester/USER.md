@@ -15,3 +15,13 @@ _Learn about the person you're helping. Update this as you go._
 ---
 
 The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
+
+<!-- ACCIO_WORK:BEGIN_CONNECTED_ACCOUNTS -->
+## Connected Accounts
+
+The user has connected the following third-party services. You can use the corresponding tools to access these services on behalf of the user.
+
+- **X (Twitter)**: tokenlessman
+- **GitHub**: 885581@qq.com
+- **Alibaba.com**: sky***@gmail.com
+<!-- ACCIO_WORK:END_CONNECTED_ACCOUNTS -->

@@ -1,14 +1,14 @@
 {
   "skills": [
     {
-      "id": "goalcast-compare",
-      "name": "goalcast-compare",
+      "id": "goalcast-analyzer-v30",
+      "name": "goalcast-analyzer-v30",
       "version": "",
       "enabled": true,
       "kind": "directory",
-      "entryName": "goalcast-compare",
-      "description": "Use this skill as the comparison engine for one match across multiple (model_version, data_source) routes. It is usually called by goalcast-analysis-orchestrator after fixture routing.",
-      "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-ANALYST/agent-core/skills/goalcast-compare"
+      "entryName": "goalcast-analyzer-v30",
+      "description": "Use this skill when the user wants a single-match Goalcast football analysis with the v3.0 eight-layer model, or when another skill needs the v3.0 analyzer as a sub-agent.",
+      "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-ANALYST/agent-core/skills/goalcast-analyzer-v30"
     },
     {
       "id": "goalcast-analyzer-v40",
@@ -21,14 +21,14 @@
       "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-ANALYST/agent-core/skills/goalcast-analyzer-v40"
     },
     {
-      "id": "goalcast-analyzer-v30",
-      "name": "goalcast-analyzer-v30",
+      "id": "goalcast-compare",
+      "name": "goalcast-compare",
       "version": "",
       "enabled": true,
       "kind": "directory",
-      "entryName": "goalcast-analyzer-v30",
-      "description": "Use this skill when the user wants a single-match Goalcast football analysis with the v3.0 eight-layer model, or when another skill needs the v3.0 analyzer as a sub-agent.",
-      "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-ANALYST/agent-core/skills/goalcast-analyzer-v30"
+      "entryName": "goalcast-compare",
+      "description": "Use this skill as the comparison engine for one match across multiple (model_version, data_source) routes. It is usually called by goalcast-analysis-orchestrator after fixture routing.",
+      "installPath": "/Users/zhengningdai/.accio/accounts/1751824771/agents/MID-GC-ANALYST/agent-core/skills/goalcast-compare"
     }
   ]
 }
