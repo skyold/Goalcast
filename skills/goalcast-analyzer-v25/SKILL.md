@@ -18,6 +18,11 @@ description: Use this skill when the user wants a single-match Goalcast football
 
 ## 核心约束
 
+### ⚠️ 绝对红线 (CRITICAL CONSTRAINTS)
+- **禁止自建脚本**：绝对禁止编写、生成或执行任何临时的 Python/Shell 脚本来获取数据或进行计算。
+- **禁止直调源码**：绝对禁止直接调用或运行项目底层的源代码文件。
+- **强制工具边界**：必须且只能通过 `run_mcp` 调用下文列出的可用 MCP 工具。
+
 1. **禁止编造数据** - 字段不存在时必须标注缺失，不得估算填充
 2. **禁止情感化语言** - 不得使用"状态火热"、"势如破竹"等表述
 3. **置信度上限 90** - 绝对禁止输出 >90 的置信度

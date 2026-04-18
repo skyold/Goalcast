@@ -19,6 +19,11 @@ description: Use this skill when the user wants a single-match Goalcast football
 
 ## 核心约束（绝对禁止违反）
 
+### ⚠️ 绝对红线 (CRITICAL CONSTRAINTS)
+- **禁止自建脚本**：绝对禁止编写、生成或执行任何临时的 Python/Shell 脚本来获取数据或进行计算。
+- **禁止直调源码**：绝对禁止直接调用或运行项目底层的源代码文件（如 `datasource` 或 `mcp_server` 里的代码）。
+- **强制工具边界**：必须且只能通过 `run_mcp` 调用下文列出的 8 个可用 MCP 工具。
+
 1. **禁止编造统计数字** - 数据不可得时，必须显式跳过或切模式，不能估算填充未提供的临场字段。
 2. **禁止情感化语言** - 禁止"状态火热"/"势如破竹"等表述。
 3. **置信度上限 90** - `full_analysis` 最高不超过 90；`early_market` 建议上限 78。
@@ -77,7 +82,7 @@ goalcast_sportmonks_get_match(
 | xG 来源 | `xg.source` |
 | 主队积分 | `home_standing.position / points / ...` |
 | 客队积分 | `away_standing.position / points / ...` |
-| 欧盘赔率 | `odds.home_win / draw / away_win` |
+| 欧盘赔率(参考) | `odds.home_win / draw / away_win` |
 | 亚盘让球线 | `asian_handicap.ah_line` |
 | 亚盘赔率 | `asian_handicap.ah_home_odds / ah_away_odds` |
 | 赔率时序 | `odds_movement` |
@@ -323,7 +328,7 @@ goalcast_calculate_poisson(
 - `score_matrix`
 - `rho`
 
-### Layer AH：亚盘扩展层（欧盘并列输出）
+### Layer AH：亚盘扩展层
 
 ⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算 AH 概率。**
 
@@ -379,16 +384,16 @@ goalcast_calculate_ev(model_probability=p_away_cover_pct, market_odds=ctx.asian_
 - `ctx.predictions` 缺失是早盘常态，不作为默认惩罚项
 - 若早盘已存在官方预测，可作为补充说明写入 `reasoning_summary`
 
-### 第八层：EV 与 Kelly 决策（欧盘 + 亚盘并列）
+### 第八层：EV 与 Kelly 决策（仅限亚盘）
 
-⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算 EV/Kelly。**
+⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算 EV/Kelly。由于我们总是在亚盘下注，必须只计算并输出亚盘的期望值。**
 
-#### 欧盘 EV
+#### 亚盘 EV
 
+若 `ctx.asian_handicap` 可用：
 ```
-goalcast_calculate_ev(model_probability=模型P(主胜), market_odds=odds_ft_1)
-goalcast_calculate_ev(model_probability=模型P(平),   market_odds=odds_ft_x)
-goalcast_calculate_ev(model_probability=模型P(客胜), market_odds=odds_ft_2)
+goalcast_calculate_ev(model_probability=p_home_cover_pct, market_odds=ctx.asian_handicap.ah_home_odds)
+goalcast_calculate_ev(model_probability=p_away_cover_pct, market_odds=ctx.asian_handicap.ah_away_odds)
 ```
 
 选取最高 EV 方向后调用 `goalcast_calculate_risk_adjusted_ev`：
@@ -397,7 +402,7 @@ goalcast_calculate_ev(model_probability=模型P(客胜), market_odds=odds_ft_2)
 
 ```
 goalcast_calculate_risk_adjusted_ev(
-    raw_ev = 最高EV,
+    raw_ev = 最高亚盘EV,
     lineup_uncertainty = False,
     market_low_confidence = ctx.odds_movement is None,
     data_quality = <根据 ctx.overall_quality 计算>
@@ -408,7 +413,7 @@ goalcast_calculate_risk_adjusted_ev(
 
 ```
 goalcast_calculate_risk_adjusted_ev(
-    raw_ev = 最高EV,
+    raw_ev = 最高亚盘EV,
     lineup_uncertainty = False,
     market_low_confidence = True,
     data_quality = <根据 ctx.overall_quality 计算>
@@ -417,13 +422,14 @@ goalcast_calculate_risk_adjusted_ev(
 
 说明：
 - `early_market` 的保守性来自模式本身与市场低可信度，不来自阵容缺失的重复惩罚
-- 若赔率不可用：`EV=0`、`EV_adj=0`、`bet_rating="不推荐"`
+- 若亚盘赔率不可用：`ah_ev_adj=0`、`bet_rating="不推荐"`
 
-#### 综合投注决策规则（欧盘 / 亚盘相同）
+#### 综合投注决策规则（仅输出亚盘决策）
 
-- `EV_adj > 0.10` 且 `confidence > 70` → 推荐
-- `EV_adj 0.05~0.10` 且 `confidence >= 60` → 小注
-- `EV_adj < 0.05` → 不推荐
+- **必须以亚盘 (Asian Handicap) 作为唯一推荐方向**，不再输出欧盘 (1x2) 的推荐。
+- `ah_ev_adj > 0.10` 且 `confidence > 70` → 推荐
+- `ah_ev_adj 0.05~0.10` 且 `confidence >= 60` → 小注
+- `ah_ev_adj < 0.05` 或 `asian_handicap.available == false` → 不推荐
 
 ### 第九层：置信度校准
 
@@ -525,9 +531,7 @@ goalcast_calculate_confidence(
     "signal_strength": "强 | 中 | 弱"
   },
   "decision": {
-    "ev": 0.0,
-    "risk_adjusted_ev": 0.0,
-    "best_bet": "<主胜 | 平 | 客胜 | 不推荐>",
+    "best_bet": "<亚盘主队覆盖 | 亚盘客队覆盖 | 不推荐>",
     "bet_rating": "推荐 | 小注 | 不推荐",
     "confidence": 0
   },
@@ -542,11 +546,9 @@ goalcast_calculate_confidence(
     "p_push_pct": 0.0,
     "ah_ev_home": 0.0,
     "ah_ev_away": 0.0,
-    "ah_ev_adj": 0.0,
-    "ah_best_side": "主队覆盖 | 客队覆盖 | 不推荐",
-    "ah_bet_rating": "推荐 | 小注 | 不推荐"
+    "ah_ev_adj": 0.0
   },
-  "reasoning_summary": "<第一段必须说明当前模式；若为 early_market，必须明确告知用户当前使用早盘分析；其后包含 L4 跳过原因、L6/L7/Layer AH 状态、xG 数据来源、市场信号、欧盘 EV_adj 和亚盘 EV_adj 计算、置信度说明>"
+  "reasoning_summary": "<第一段必须说明当前模式；若为 early_market，必须明确告知用户当前使用早盘分析；其后包含 L4 跳过原因、L6/L7/Layer AH 状态、xG 数据来源、市场信号、亚盘 EV_adj 计算（不再提供欧盘 EV）、置信度说明>"
 }
 ```
 
@@ -568,9 +570,9 @@ goalcast_calculate_confidence(
 - [ ] 早盘模式下 `analysis_context.user_notice` 必填
 - [ ] `home_win% + draw% + away_win% = 100%`（±0.5%）
 - [ ] `confidence ∈ [30, 90]`
-- [ ] `ev ∈ [-1, +2]`
+- [ ] `asian_handicap.ah_ev_adj ∈ [-1, +2]`
 - [ ] `asian_handicap.p_home_cover_pct + p_away_cover_pct + p_push_pct ≈ 100%`（可用时，±0.5%）
 - [ ] `missing_data` 仅客观报告缺失，不替代模式判定
 - [ ] `xg_source` 字段存在（`sportmonks_direct`、`understat_direct`、`footystats_proxy` 或 `league_avg`）
-- [ ] `reasoning_summary` 提及 L4 跳过原因、L6/L7 状态、Layer AH 状态、xG 数据来源
+- [ ] `reasoning_summary` 提及 L4 跳过原因、L6/L7 状态、Layer AH 状态、xG 数据来源，以及必须只基于亚盘做推荐。
 - [ ] **所有计算（Dixon-Coles 泊松、AH 概率、EV、Kelly、置信度）均通过 MCP 工具调用**

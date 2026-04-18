@@ -9,6 +9,11 @@ description: Use this skill as the comparison engine for one match across multip
 
 ## 重要约束
 
+### ⚠️ 绝对红线 (CRITICAL CONSTRAINTS)
+- **禁止自建脚本**：绝对禁止编写、生成或执行任何临时的 Python/Shell 脚本来进行对比分析。
+- **禁止直调源码**：绝对禁止直接调用或运行项目底层的源代码文件。
+- **强制工具边界**：必须通过调用注册的 sub-agents (`goalcast-analyzer-v*`) 来获取分析数据，严禁自行绕过流程获取。
+
 1. **本 skill 不做具体分析计算。** 分析由 analyzer skills 完成。
 2. **本 skill 默认只做“单场多方案对比”**，不负责赛程批量拉取。
 3. **批量入口由 `goalcast-analysis-orchestrator` 负责**，compare 作为其子能力。
@@ -117,9 +122,9 @@ data_source
 - `data_quality`
 - `analysis_context.analysis_mode`
 - `analysis_context.mode_trigger`
-- `probabilities.home_win/draw/away_win`
-- `decision.best_bet`
-- `decision.risk_adjusted_ev`
+- `probabilities.home_win/draw/away_win` (或亚盘赢盘率)
+- `decision.best_bet` (v4.0 必须是亚盘推荐)
+- `decision.risk_adjusted_ev` (v4.0 取 `ah_ev_adj`)
 - `decision.confidence`
 - `missing_data`
 
@@ -141,8 +146,8 @@ data_source
 
 | 组合 | 状态 | 数据质量 | 最优投注 | EV_adj | 置信度 |
 |------|------|----------|----------|-------:|------:|
-| sportmonks+v4.0 | 成功 | 0.82 | 主胜 | +0.09 | 73 |
-| footystats+v3.0 | 成功 | 0.74 | 主胜 | +0.06 | 67 |
+| sportmonks+v4.0 | 成功 | 0.82 | 亚盘主队 | +0.09 | 73 |
+| footystats+v3.0 | 成功 | 0.74 | 主胜(欧盘) | +0.06 | 67 |
 
 若组合失败，可展示为：
 
@@ -151,12 +156,13 @@ data_source
 | sportmonks+v4.0 | failed | fixture_not_found_in_route | 该比赛未在该路由中找到 |
 
 ### 概率差异（百分点）
+*(注：若为 v4.0，展示亚盘赢盘率；若为 v3.0，展示欧盘胜率，由于口径不同，差值仅供参考)*
 
-| 方向 | sportmonks+v4.0 | footystats+v3.0 | 差值 |
+| 方向/口径 | sportmonks+v4.0 | footystats+v3.0 | 差值 |
 |------|-----------------|-----------------|------|
-| 主胜 | 52% | 49% | +3 |
-| 平局 | 25% | 27% | -2 |
-| 客胜 | 23% | 24% | -1 |
+| 主队(赢盘/胜) | 52% | 49% | +3 |
+| 客队(赢盘/胜) | 48% | 24% | N/A |
+| 平局 | N/A | 27% | N/A |
 
 ### 解释摘要
 - 一致结论：两方案都推荐主胜

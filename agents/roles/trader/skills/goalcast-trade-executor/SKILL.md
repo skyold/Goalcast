@@ -13,6 +13,7 @@ description: Execution logic for Trader. Reads analyst predictions, evaluates ma
 2. **价值投资 (Value Betting) 优先**：只有在预期收益 (EV) 大于 0 且满足最小阈值时，才允许执行交易。
 3. **资金管理铁律**：默认使用“四分之一凯利 (Quarter Kelly)”，单笔下注上限 (Max Stake) 严格控制在总资金的 5%。
 4. **断点续传**：如果找不到对应的预测文件或缺乏盘口数据，安全退出并标记为 `NO_BET`，绝不抛出阻断性异常。
+5. **只交易亚盘**：严格读取 `asian_handicap` 字段中的推荐方向与赔率，忽略 `probabilities` 中的欧盘（1x2）胜率。
 
 ## 触发条件与上下文传递
 
@@ -31,21 +32,20 @@ description: Execution logic for Trader. Reads analyst predictions, evaluates ma
 - 根据传入参数，定位并读取文件：`team/data/predictions/{match_date}_{home_team}_{away_team}_*.json`。
 - 如果找不到文件，立刻中止该场交易流程，返回：`Trader 跳过：未找到 Analyst 预测文件`。
 - 提取关键字段：
-  - `probabilities` (模型胜平负概率)
-  - `decision.best_bet` (推荐方向)
-  - `decision.ev` (预期收益)
-  - `market.market_probabilities` (博彩公司隐含概率，若有)
+  - `asian_handicap.p_home_cover_pct` / `p_away_cover_pct` (亚盘赢盘率)
+  - `decision.best_bet` (亚盘推荐方向)
+  - `asian_handicap.ah_ev_adj` (预期收益)
+  - `asian_handicap.ah_home_odds` / `ah_away_odds` (亚盘赔率)
 
 ### Step 2: 获取/确认目标赔率 (Best Odds)
-- 检查目标方向 (如 "主胜") 在市场上的最高赔率 (Decimal Odds)。
+- 检查目标方向 (如 "亚盘主队覆盖") 在市场上的亚盘赔率 (Decimal Odds)。
 - 来源优先级：
-  1. MCP 实时盘口工具（若存在 `goalcast_get_live_odds` 等工具，则调用拉取）。
-  2. 若无实时工具，使用 `predictions` 文件中 `market` 模块包含的赛前赔率数据。
-  3. 若完全无赔率数据，输出 `status: NO_BET`，中止交易。
+  1. 使用 `predictions` 文件中 `asian_handicap` 模块包含的赛前赔率数据。
+  2. 若完全无赔率数据或 `asian_handicap.available == false`，输出 `status: NO_BET`，中止交易。
 
 ### Step 3: 价值校验 (Value Check)
-- 验证模型胜率是否大于市场隐含胜率 (Implied Probability = 1 / 赔率)。
-- 若模型胜率 `p < 1 / odds` 或 `ev <= 0`：
+- 验证模型赢盘率是否大于市场隐含赢盘率 (Implied Probability = 1 / 赔率)。
+- 若模型赢盘率 `p < 1 / odds` 或 `ev <= 0`：
   - 强制判定为无价值。
   - 输出 `status: NO_BET`。
 
@@ -76,7 +76,8 @@ description: Execution logic for Trader. Reads analyst predictions, evaluates ma
     "away_team": "string"
   },
   "signal": {
-    "direction": "主胜 | 平 | 客胜",
+    "direction": "亚盘主队覆盖 | 亚盘客队覆盖",
+    "ah_line": 0.0,
     "model_probability": "X%",
     "analyst_ev": 0.0
   },
@@ -94,5 +95,5 @@ description: Execution logic for Trader. Reads analyst predictions, evaluates ma
 }
 ```
 
-- `reasoning` 字段应简洁说明为何下注或放弃（例：“发现价值洼地，模型胜率45%大于隐含胜率30%，执行 1.2% 仓位”）。
+- `reasoning` 字段应简洁说明为何下注或放弃（例：“发现亚盘价值洼地，模型赢盘率45%大于隐含赢盘率30%，执行 1.2% 仓位”）。
 - 成功写入后，通知 Orchestrator 交易执行完毕。

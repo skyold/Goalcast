@@ -18,6 +18,11 @@ description: Use this skill when the user wants a single-match Goalcast football
 
 ## 核心约束（绝对禁止违反）
 
+### ⚠️ 绝对红线 (CRITICAL CONSTRAINTS)
+- **禁止自建脚本**：绝对禁止编写、生成或执行任何临时的 Python/Shell 脚本来获取数据或进行计算。
+- **禁止直调源码**：绝对禁止直接调用或运行项目底层的源代码文件（如 `datasource` 或 `mcp_server` 里的代码）。
+- **强制工具边界**：必须且只能通过 `run_mcp` 调用下文列出的可用 MCP 工具。
+
 1. **禁止编造统计数字** - 数据不可得时，必须显式降权而非估算填充
 2. **禁止情感化语言** - 禁止"状态火热"/"势如破竹"等表述
 3. **置信度上限 90** - 禁止输出超过 90 的置信度
@@ -243,7 +248,7 @@ goalcast_calculate_poisson(
 
 ### 第七层：EV 与 Kelly 决策
 
-⚠️ **必须通过 MCP 工具调用，禁止 LLM 心算 EV/Kelly。**
+⚠️ **由于我们总是在亚盘下注，而 FootyStats 数据源当前不提供亚盘赔率，因此本层计算的欧盘 EV 仅作内部参考，最终的投注建议必须是“不推荐”。**
 
 对三个方向分别调用 `goalcast_calculate_ev`：
 ```
@@ -269,12 +274,8 @@ goalcast_calculate_risk_adjusted_ev(
 - 市场低可信度（预期触发）：× 0.90
 - `EV_adj = EV × 0.85 × 0.90`
 
-投注决策：
-- `EV_adj > 0.10` 且 `confidence > 70` → 推荐
-- `EV_adj 0.05~0.10` 且 `confidence ≥ 60` → 小注
-- `EV_adj < 0.05` → 不推荐
-
-如赔率不可用：`EV=0`，`EV_adj=0`，`bet_rating="不推荐"`。
+**投注决策（强制执行）**：
+- 因为缺失亚盘数据，无论欧盘 EV_adj 多高，`bet_rating` 必须为 `"不推荐"`，`best_bet` 必须为 `"N/A (仅限亚盘)"`。
 
 ### 第八层：置信度校准
 

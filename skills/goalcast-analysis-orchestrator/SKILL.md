@@ -9,13 +9,19 @@ description: Use this skill as the unified analysis entrypoint. It routes by use
 
 ## 设计原则
 
+### ⚠️ 绝对红线 (CRITICAL CONSTRAINTS - STRICTLY PROHIBITED)
+1. **禁止自建脚本**：在任何情况下，绝对禁止为了获取数据或执行分析而临时编写、生成或运行 Python/Shell 脚本文件。
+2. **禁止直调源码**：绝对禁止直接调用、读取或运行项目底层的源代码（如 `mcp_server/` 或 `datasource/` 目录下的 Python 文件）。
+3. **强制工具边界**：所有的数据获取与分析计算，**必须且只能**通过 `run_mcp` 调用本 Skill 明确列出的可用 MCP 工具来完成。
+
 1. **本 skill 不做具体分析计算**（不做泊松、EV、置信度计算）。
 2. **默认路径固定为 `v4.0 + sportmonks`**。
 3. **用户显式指定优先于默认**（尤其是 `data_source`）。
-4. **入口层只负责编排和调度**，分析细节由 analyzer skills 执行。
-5. **统一双模式**：`mode=analyze`（普通分析）与 `mode=compare`（对比分析）。
-6. **不修改 MCP 入口函数**：仅在 skill 层做参数映射、结果过滤、格式标准化。
-7. **批处理时的上下文与错误隔离**：
+4. **统一使用亚盘 (Asian Handicap)**：整个系统（Analyst, Trader, Reporter）的所有分析、决策和输出都必须且只能基于亚盘，绝不输出欧盘（1x2）推荐。
+5. **入口层只负责编排和调度**，分析细节由 analyzer skills 执行。
+6. **统一双模式**：`mode=analyze`（普通分析）与 `mode=compare`（对比分析）。
+7. **不修改 MCP 入口函数**：仅在 skill 层做参数映射、结果过滤、格式标准化。
+8. **批处理时的上下文与错误隔离**：
    - **即刻落盘与遗忘**：多场分析时，每分析完一场，**必须立刻将其 JSON 结果持久化并清除详细数据**。只在对话中保留核心汇总信息（如：胜率/EV）。不要将几十场比赛的原始 JSON 全部囤积在对话历史中，否则会导致上下文窗口溢出或大模型“失忆”。
    - **单场错误隔离**：若某场比赛由于 API 挂掉或数据缺失而报错，记录该场失败，**并强制进入下一场比赛的分析**，绝不允许整个分析任务被单场的异常打断。
 8. **透明诊断记录 (Diagnostic Logging)**：Orchestrator 在调度的每一个关键节点（获取赛程、派发 Analyst、派发 Trader、发生降级或熔断），必须向系统写入诊断日志，实现步步有痕，方便后续 Reporter 生成系统健康度报告。
