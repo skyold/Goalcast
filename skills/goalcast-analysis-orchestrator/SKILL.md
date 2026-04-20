@@ -5,6 +5,10 @@ description: Use this skill as the unified analysis entrypoint. It routes by use
 
 # Goalcast Analysis Orchestrator — 统一分析入口与编排器
 
+## Prerequisites (前置要求)
+- 本技能的所有字典文件位于 ${skill_path}/sportmonks_leagues.json。
+- 执行前必须确保 mcporter daemon status goalcast-local 为 running，若不运行，立即执行 mcporter daemon start goalcast-local。
+
 版本：3.0 | 职责：解析请求 → 路由数据源/模型 → 拉赛程 → 调度分析 skill → 汇总输出
 
 ## 设计原则
