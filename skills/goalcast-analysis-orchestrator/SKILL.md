@@ -21,7 +21,7 @@ description: Use this skill as the unified analysis entrypoint. It routes by use
 5. **入口层只负责编排和调度**，分析细节由 analyzer skills 执行。
 6. **统一双模式**：`mode=analyze`（普通分析）与 `mode=compare`（对比分析）。
 7. **不修改 MCP 入口函数**：仅在 skill 层做参数映射、结果过滤、格式标准化。
-8. **强制联赛校验与 ID 映射 (Sportmonks)**：在使用 Sportmonks 数据源调度赛程前，必须读取并解析 `agents/roles/analyst/sportmonks_leagues.json`。
+8. **强制联赛校验与 ID 映射 (Sportmonks)**：在使用 Sportmonks 数据源调度赛程前，必须读取并解析当前 Skill 目录下的 `sportmonks_leagues.json` 字典文件。
    - **将用户的模糊联赛名转化为字典中的官方 `id` (整型)**。
    - **如果用户请求的联赛不在字典中，本 Orchestrator 必须立即报错拒绝**，停止当前的分析任务，**绝对不得**调用后续的 `get_matches` 工具和底层的 Analyzer Skills。
    - 调用 `goalcast_sportmonks_get_matches` 时，必须传递 `league_ids: [1, 2, 3]` 数组，而不是字符串名称。
