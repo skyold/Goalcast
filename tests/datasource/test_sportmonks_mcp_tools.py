@@ -19,12 +19,12 @@ class FakeService:
     def __init__(self):
         self.calls = []
 
-    async def get_matches(self, date=None, leagues=None):
-        self.calls.append(("get_matches", date, leagues))
+    async def get_matches(self, date=None, league_ids=None):
+        self.calls.append(("get_matches", date, league_ids))
         return [
             {
                 "id": 19374628,
-                "league": {"name": "Premier League"},
+                "league": {"id": 8, "name": "Premier League"},
                 "participants": [
                     {"name": "Arsenal", "meta": {"location": "home"}},
                     {"name": "Chelsea", "meta": {"location": "away"}}
@@ -50,12 +50,12 @@ async def test_goalcast_sportmonks_get_matches():
     register_goalcast_sportmonks_tools(mcp, lambda: service)
 
     tool_func = mcp.tools["goalcast_sportmonks_get_matches"]
-    result = await tool_func(date="2026-04-15", leagues=["Premier League"])
+    result = await tool_func(date="2026-04-15", league_ids=[8])
 
     assert result["ok"] is True
     assert result["count"] == 1
     assert result["data"][0]["id"] == 19374628
-    assert ("get_matches", "2026-04-15", ["Premier League"]) in service.calls
+    assert ("get_matches", "2026-04-15", [8]) in service.calls
 
 
 @pytest.mark.asyncio

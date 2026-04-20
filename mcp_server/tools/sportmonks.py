@@ -14,16 +14,16 @@ def register_goalcast_sportmonks_tools(mcp: Any, service_factory: Callable[[], A
         return service_factory()
 
     @mcp.tool(
-        description="读取指定日期（默认今天）的比赛列表，可按联赛过滤。"
+        description="读取指定日期（默认今天）的比赛列表，可按联赛 ID (league_ids) 过滤。"
     )
     async def goalcast_sportmonks_get_matches(
         date: str | None = None,
-        leagues: list[str] | None = None,
+        league_ids: list[int] | None = None,
     ) -> dict[str, Any]:
-        """读取指定日期（默认今天）的比赛列表，可按联赛过滤。"""
+        """读取指定日期（默认今天）的比赛列表，可按联赛 ID 过滤。"""
         fixtures = await _service().get_matches(
             date=date,
-            leagues=leagues,
+            league_ids=league_ids,
         )
         data = _serialize(fixtures)
         return {

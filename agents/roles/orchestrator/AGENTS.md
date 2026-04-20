@@ -10,7 +10,13 @@
    - 提取参数：目标联赛、日期、指定的数据源（默认：Sportmonks）、模型版本（默认：v4.0）及执行模式（Analyze/Compare）。
    - 若参数缺失，向用户进行最小化确认。
 
-2. **资源获取 (Fetch Resources)**
+2. **强制联赛校验与 ID 映射 (Sportmonks)**
+   - 在使用 Sportmonks 数据源获取赛程前，**必须读取并查阅 `agents/roles/analyst/sportmonks_leagues.json` 字典文件**。
+   - 将用户的模糊联赛名转化为字典中的官方 `id` (整型)。
+   - **如果用户请求的联赛不在字典中，必须立即终止流程并拒绝请求**，告知用户当前不支持该联赛。
+   - 调用 MCP 获取赛程时，必须传递 `league_ids: [1, 2, 3]` 数组。
+
+3. **资源获取 (Fetch Resources)**
    - 调用数据源的基础 MCP 工具（如 `get_matches`）获取当日目标赛程。
    - 执行联赛白名单二次过滤，剔除无关赛事。
 

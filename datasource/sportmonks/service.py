@@ -46,27 +46,6 @@ class SimpleCache:
         return datetime.now() - mtime > timedelta(hours=ttl_hours)
 
 
-def _matches_league(league_data: dict[str, Any], requested_league: str) -> bool:
-    """模糊匹配联赛名。"""
-    actual_name = str(league_data.get("name", "")).lower()
-    requested_name = requested_league.lower()
-    if requested_name in actual_name:
-        return True
-    
-    # 支持一些常见的简写/别名
-    alias_map = {
-        "premier league": ["premier league", "epl", "eng"],
-        "championship": ["championship", "champ"],
-        "serie a": ["serie a", "ita"],
-    }
-    
-    aliases = alias_map.get(requested_name, [])
-    for alias in aliases:
-        if alias in actual_name:
-            return True
-    return False
-
-
 class SportmonksDataService:
     """提供 Agent 调用的两大核心只读接口。"""
 
@@ -77,9 +56,9 @@ class SportmonksDataService:
     async def get_matches(
         self,
         date: Optional[str] = None,
-        leagues: Optional[list[str]] = None,
+        league_ids: Optional[list[int]] = None,
     ) -> list[dict[str, Any]]:
-        """获取指定日期（默认今天）的比赛列表，可按联赛过滤。"""
+        """获取指定日期（默认今天）的比赛列表，可按联赛 ID 过滤。"""
         target_date = date or datetime.today().strftime("%Y-%m-%d")
         cache_key = f"fixtures_{target_date}.json"
 
@@ -127,14 +106,13 @@ class SportmonksDataService:
                     
             self.cache.write_json(cache_key, fixtures)
 
-        if leagues and fixtures:
+        if league_ids and fixtures:
             filtered = []
             for fixture in fixtures:
                 league_data = fixture.get("league", {})
-                for requested_league in leagues:
-                    if _matches_league(league_data, requested_league):
-                        filtered.append(fixture)
-                        break
+                current_league_id = league_data.get("id")
+                if current_league_id in league_ids:
+                    filtered.append(fixture)
             fixtures = filtered
 
         return fixtures

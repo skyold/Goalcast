@@ -9,8 +9,8 @@ def mock_provider():
     # Mock get_fixtures_by_date
     provider.get_fixtures_by_date.return_value = {
         "data": [
-            {"id": 1, "league": {"name": "Premier League"}},
-            {"id": 2, "league": {"name": "La Liga"}},
+            {"id": 1, "league": {"id": 8, "name": "Premier League"}, "predictions": []},
+            {"id": 2, "league": {"id": 9, "name": "Championship"}, "predictions": []}
         ]
     }
     
@@ -57,10 +57,11 @@ async def test_get_matches_no_leagues(mock_provider, mock_cache):
 @pytest.mark.asyncio
 async def test_get_matches_with_leagues(mock_provider, mock_cache):
     service = SportmonksDataService(provider=mock_provider, cache=mock_cache)
-    matches = await service.get_matches(date="2026-04-15", leagues=["premier league"])
+    matches = await service.get_matches(date="2026-04-15", league_ids=[8])
     
     assert len(matches) == 1
     assert matches[0]["id"] == 1
+    assert matches[0]["league"]["name"] == "Premier League"
 
 @pytest.mark.asyncio
 async def test_get_match_for_analysis_cache_miss(mock_provider, mock_cache):
