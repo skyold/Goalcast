@@ -16,6 +16,7 @@ from typing import Any
 
 from agents.core import match_store
 from agents.core.pipeline import MatchPipeline
+from agents.core.events import EventEmitter
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,12 @@ _CST = timezone(timedelta(hours=8))
 
 
 class Orchestrator:
-    def __init__(self, adapter, semi_mode: bool = False):
+    def __init__(self, adapter, semi_mode: bool = False, emitter: EventEmitter | None = None):
         self.adapter = adapter
         self.semi_mode = semi_mode
         self.stop_event = asyncio.Event()
         self.pipeline = MatchPipeline(adapter, semi_mode)
+        self.emitter = emitter or EventEmitter()
 
     async def run(
         self,
@@ -41,6 +43,8 @@ class Orchestrator:
         date: str | None = None,
         max_matches: int | None = None,
     ) -> dict:
+        await self.emitter.emit("pipeline_start", {"message": "Starting pipeline..."})
+        
         signal.signal(signal.SIGINT, lambda s, f: self.stop_event.set())
         signal.signal(signal.SIGTERM, lambda s, f: self.stop_event.set())
 
@@ -63,6 +67,9 @@ class Orchestrator:
 
         reviewed = match_store.list_all(status="reviewed")
         reported = match_store.list_all(status="reported")
+        
+        await self.emitter.emit("pipeline_complete", {"message": "所有比赛分析已完成。"})
+        
         return {
             "prepared": fetched,
             "reviewed": len(reviewed),
@@ -134,6 +141,8 @@ class Orchestrator:
             
             merge_update(filepath, record)
             count += 1
+            
+        await self.emitter.emit("matches_found", {"total": count, "matches": []})
         return count
 
     async def _fetch_raw_data_for_models(self, executor, fixture_id: int, models: list[str]) -> dict:
@@ -177,6 +186,7 @@ class Orchestrator:
             if record is None:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
+            await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "analyst"})
             try:
                 await self.pipeline.run_analyst_step(record)
             except Exception as exc:
@@ -191,6 +201,7 @@ class Orchestrator:
             if record is None:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
+            await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "trader"})
             try:
                 await self.pipeline.run_trader_step(record)
             except Exception as exc:
