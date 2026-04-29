@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Goalcast Orchestrator WebSocket Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #chat-log { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .message { margin-bottom: 5px; }
+        .user { color: blue; }
+        .system { color: green; }
+        .event { color: #555; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>Goalcast Orchestrator Chat</h1>
+    <div id="chat-log"></div>
+    <form id="chat-form">
+        <input type="text" id="message-input" autocomplete="off" style="width: 300px;" placeholder="Type your message (e.g. 分析今天英超)"/>
+        <button type="submit">Send</button>
+    </form>
+
+    <script>
+        const chatLog = document.getElementById('chat-log');
+        const form = document.getElementById('chat-form');
+        const input = document.getElementById('message-input');
+
+        const ws = new WebSocket("ws://localhost:8000/ws/chat");
+
+        ws.onopen = function(event) {
+            appendMessage("System", "Connected to WebSocket server.", "system");
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'chat_chunk') {
+                appendMessage("Orchestrator", data.payload.text, "system");
+            } else {
+                appendMessage("Event (" + data.type + ")", JSON.stringify(data.payload), "event");
+            }
+        };
+
+        ws.onclose = function(event) {
+            appendMessage("System", "Disconnected from WebSocket server.", "system");
+        };
+
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const message = input.value;
+            if (message) {
+                appendMessage("You", message, "user");
+                ws.send(message);
+                input.value = '';
+            }
+        };
+
+        function appendMessage(sender, message, className) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message ' + className;
+            msgDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+            chatLog.appendChild(msgDiv);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+    </script>
+</body>
+</html>

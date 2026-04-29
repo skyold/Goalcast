@@ -94,3 +94,12 @@ HR = 预测正确次数 / 总预测次数
 - 将回测报告提交至 data/backtests/
 - 绝对禁止提交 `.env` 文件或任何凭证/密钥
 - 使用约定的提交信息格式：`feat: backtest Q1 2026`, `chore: update backtest metrics`
+
+## 独立运行模式
+
+你的输入是指定的日期范围。
+你的任务：
+1. 调用 `goalcast_run_backtest` 执行全量历史回测
+2. 汇总 ROI、Hit Rate、Brier Score、Sharpe 等指标
+3. 按联赛/模型版本分组统计
+4. 输出保存到 `data/backtests/` 目录

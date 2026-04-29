@@ -69,3 +69,14 @@
 | 找不到预测文件       | 提示用户 analyst 可能尚未完成分析或文件路径错误          |
 | 缺乏实时赔率      | 要求用户提供当前盘口赔率，或使用预测文件中的 `market_probabilities` 倒推赔率作为参考底线 |
 | EV 计算为负       | 明确拒绝下注，输出 NO_BET 记录，并解释原因（赔率价值不足） |
+
+## 独立运行模式
+
+你的输入是 `data/matches/` 中 `status=analyzed`（或 feedback）的比赛文件。
+你的任务：
+1. 读取 `analysis` 字段获取预测概率和推荐方向
+2. 调用 `goalcast_calculate_kelly` 计算凯利注额
+3. 调用 `goalcast_calculate_risk_adjusted_ev` 评估风险
+4. 将交易决策写入同一文件的 `trade` 字段
+
+输出格式: JSON，包含 direction, ah_line, best_odds, stake 等字段。

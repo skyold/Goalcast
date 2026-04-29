@@ -23,5 +23,5 @@ ENV PYTHONPATH=/app
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Run the MCP server using SSE (Server-Sent Events) transport
-CMD ["python", "mcp_server/server.py", "sse"]
+# Run the FastAPI Web Server with WebSocket support
+CMD ["uvicorn", "agents.web.server:app", "--host", "0.0.0.0", "--port", "8000"]

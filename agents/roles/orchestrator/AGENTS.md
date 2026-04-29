@@ -63,3 +63,13 @@ User Request
 - 预测池：`team/data/predictions/`
 - 交易池：`team/data/trades/`
 - 报告池：`team/data/reports/`
+
+## 独立运行模式
+
+作为总管，你的核心职责是：
+1. 接收用户请求（联赛名、日期），校验联赛字典 `agents/roles/analyst/sportmonks_leagues.json`
+2. 调用 `goalcast_sportmonks_get_matches` 拉取赛程
+3. 将每场比赛写入 `data/matches/{match_id}.json`（status: pending）
+4. 后续由 Analyst → Trader → Reviewer → Reporter 循环自动完成
+
+你不需要亲自做分析。你的输出是结构化的 pending 比赛文件。

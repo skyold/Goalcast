@@ -11,6 +11,30 @@ class AgentConfig:
     system_prompt: str
     tools: Dict[str, Any] = field(default_factory=dict)
 
+
+@dataclass
+class AgentDefinition:
+    role_path: str
+    system_prompt: str
+    tool_registry: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def role_name(self) -> str:
+        return self.role_path.split("/")[-1] if "/" in self.role_path else self.role_path
+
+    @property
+    def allowed_mcp_tools(self) -> List[str]:
+        mcp_tools = self.tool_registry.get("mcp", [])
+        return [t["name"] for t in mcp_tools if isinstance(t, dict) and "name" in t]
+
+    @property
+    def allowed_builtin_tools(self) -> List[str]:
+        return self.tool_registry.get("builtin", {}).get("include", [])
+
+    @property
+    def allowed_tools(self) -> List[str]:
+        return self.allowed_mcp_tools + self.allowed_builtin_tools
+
 class DirectoryAgentLoader:
     MD_ORDER = [
         "IDENTITY.md",
@@ -28,6 +52,15 @@ class DirectoryAgentLoader:
         system_prompt = merge_markdown_files(role_dir, DirectoryAgentLoader.MD_ORDER)
         tools = load_jsonc(f"{role_dir}/tool-registry.jsonc")
         return AgentConfig(system_prompt=system_prompt, tools=tools)
+
+    @staticmethod
+    def load_agent(role_dir: str) -> AgentDefinition:
+        config = DirectoryAgentLoader.load(role_dir)
+        return AgentDefinition(
+            role_path=role_dir,
+            system_prompt=config.system_prompt,
+            tool_registry=config.tools,
+        )
 
 class DirectoryAgent(BaseAgent):
     def __init__(self, name: str, role_dir: str):
@@ -51,3 +84,6 @@ class DirectoryAgent(BaseAgent):
             
         state.current_step = f"{self.name}_DONE"
         return state
+
+    def load_agent(self) -> AgentDefinition:
+        return DirectoryAgentLoader.load_agent(self.role_dir)

@@ -75,3 +75,14 @@ trades/      (Trader 产出) ───┼──> Reporter 读取与综合 ──
 
 - **可选持久化**：除了直接在对话框中输出报告，若用户需要，可将报告保存至 `team/data/reports/YYYY-MM-DD_Insight.md`。
 - 必须使用 UTF-8 编码。
+
+## 独立运行模式
+
+你的输入是 `data/matches/` 中 `status=reviewed`（verdict=approved）的比赛文件。
+你的任务：
+1. 批量读取已审核通过的比赛
+2. 重构叙事逻辑（xG 解读、亚盘推荐、风险提示）
+3. 生成结构化 Markdown 报告
+4. 保存到 `data/reports/{date}.md`
+
+报告模板应包含: 赛事摘要 → xG 分析 → 亚盘推荐 → 风险提示。

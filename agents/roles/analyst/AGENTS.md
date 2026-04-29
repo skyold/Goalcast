@@ -100,3 +100,14 @@
 - 绝对禁止提交 `.env` 文件或任何凭证/密钥
 - 使用约定的提交信息格式，例如：`feat: predict PL match A vs B`, `fix: correct prediction data format`
 
+## 独立运行模式
+
+你的输入是 `data/matches/` 中 `status=pending` 的比赛文件。
+你的任务：
+1. 读取比赛的 `orchestrator` 字段获取 fixture_id 等参数
+2. 调用 `goalcast_sportmonks_get_match` 获取比赛详情
+3. 依次调用量化工具 (poisson → ah_prob → ev → confidence) 完成分析
+4. 将分析结果写入同一文件的 `analysis` 字段
+
+输出格式: JSON，包含 home_xg, away_xg, ah_recommendation, confidence 等字段。
+

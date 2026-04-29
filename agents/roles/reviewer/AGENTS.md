@@ -108,3 +108,20 @@ goalcast_run_review (内部调用 MCP 拉取实际赛果并执行对比计算)
 - 按模型分类的表现对比（v2.5 vs v3.0 vs v4.0）
 - 观察到的显著系统性偏差或模式
 - 在日记中仅保留最近 30 天的单场详情；更早的数据应进行汇总聚合
+
+## 独立运行模式
+
+你有两种模式：
+
+### 赛前审核
+输入是 `data/matches/` 中 `status=traded` 的比赛文件。
+1. 校验 xG ↔ AH 方向是否自洽
+2. 校验赔率区间是否合理
+3. 校验凯利注额是否审慎
+4. 输出 VERDICT: approved | feedback | rejected
+   - approved → 比赛进入 Reporter 队列
+   - feedback → 比赛回到 Trader 重试（最多3次）
+   - rejected → 比赛标记为废弃
+
+### 赛后复盘
+调用 `goalcast_run_review` 拉取实际赛果，比对预测。
