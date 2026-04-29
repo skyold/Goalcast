@@ -84,20 +84,34 @@ class MatchPipeline:
     # ── Trader 步骤 ─────────────────────────────────────────────────
 
     async def run_trader_step(self, record: dict) -> dict:
+        from agents.core.blackboard import load_partial, merge_update
+        
         match_id = record["match_id"]
-        analysis = record.get("analysis", {})
-        orche = record.get("orchestrator", {})
+        filepath = match_store.MATCHES_DIR / f"{match_id}.json"
+        
+        # 1. Precise extraction: Load metadata and analysis, SKIP raw_data
+        context = load_partial(filepath, ["metadata", "analysis"])
+        
         prompt = (
-            f"基于以下比赛分析结果做出交易决策:\n"
-            f"比赛: {orche.get('home_team')} vs {orche.get('away_team')}\n"
-            f"分析结果:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}\n"
-            f"\n请调用 goalcast_calculate_kelly / goalcast_calculate_risk_adjusted_ev 等工具，"
-            f"生成亚盘方向的交易指令。最终以 JSON 格式输出交易决策。"
+            "请作为 Trader 角色。针对下方上下文中提供的每一种分析模型的结果，"
+            "评估投注机会并做出交易决策。\n"
+            "最终请以 JSON 格式输出交易决策结果。\n"
+            f"{json.dumps(context, ensure_ascii=False, indent=2)}"
         )
+        
         result = await self.adapter.run_agent("trader", prompt)
         trade = self._parse_trade_output(result.final_text)
         trade["traded_at"] = _now_iso()
-        match_store.append_layer(match_id, "trade", trade)
+        
+        # 2. Write back to Blackboard
+        updates = {
+            "trading": {"results": trade},
+            "state": {"trader": "done"}
+        }
+        merge_update(filepath, updates)
+        
+        # 3. Update legacy status
+        match_store.update_status(match_id, "traded")
         logger.info("[Pipeline] Trader 完成: %s", match_id)
         return trade
 
