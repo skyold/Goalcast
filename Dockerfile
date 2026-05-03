@@ -1,27 +1,35 @@
-# Use Python 3.11 for better package compatibility
+# ─────────────────────────────────────────────────────────────────────────────
+# Goalcast Backend Dockerfile
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# 默认运行：无限循环分析模式（每小时自动获取并分析比赛）
+#   docker run goalcast/backend:latest
+#
+# 单次运行：
+#   docker run goalcast/backend:latest run --leagues 英超 --date 2026-05-03
+#
+# 查看所有命令：
+#   docker run goalcast/backend:latest --help
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
 FROM python:3.11-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file into the container
 COPY requirements.txt .
 
-# Install dependencies using Tsinghua mirror for better speed in China
 RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     -r requirements.txt \
     mcp \
     uvicorn
 
-# Copy the rest of the application code into the container
-COPY . .
+COPY backend/ .
 
-# Set environment variables
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/backend
+ENV PYTHONUNBUFFERED=1
 
-# Expose the port the app runs on
 EXPOSE 8000
 
-# Run the FastAPI Web Server with WebSocket support
-CMD ["uvicorn", "agents.web.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "main", "run", "--infinite", "--cooldown", "3600"]

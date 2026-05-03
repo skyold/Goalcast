@@ -185,11 +185,88 @@ TOOL_SCHEMAS: dict[str, dict] = {
 }
 
 
+def _serialize(value):
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    if isinstance(value, list):
+        return [_serialize(item) for item in value]
+    if isinstance(value, tuple):
+        return [_serialize(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _serialize(item) for key, item in value.items()}
+    return value
+
 def _create_sportmonks_data_service():
     from datasource.sportmonks.service import SportmonksDataService
-    from mcp_server.internal import get_sportmonks
+    from provider.sportmonks.client import SportmonksProvider
 
-    return SportmonksDataService(provider=get_sportmonks())
+    return SportmonksDataService(provider=SportmonksProvider())
+
+_footystats = None
+_understat = None
+
+def get_footystats():
+    global _footystats
+    if _footystats is None:
+        from provider.footystats.client import FootyStatsProvider
+        _footystats = FootyStatsProvider()
+    return _footystats
+
+def get_understat():
+    global _understat
+    if _understat is None:
+        from provider.understat.client import UnderstatProvider
+        _understat = UnderstatProvider(use_library=True)
+    return _understat
+
+async def handle_api_call(provider_name, coro):
+    from utils.logger import logger
+    try:
+        result = await coro
+        if isinstance(result, dict):
+            error_msg = str(result.get("error", "")).lower() or str(result.get("message", "")).lower()
+            if "api key" in error_msg or "unauthorized" in error_msg or "401" in error_msg:
+                return {
+                    "error": "API_KEY_INVALID",
+                    "message": f"Critical Error: The {provider_name} API Key is missing or invalid.",
+                    "provider": provider_name
+                }
+        return result
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "api key" in error_msg or "unauthorized" in error_msg or "401" in error_msg:
+            return {
+                "error": "API_KEY_INVALID",
+                "message": f"Critical Error: The {provider_name} API Key is missing or invalid.",
+                "provider": provider_name
+            }
+        logger.error(f"Error calling {provider_name}: {e}")
+        return {
+            "error": "PROVIDER_ERROR",
+            "message": f"An error occurred while fetching data from {provider_name}: {str(e)}",
+            "provider": provider_name
+        }
+
+def _normalize_footystats_fixtures(raw, league_filter):
+    matches = raw.get("data", []) if isinstance(raw, dict) else []
+    result = []
+    for m in matches:
+        if not isinstance(m, dict):
+            continue
+        comp_name = m.get("competition_name", "")
+        if league_filter and league_filter.lower() not in comp_name.lower():
+            continue
+        result.append({
+            "home_team": m.get("home_name", ""),
+            "away_team": m.get("away_name", ""),
+            "competition": comp_name,
+            "kickoff_time": m.get("date_unix", ""),
+            "match_id": str(m.get("id", "")),
+            "home_team_id": str(m.get("homeID", "")),
+            "away_team_id": str(m.get("awayID", "")),
+            "season_id": str(m.get("competition_id", "")),
+        })
+    return result
 
 
 class ToolExecutor:
@@ -212,8 +289,6 @@ class ToolExecutor:
     async def _tool_goalcast_sportmonks_get_matches(
         self, date: str | None = None, league_ids: list[int] | None = None
     ) -> dict:
-        from mcp_server.tools.sportmonks import _serialize
-
         service = _create_sportmonks_data_service()
         fixtures = await service.get_matches(date=date, league_ids=league_ids)
         data = _serialize(fixtures)
@@ -222,8 +297,6 @@ class ToolExecutor:
     async def _tool_goalcast_sportmonks_get_match(
         self, fixture_id: int, match_date: str | None = None
     ) -> dict:
-        from mcp_server.tools.sportmonks import _serialize
-
         service = _create_sportmonks_data_service()
         payload = await service.get_match_for_analysis(
             fixture_id=fixture_id, match_date=match_date
@@ -234,7 +307,6 @@ class ToolExecutor:
 
     async def _tool_goalcast_footystats_resolve_match(self, **params) -> dict:
         from datasource.datafusion.fusion import DataFusion
-        from mcp_server.internal import get_footystats, get_understat
 
         fusion = DataFusion(footystats=get_footystats(), understat=get_understat())
         context = await fusion.build(
@@ -255,11 +327,6 @@ class ToolExecutor:
         self, date: str | None = None, league_filter: str | None = None
     ) -> list:
         import datetime as dt
-        from mcp_server.internal import (
-            get_footystats,
-            handle_api_call,
-            _normalize_footystats_fixtures,
-        )
 
         target_date = date or dt.date.today().isoformat()
         raw = await handle_api_call(

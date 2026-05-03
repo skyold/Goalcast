@@ -54,8 +54,9 @@ class Orchestrator:
 
         match_store.abandon_active()
 
+        print("[Orchestrator] 正在拉取比赛数据...")
         fetched = await self._fetch_and_prepare(leagues, date, models=models)
-        logger.info("[Orchestrator] 已准备 %d 场比赛", fetched)
+        print(f"[Orchestrator] 已准备 {fetched} 场比赛，各 Agent 开始处理")
 
         if fetched == 0 and not match_store.list_all(status="reviewed"):
             await self.emitter.emit("pipeline_complete", {"message": "没有可分析的比赛。"})
@@ -65,19 +66,20 @@ class Orchestrator:
                 "reported": len(match_store.list_all(status="reported")),
             }
 
-        tasks = [
+        loops = [
             asyncio.create_task(self._analyst_loop()),
             asyncio.create_task(self._trader_loop()),
             asyncio.create_task(self._reviewer_loop()),
             asyncio.create_task(self._reporter_loop()),
         ]
+        print("[Orchestrator] 4 个 Agent loop 已启动")
 
         try:
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*loops)
         except asyncio.CancelledError:
-            for t in tasks:
+            for t in loops:
                 t.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(*loops, return_exceptions=True)
 
         reviewed = match_store.list_all(status="reviewed")
         reported = match_store.list_all(status="reported")
@@ -105,29 +107,42 @@ class Orchestrator:
 
         league_ids = None
         if leagues:
-            league_ids = self._resolve_league_ids(leagues)
+            league_ids = await self._resolve_league_ids(leagues)
             if not league_ids:
+                print(f"[Orchestrator] 联赛字典中未找到: {leagues}")
                 logger.warning("[Orchestrator] 联赛字典中未找到: %s", leagues)
                 return 0
+            print(f"[Orchestrator] 联赛映射: {leagues} → league_ids={league_ids}")
 
         dates = self._resolve_date_range(date)
+        print(f"[Orchestrator] 日期范围: {dates}")
         fixtures = []
         seen_fixture_ids = set()
         for d in dates:
+            print(f"[Orchestrator] 拉取 {d} 的比赛...")
             result = await executor._tool_goalcast_sportmonks_get_matches(
                 date=d, league_ids=league_ids,
             )
-            for f in result.get("data", []):
+            day_fixtures = result.get("data", []) if isinstance(result, dict) else []
+            new_count = 0
+            for f in day_fixtures:
                 fid = f.get("fixture_id", f.get("id"))
                 if fid not in seen_fixture_ids:
                     seen_fixture_ids.add(fid)
                     fixtures.append(f)
+                    new_count += 1
+            print(f"[Orchestrator] {d}: 获取 {len(day_fixtures)} 场, 新增 {new_count} 场")
 
         count = 0
         prepared_matches = []
+        existing_fixture_ids = self._load_existing_fixture_ids()
+        skipped = 0
         for fixture in fixtures:
-            match_id = match_store.generate_match_id()
             fixture_id = fixture.get("fixture_id", fixture.get("id"))
+            if fixture_id in existing_fixture_ids:
+                skipped += 1
+                continue
+            match_id = match_store.generate_match_id()
             
             # 读取 skill 依赖并预先获取原始数据
             raw_data = await self._fetch_raw_data_for_models(executor, fixture_id, models)
@@ -174,6 +189,7 @@ class Orchestrator:
             match_store.save(legacy_record)
             
             merge_update(filepath, record)
+            print(f"[Orchestrator] 已写入黑板: {match_id} ({record['metadata']['home_team']} vs {record['metadata']['away_team']})")
             prepared_matches.append(
                 {
                     "match_id": match_id,
@@ -184,7 +200,8 @@ class Orchestrator:
                 }
             )
             count += 1
-            
+        if skipped > 0:
+            print(f"[Orchestrator] 跳过 {skipped} 场已存在的比赛（盘上已有记录）")
         await self.emitter.emit(
             "matches_found",
             {"total": count, "matches": prepared_matches},
@@ -224,6 +241,21 @@ class Orchestrator:
         ]
         return any(match_store.count_by_status([status]) > 0 for status in active_statuses)
 
+    def _load_existing_fixture_ids(self) -> set:
+        existing = set()
+        for fp in match_store.MATCHES_DIR.glob("MC-*.json"):
+            try:
+                record = json.loads(fp.read_text(encoding="utf-8"))
+                fid = (
+                    record.get("orchestrator", {}).get("fixture_id")
+                    or record.get("metadata", {}).get("fixture_id")
+                )
+                if fid:
+                    existing.add(fid)
+            except (json.JSONDecodeError, IOError):
+                continue
+        return existing
+
     def _resolve_date_range(self, date: str | None) -> list[str]:
         if date:
             return [date]
@@ -233,8 +265,7 @@ class Orchestrator:
         tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
         return [today, tomorrow]
 
-    def _resolve_league_ids(self, leagues: list[str | int]) -> list[int] | None:
-        league_dict = None
+    def _load_league_dict(self) -> dict | None:
         candidate_paths = LEAGUES_JSON_CANDIDATE_PATHS or [
             LEAGUES_JSON_PATH,
             LEAGUES_JSON_FALLBACK_PATH,
@@ -243,13 +274,12 @@ class Orchestrator:
             if not path.exists():
                 continue
             try:
-                league_dict = json.loads(path.read_text(encoding="utf-8"))
-                break
+                return json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, IOError):
                 continue
-        if league_dict is None:
-            return None
+        return None
 
+    def _simple_league_match(self, leagues: list[str | int], league_dict: dict) -> list[int] | None:
         ids = []
         for name in leagues:
             if isinstance(name, int):
@@ -262,12 +292,78 @@ class Orchestrator:
                 continue
             name_lower = name.lower()
             for key, value in league_dict.items():
-                if name_lower in key.lower() or name_lower in str(value).lower():
+                if (name_lower in key.lower() or 
+                    name_lower in str(value.get("name", "")).lower() or 
+                    name_lower in str(value.get("chinese_name", "")).lower()):
                     if isinstance(value, dict) and "id" in value:
                         ids.append(value["id"])
                     elif isinstance(value, (int, float)):
                         ids.append(int(value))
         return list(set(ids)) if ids else None
+
+    def _build_league_matching_prompt(self, leagues: list[str], league_dict: dict) -> str:
+        league_candidates = []
+        for key, info in league_dict.items():
+            names = [info.get("name", "")]
+            if info.get("chinese_name"):
+                names.append(info["chinese_name"])
+            league_candidates.append({
+                "id": info.get("id", int(key)),
+                "names": [n for n in names if n]
+            })
+        
+        return f"""你是一个足球联赛名称智能匹配器。
+
+任务：将用户输入的联赛名称映射到正确的联赛 ID。
+
+规则：
+1. 支持中文、英文、缩写、别名的智能匹配
+2. 允许模糊匹配和同义词转换
+3. 一个输入可能匹配多个联赛（如"英超"可能匹配多个国家的英超联赛）
+4. 如果完全无法匹配，返回空数组 []
+
+联赛候选列表（JSON格式）：
+{json.dumps(league_candidates, ensure_ascii=False, indent=2)}
+
+用户输入：{json.dumps(leagues)}
+
+请直接返回匹配的联赛 ID 数组（纯JSON格式，不要有其他文字）："""
+
+    async def _resolve_league_ids_with_llm(self, leagues: list[str | int]) -> list[int] | None:
+        league_dict = self._load_league_dict()
+        if league_dict is None:
+            return None
+
+        simple_result = self._simple_league_match(leagues, league_dict)
+        if simple_result:
+            logger.debug("[Orchestrator] 简单匹配成功: %s → %s", leagues, simple_result)
+            return simple_result
+
+        str_leagues = [str(l) for l in leagues if isinstance(l, str) and not str(l).isdigit()]
+        if not str_leagues:
+            return simple_result
+
+        logger.debug("[Orchestrator] 简单匹配失败，尝试 LLM 匹配: %s", str_leagues)
+        prompt = self._build_league_matching_prompt(str_leagues, league_dict)
+        
+        try:
+            result = await self.adapter.run_agent(
+                "agents/roles/analyst",
+                prompt
+            )
+            llm_result = json.loads(result.final_text.strip())
+            if isinstance(llm_result, list):
+                valid_ids = [int(id_) for id_ in llm_result if isinstance(id_, (int, str)) and str(id_).isdigit()]
+                if valid_ids:
+                    logger.info("[Orchestrator] LLM 匹配成功: %s → %s", str_leagues, valid_ids)
+                    return valid_ids
+        except Exception as e:
+            logger.warning("[Orchestrator] LLM 匹配失败: %s", e)
+
+        return None
+
+    async def _resolve_league_ids(self, leagues: list[str | int]) -> list[int] | None:
+        return await self._resolve_league_ids_with_llm(leagues)
 
     async def _analyst_loop(self):
         while not self.stop_event.is_set():
@@ -275,10 +371,13 @@ class Orchestrator:
             if record is None:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
+            print(f"[Analyst] 开始分析: {record['match_id']} ({record.get('orchestrator', {}).get('home_team', '?')} vs {record.get('orchestrator', {}).get('away_team', '?')})")
             await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "analyst"})
             try:
                 await self.pipeline.run_analyst_step(record)
+                print(f"[Analyst] 分析完成: {record['match_id']}")
             except Exception as exc:
+                print(f"[Analyst] 分析异常: {record['match_id']}: {exc}")
                 logger.error("[Orchestrator] Analyst 异常: %s", exc)
                 match_store.update_status(record["match_id"], "pending")
 
@@ -290,9 +389,11 @@ class Orchestrator:
             if record is None:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
+            print(f"[Trader] 开始交易分析: {record['match_id']}")
             await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "trader"})
             try:
                 trade = await self.pipeline.run_trader_step(record)
+                print(f"[Trader] 交易分析完成: {record['match_id']}")
                 await self.emitter.emit(
                     "match_result_ready",
                     {
@@ -306,6 +407,7 @@ class Orchestrator:
                     },
                 )
             except Exception as exc:
+                print(f"[Trader] 交易分析异常: {record['match_id']}: {exc}")
                 logger.error("[Orchestrator] Trader 异常: %s", exc)
                 match_store.update_status(record["match_id"], "analyzed")
 
@@ -315,9 +417,12 @@ class Orchestrator:
             if record is None:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
+            print(f"[Reviewer] 开始审核: {record['match_id']}")
             try:
                 await self.pipeline.run_reviewer_step(record)
+                print(f"[Reviewer] 审核完成: {record['match_id']}")
             except Exception as exc:
+                print(f"[Reviewer] 审核异常: {record['match_id']}: {exc}")
                 logger.error("[Orchestrator] Reviewer 异常: %s", exc)
                 match_store.update_status(record["match_id"], "traded")
 
@@ -340,8 +445,11 @@ class Orchestrator:
 
             match_ids = [r["match_id"] for r in batch]
             try:
+                print(f"[Reporter] 开始生成报告: {len(match_ids)} 场比赛")
                 await self.pipeline.run_reporter_step(match_ids)
+                print(f"[Reporter] 报告生成完成")
             except Exception as exc:
+                print(f"[Reporter] 报告异常: {exc}")
                 logger.error("[Orchestrator] Reporter 异常: %s", exc)
             if not self._has_active_work() and not match_store.list_all(status="reviewed"):
                 self.stop_event.set()

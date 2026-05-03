@@ -2,151 +2,181 @@
   "8": {
     "id": 8,
     "name": "Premier League",
+    "chinese_name": "英超",
     "country_id": 462
   },
   "9": {
     "id": 9,
     "name": "Championship",
+    "chinese_name": "英冠",
     "country_id": 462
   },
   "12": {
     "id": 12,
     "name": "League One",
+    "chinese_name": "英甲",
     "country_id": 462
   },
   "72": {
     "id": 72,
     "name": "Eredivisie",
+    "chinese_name": "荷甲",
     "country_id": 38
   },
   "74": {
     "id": 74,
     "name": "Eerste Divisie",
+    "chinese_name": "荷乙",
     "country_id": 38
   },
   "82": {
     "id": 82,
     "name": "Bundesliga",
+    "chinese_name": "德甲",
     "country_id": 11
   },
   "85": {
     "id": 85,
     "name": "2. Bundesliga",
+    "chinese_name": "德乙",
     "country_id": 11
   },
   "181": {
     "id": 181,
     "name": "Admiral Bundesliga",
+    "chinese_name": "奥超",
     "country_id": 143
   },
   "208": {
     "id": 208,
     "name": "Pro League",
+    "chinese_name": "比甲",
     "country_id": 556
   },
   "271": {
     "id": 271,
     "name": "Superliga",
+    "chinese_name": "丹超",
     "country_id": 320
   },
   "301": {
     "id": 301,
     "name": "Ligue 1",
+    "chinese_name": "法甲",
     "country_id": 17
   },
   "304": {
     "id": 304,
     "name": "Ligue 2",
+    "chinese_name": "法乙",
     "country_id": 17
   },
   "384": {
     "id": 384,
     "name": "Serie A",
+    "chinese_name": "意甲",
     "country_id": 251
   },
   "387": {
     "id": 387,
     "name": "Serie B",
+    "chinese_name": "意乙",
     "country_id": 251
   },
   "444": {
     "id": 444,
     "name": "Eliteserien",
+    "chinese_name": "挪超",
     "country_id": 1578
   },
   "453": {
     "id": 453,
     "name": "Ekstraklasa",
+    "chinese_name": "波超",
     "country_id": 2
   },
   "462": {
     "id": 462,
     "name": "Liga Portugal",
+    "chinese_name": "葡超",
     "country_id": 20
   },
   "501": {
     "id": 501,
     "name": "Premiership",
+    "chinese_name": "苏超",
     "country_id": 1161
   },
   "564": {
     "id": 564,
     "name": "La Liga",
+    "chinese_name": "西甲",
     "country_id": 32
   },
   "567": {
     "id": 567,
     "name": "La Liga 2",
+    "chinese_name": "西乙",
     "country_id": 32
   },
   "573": {
     "id": 573,
     "name": "Allsvenskan",
+    "chinese_name": "瑞超",
     "country_id": 47
   },
   "591": {
     "id": 591,
     "name": "Super League",
+    "chinese_name": "瑞士超",
     "country_id": 62
   },
   "600": {
     "id": 600,
     "name": "Super Lig",
+    "chinese_name": "土超",
     "country_id": 404
   },
   "636": {
     "id": 636,
     "name": "Liga Profesional de Fútbol",
+    "chinese_name": "阿甲",
     "country_id": 44
   },
   "648": {
     "id": 648,
     "name": "Serie A",
+    "chinese_name": "巴甲",
     "country_id": 5
   },
   "779": {
     "id": 779,
     "name": "Major League Soccer",
+    "chinese_name": "美职联",
     "country_id": 3483
   },
   "830": {
     "id": 830,
     "name": "Premier League",
+    "chinese_name": "英超",
     "country_id": 886
   },
   "944": {
     "id": 944,
     "name": "Pro League",
+    "chinese_name": "比甲",
     "country_id": 35376
   },
   "968": {
     "id": 968,
     "name": "J1 League",
+    "chinese_name": "日职联",
     "country_id": 479
   },
   "1034": {
     "id": 1034,
     "name": "K League 1",
+    "chinese_name": "K联赛",
     "country_id": 712
   }
 }

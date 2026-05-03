@@ -1,17 +1,89 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Goalcast 足球量化分析系统
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# 前提：.env 文件已配置（从 backend/.env.example 复制）
+#
+# 快速开始：
+#   cp backend/.env.example .env
+#   # 编辑 .env，填入 LLM_API_KEY 等配置
+#   ./start.sh start --build
+#
+# 服务说明：
+#   backend  — 足球量化分析引擎（无限循环，每小时自动获取并分析比赛）
+#   frontend — Web 控制台（port 80）
+#
+# 查看日志：
+#   ./start.sh logs
+#
+# 优雅停止（等当前分析完成后退出）：
+#   ./start.sh stop
+#
+# 数据持久化：
+#   backend/data 目录通过 volume 挂载保留所有比赛数据、分析结果和报告
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
+
   backend:
-    build: .
-    env_file:
-      - .env
+    image: goalcast/backend:latest
+    container_name: goalcast-backend
+
+    command: ["python", "-m", "main", "run", "--infinite", "--cooldown", "3600"]
+    
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+    env_file: .env
+
     environment:
       - FASTMCP_HOST=0.0.0.0
       - FASTMCP_PORT=8000
-    restart: unless-stopped
+
+    volumes:
+      - ../backend/data:/app/backend/data
+
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - |
+          import os, sys
+          log = '/app/backend/data/logs/goalcast.log'
+          if not os.path.exists(log):
+              sys.exit(0)
+          age = os.path.getmtime(log)
+          import time
+          sys.exit(0 if time.time() - age < 3600 else 1)
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
 
   frontend:
-    build: ./frontend
+    image: goalcast/frontend:latest
+    container_name: goalcast-frontend
+
+    restart: unless-stopped
+    stop_grace_period: 10s
+
     ports:
       - "${PORT:-80}:80"
+
     depends_on:
-      - backend
-    restart: unless-stopped
+      backend:
+        condition: service_healthy
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"

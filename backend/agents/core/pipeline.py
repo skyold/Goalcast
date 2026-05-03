@@ -189,39 +189,39 @@ class MatchPipeline:
     # ── Reporter 步骤 ───────────────────────────────────────────────
 
     async def run_reporter_step(self, match_ids: list[str]) -> str:
-        from agents.core.blackboard import merge_update
+        from agents.core.blackboard import merge_update, load_partial
 
-        records = []
+        reports_dir = match_store.MATCHES_DIR.parent / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+
+        count = 0
         for mid in match_ids:
-            r = match_store.load(mid)
-            if r and r.get("review", {}).get("verdict") == "approved":
-                records.append(r)
+            filepath = match_store.MATCHES_DIR / f"{mid}.json"
+            r = load_partial(filepath, ["metadata", "analysis", "trading", "review"])
+            if not r or r.get("review", {}).get("verdict") != "approved":
+                logger.warning("[Pipeline] Reporter 跳过未审核比赛: %s", mid)
+                continue
+            r["match_id"] = mid
 
-        if not records:
+            prompt = (
+                f"为以下比赛生成赛事洞察报告:\n"
+                f"{json.dumps(r, ensure_ascii=False, indent=2)}\n"
+                f"\n请以 Markdown 格式输出结构化报告，包含赛事摘要、xG 分析、亚盘推荐、风险提示。"
+            )
+            result = await self.adapter.run_agent(ROLE_PATHS["reporter"], prompt)
+            report_content = result.final_text
+
+            report_path = reports_dir / f"{mid}.md"
+            report_path.write_text(report_content, encoding="utf-8")
+            report_ref = str(report_path.relative_to(match_store.MATCHES_DIR.parent))
+
+            match_store.finalize(mid, report_ref=report_ref)
+            merge_update(filepath, {"state": {"reporter": "done"}})
+            count += 1
+
+        if count == 0:
             logger.warning("[Pipeline] Reporter 无已审核比赛可报告")
             return ""
 
-        prompt = (
-            f"为以下 {len(records)} 场已审核通过的比赛生成赛事洞察报告:\n"
-            f"{json.dumps(records, ensure_ascii=False, indent=2)}\n"
-            f"\n请以 Markdown 格式输出结构化报告，包含赛事摘要、xG 分析、亚盘推荐、风险提示。"
-        )
-        result = await self.adapter.run_agent(ROLE_PATHS["reporter"], prompt)
-        report_content = result.final_text
-
-        today = datetime.now(_CST).strftime("%Y-%m-%d")
-        reports_dir = match_store.MATCHES_DIR.parent / "reports"
-        reports_dir.mkdir(parents=True, exist_ok=True)
-        report_path = reports_dir / f"{today}.md"
-        report_path.write_text(report_content, encoding="utf-8")
-        report_ref = str(report_path.relative_to(match_store.MATCHES_DIR.parent))
-
-        for r in records:
-            match_store.finalize(r["match_id"], report_ref=report_ref)
-            filepath = match_store.MATCHES_DIR / f"{r['match_id']}.json"
-            merge_update(filepath, {"state": {"reporter": "done"}})
-
-        logger.info(
-            "[Pipeline] Reporter 完成: %s (%d 场比赛)", report_ref, len(records)
-        )
-        return report_ref
+        logger.info("[Pipeline] Reporter 完成: 生成 %d 份报告", count)
+        return str(reports_dir.relative_to(match_store.MATCHES_DIR.parent))
