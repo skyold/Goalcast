@@ -143,6 +143,32 @@ def count_by_status(status_list: list[str]) -> int:
     return count
 
 
+def abandon_active(status_list: list[str] | None = None) -> int:
+    MATCHES_DIR.mkdir(parents=True, exist_ok=True)
+    active_statuses = status_list or [
+        "pending",
+        "analyzing",
+        "analyzed",
+        "trading",
+        "traded",
+        "reviewing",
+        "feedback",
+    ]
+    changed = 0
+    for fp in MATCHES_DIR.glob("MC-*.json"):
+        try:
+            record = json.loads(fp.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if record.get("status") in active_statuses:
+            record["status"] = "aborted"
+            fp.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+            changed += 1
+    if changed:
+        logger.info("[MatchStore] 已中止 %d 个历史活跃比赛", changed)
+    return changed
+
+
 def finalize(match_id: str, report_ref: str = "") -> None:
     record = load(match_id)
     if record is None:

@@ -1,18 +1,16 @@
 # 依赖模块清理说明
 
-## 📊 模块使用情况分析
+## 模块使用情况分析
 
-### ✅ 正在使用的模块（核心依赖）
+### 正在使用的模块（核心依赖）
 
 | 模块 | 使用位置 | 用途 | 保留 |
 |------|---------|------|------|
-| `httpx[asyncio]` | `provider/base.py` | HTTP 异步请求客户端 | ✅ |
-| `loguru` | `utils/logger.py` | 日志系统 | ✅ |
-| `python-dotenv` | `config/settings.py` | 环境变量加载 | ✅ |
+| `httpx[asyncio]` | `provider/base.py` | HTTP 异步请求客户端 | 是 |
+| `loguru` | `utils/logger.py` | 日志系统 | 是 |
+| `python-dotenv` | `config/settings.py` | 环境变量加载 | 是 |
 
----
-
-### ❌ 已移除的模块（未使用）
+### 已移除的模块（未使用）
 
 | 模块 | 原因 | 影响 |
 |------|------|------|
@@ -25,18 +23,14 @@
 | `apscheduler` | 代码中未导入使用 | 定时任务功能未实现 |
 | `aiohttp` | 已使用 httpx 替代 | 功能重复 |
 
----
-
-### 📦 开发依赖（保留）
+### 开发依赖（保留）
 
 | 模块 | 用途 |
 |------|------|
 | `pytest` | 单元测试框架 |
 | `pytest-asyncio` | 异步测试支持 |
 
----
-
-## 🔧 修改内容
+## 修改内容
 
 ### requirements.txt
 
@@ -83,8 +77,6 @@ pytest>=8.2.0
 pytest-asyncio==0.24.0
 ```
 
----
-
 ### Dockerfile
 
 **修改前**：
@@ -103,9 +95,7 @@ RUN pip install --no-cache-dir \
     uvicorn
 ```
 
----
-
-## 📈 优化效果
+## 优化效果
 
 ### 依赖数量
 
@@ -117,9 +107,9 @@ RUN pip install --no-cache-dir \
 ### Docker 镜像大小
 
 **预估减少**：
-- 移除 `pandas` + `numpy` ≈ 100-150 MB
-- 移除 `sqlalchemy` ≈ 10-20 MB
-- 移除其他模块 ≈ 20-30 MB
+- 移除 `pandas` + `numpy` 约 100-150 MB
+- 移除 `sqlalchemy` 约 10-20 MB
+- 移除其他模块约 20-30 MB
 - **总计减少约 130-200 MB**
 
 ### 构建速度
@@ -129,9 +119,7 @@ RUN pip install --no-cache-dir \
 - 减少下载和安装时间：约 50-70%
 - 构建失败概率降低：依赖冲突风险减少
 
----
-
-## 🎯 未来扩展
+## 未来扩展
 
 如果需要启用特定功能，取消对应模块的注释即可：
 
@@ -157,9 +145,7 @@ numpy>=1.26.0
 apscheduler==3.10.4
 ```
 
----
-
-## ✅ 验证步骤
+## 验证步骤
 
 ### 本地验证
 
@@ -188,9 +174,7 @@ docker-compose ps
 docker-compose logs -f
 ```
 
----
-
-## 📝 最佳实践
+## 最佳实践
 
 ### 1. 依赖分类管理
 
@@ -212,9 +196,9 @@ pytest-asyncio
 
 ### 2. 版本管理策略
 
-- ✅ **核心依赖**：固定版本号（确保稳定性）
-- ⚠️ **可选依赖**：使用最小版本（`>=x.y.z`）
-- ✅ **开发依赖**：使用最小版本
+- 核心依赖：固定版本号（确保稳定性）
+- 可选依赖：使用最小版本（`>=x.y.z`）
+- 开发依赖：使用最小版本
 
 ### 3. 定期清理
 
@@ -226,33 +210,7 @@ pipreqs /path/to/project --savepath requirements.check.txt
 diff requirements.txt requirements.check.txt
 ```
 
----
-
-## 🔍 检查工具
-
-### 使用 pipreqs 分析实际需求
-
-```bash
-# 安装 pipreqs
-pip install pipreqs
-
-# 分析项目实际需求
-pipreqs /path/to/project --force
-
-# 查看结果
-cat requirements.txt
-```
-
-### 使用 pip-chill 列出实际使用的包
-
-```bash
-pip install pip-chill
-pip-chill > requirements.actual.txt
-```
-
----
-
-## 📊 对比总结
+## 对比总结
 
 | 项目 | 修改前 | 修改后 | 改进 |
 |------|--------|--------|------|
@@ -261,7 +219,3 @@ pip-chill > requirements.actual.txt
 | 构建时间 | ~5 分钟 | ~2 分钟 | -60% |
 | 依赖冲突风险 | 高 | 低 | 显著降低 |
 | 维护复杂度 | 高 | 低 | 简化 |
-
----
-
-**清理完成！现在依赖更精简、构建更快速、维护更简单！** 🎉

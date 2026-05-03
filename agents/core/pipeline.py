@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 _CST = timezone(timedelta(hours=8))
+ROLE_PATHS = {
+    "analyst": "agents/roles/analyst",
+    "trader": "agents/roles/trader",
+    "reviewer": "agents/roles/reviewer",
+    "reporter": "agents/roles/reporter",
+}
 
 
 def _now_iso() -> str:
@@ -50,14 +56,19 @@ class MatchPipeline:
                 f"{json.dumps(context, ensure_ascii=False)}"
             )
             # Execute the agent role (Analyst)
-            result = await self.adapter.run_agent("analyst", prompt)
+            result = await self.adapter.run_agent(ROLE_PATHS["analyst"], prompt)
             analysis = self._parse_analysis_output(result.final_text, context.get("metadata", {}))
             analysis["analyzed_at"] = _now_iso()
             analysis_results[model] = analysis
             
         # 2. Write back to Blackboard
+        analysis_payload = analysis_results
+        if len(analysis_results) == 1:
+            only_model, only_result = next(iter(analysis_results.items()))
+            analysis_payload = {**only_result, only_model: only_result}
+
         updates = {
-            "analysis": analysis_results,
+            "analysis": analysis_payload,
             "state": {"analyst": "done"}
         }
         merge_update(filepath, updates)
@@ -99,7 +110,7 @@ class MatchPipeline:
             f"{json.dumps(context, ensure_ascii=False, indent=2)}"
         )
         
-        result = await self.adapter.run_agent("trader", prompt)
+        result = await self.adapter.run_agent(ROLE_PATHS["trader"], prompt)
         trade = self._parse_trade_output(result.final_text)
         trade["traded_at"] = _now_iso()
         
@@ -127,20 +138,24 @@ class MatchPipeline:
     # ── Reviewer 步骤 ───────────────────────────────────────────────
 
     async def run_reviewer_step(self, record: dict) -> str:
+        from agents.core.blackboard import load_partial
+
         match_id = record["match_id"]
-        analysis = record.get("analysis", {})
-        trade = record.get("trade", {})
-        orche = record.get("orchestrator", {})
+        filepath = match_store.MATCHES_DIR / f"{match_id}.json"
+        context = load_partial(filepath, ["metadata", "analysis", "trading"])
+        metadata = context.get("metadata", {})
+        analysis = context.get("analysis", {})
+        trade = context.get("trading", {}).get("results", {})
         prompt = (
             f"审核以下比赛的预测和交易决策:\n"
-            f"比赛: {orche.get('home_team')} vs {orche.get('away_team')}\n"
+            f"比赛: {metadata.get('home_team')} vs {metadata.get('away_team')}\n"
             f"分析:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}\n"
             f"交易:\n{json.dumps(trade, ensure_ascii=False, indent=2)}\n"
             f"\n请检查 xG ↔ AH 方向是否一致、赔率是否合理、凯利注额是否审慎。"
             f"输出审核结论: VERDICT: approved | feedback | rejected\n"
             f"如果 feedback，说明具体改进建议。"
         )
-        result = await self.adapter.run_agent("reviewer", prompt)
+        result = await self.adapter.run_agent(ROLE_PATHS["reviewer"], prompt)
         verdict = self._parse_verdict(result.final_text)
         review_data = {
             "verdict": verdict,
@@ -188,7 +203,7 @@ class MatchPipeline:
             f"{json.dumps(records, ensure_ascii=False, indent=2)}\n"
             f"\n请以 Markdown 格式输出结构化报告，包含赛事摘要、xG 分析、亚盘推荐、风险提示。"
         )
-        result = await self.adapter.run_agent("reporter", prompt)
+        result = await self.adapter.run_agent(ROLE_PATHS["reporter"], prompt)
         report_content = result.final_text
 
         today = datetime.now(_CST).strftime("%Y-%m-%d")

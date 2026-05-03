@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -129,6 +130,30 @@ class TestToolExecutorExecute:
             score_matrix=matrix, ah_line=-0.5,
         )
         assert isinstance(result, (float, dict))
+
+    @pytest.mark.asyncio
+    async def test_sportmonks_tools_use_data_service_factory(self, monkeypatch):
+        executor = ToolExecutor()
+        fake_service = AsyncMock()
+        fake_service.get_matches.return_value = [{"id": 1}]
+        fake_service.get_match_for_analysis.return_value = {"fixture": {"id": 1}}
+
+        monkeypatch.setattr(
+            "agents.adapters.tool_executor._create_sportmonks_data_service",
+            lambda: fake_service,
+        )
+
+        matches = await executor._tool_goalcast_sportmonks_get_matches(date="2026-04-29")
+        match = await executor._tool_goalcast_sportmonks_get_match(fixture_id=1)
+
+        assert matches["ok"] is True
+        assert matches["count"] == 1
+        assert match["ok"] is True
+        fake_service.get_matches.assert_awaited_once()
+        fake_service.get_match_for_analysis.assert_awaited_once_with(
+            fixture_id=1,
+            match_date=None,
+        )
 
 
 class TestSerializeResult:

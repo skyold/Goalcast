@@ -18,6 +18,18 @@ from agents.adapters.adapter import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_llm_env(monkeypatch):
+    for key in [
+        "LLM_PROVIDER",
+        "LLM_API_KEY",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "ANTHROPIC_API_KEY",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+
+
 class FakeLoader:
     def __init__(self, system_prompt="", allowed_tools=None):
         self._system_prompt = system_prompt
@@ -68,6 +80,30 @@ def _make_response(stop_reason, content_blocks):
     response = MagicMock()
     response.stop_reason = stop_reason
     response.content = content_blocks
+    return response
+
+
+def _make_openai_tool_call(name, arguments, call_id="call_001"):
+    fn = MagicMock()
+    fn.name = name
+    fn.arguments = json.dumps(arguments)
+
+    tool_call = MagicMock()
+    tool_call.id = call_id
+    tool_call.function = fn
+    return tool_call
+
+
+def _make_openai_response(content=None, tool_calls=None):
+    message = MagicMock()
+    message.content = content
+    message.tool_calls = tool_calls
+
+    choice = MagicMock()
+    choice.message = message
+
+    response = MagicMock()
+    response.choices = [choice]
     return response
 
 
@@ -151,6 +187,66 @@ class TestClaudeAdapterInit:
         )
         assert adapter.model == "claude-haiku"
         assert adapter.max_tokens == 1024
+
+    @patch("anthropic.AsyncAnthropic")
+    def test_falls_back_to_generic_llm_env_vars(self, mock_client_cls, monkeypatch):
+        mock_client_cls.return_value = MagicMock()
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("LLM_API_KEY", "test-key")
+        monkeypatch.setenv("LLM_BASE_URL", "https://example.invalid")
+        monkeypatch.setenv("LLM_MODEL", "claude-custom")
+
+        adapter = ClaudeAdapter(
+            executor=FakeExecutor(),
+            loader=FakeLoader(),
+        )
+
+        assert adapter.model == "claude-custom"
+        mock_client_cls.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://example.invalid",
+        )
+
+    @patch("anthropic.AsyncAnthropic")
+    def test_explicit_args_override_generic_llm_env_vars(self, mock_client_cls, monkeypatch):
+        mock_client_cls.return_value = MagicMock()
+        monkeypatch.setenv("LLM_API_KEY", "env-key")
+        monkeypatch.setenv("LLM_BASE_URL", "https://env.invalid")
+        monkeypatch.setenv("LLM_MODEL", "env-model")
+
+        adapter = ClaudeAdapter(
+            model="arg-model",
+            api_key="arg-key",
+            base_url="https://arg.invalid",
+            executor=FakeExecutor(),
+            loader=FakeLoader(),
+        )
+
+        assert adapter.model == "arg-model"
+        mock_client_cls.assert_called_once_with(
+            api_key="arg-key",
+            base_url="https://arg.invalid",
+        )
+
+    @patch("openai.AsyncOpenAI")
+    def test_openai_provider_uses_openai_client(self, mock_client_cls, monkeypatch):
+        mock_client_cls.return_value = MagicMock()
+        monkeypatch.setenv("LLM_PROVIDER", "openai")
+        monkeypatch.setenv("LLM_API_KEY", "openai-key")
+        monkeypatch.setenv("LLM_BASE_URL", "https://openai.example/v1")
+        monkeypatch.setenv("LLM_MODEL", "gpt-4o-mini")
+
+        adapter = ClaudeAdapter(
+            executor=FakeExecutor(),
+            loader=FakeLoader(),
+        )
+
+        assert adapter.model == "gpt-4o-mini"
+        assert adapter.provider == "openai"
+        mock_client_cls.assert_called_once_with(
+            api_key="openai-key",
+            base_url="https://openai.example/v1",
+        )
 
 
 @pytest.mark.asyncio
@@ -267,3 +363,37 @@ class TestClaudeAdapterRunAgent:
         assert "City vs Arsenal" in context_msg["content"]
         user_msg = msgs[1]
         assert user_msg["content"] == "分析"
+
+    @patch("openai.AsyncOpenAI")
+    async def test_openai_tool_call_then_final_text(self, mock_cls, monkeypatch):
+        monkeypatch.setenv("LLM_PROVIDER", "openai")
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[
+                _make_openai_response(
+                    tool_calls=[
+                        _make_openai_tool_call(
+                            "goalcast_calculate_ev",
+                            {"model_probability": 0.61, "market_odds": 1.95},
+                        )
+                    ]
+                ),
+                _make_openai_response(content="OpenAI EV 计算完成"),
+            ]
+        )
+
+        executor = FakeExecutor({"goalcast_calculate_ev": {"ev": 0.19}})
+        adapter = ClaudeAdapter(
+            executor=executor,
+            loader=FakeLoader("sys", ["goalcast_calculate_ev"]),
+        )
+
+        result = await adapter.run_agent("trader", "做个交易")
+
+        assert result.final_text == "OpenAI EV 计算完成"
+        assert result.rounds == 2
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["tool"] == "goalcast_calculate_ev"
+        assert executor.calls[0]["params"]["model_probability"] == 0.61

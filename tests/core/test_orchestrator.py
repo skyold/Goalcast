@@ -97,6 +97,39 @@ class TestResolveLeagueIds:
         result = orch._resolve_league_ids(["中超"])
         assert result is None
 
+    def test_uses_fallback_league_path_when_primary_missing(self, tmp_path, monkeypatch):
+        from agents.core import orchestrator
+
+        fallback_json = tmp_path / "skills_leagues.json"
+        fallback_json.write_text(json.dumps({
+            "8": {"id": 8, "name": "Premier League"},
+        }), encoding="utf-8")
+
+        monkeypatch.setattr(
+            orchestrator,
+            "LEAGUES_JSON_CANDIDATE_PATHS",
+            [Path("/nonexistent/primary.json"), fallback_json],
+        )
+
+        orch = orchestrator.Orchestrator(FakeAdapter())
+        result = orch._resolve_league_ids(["Premier League"])
+
+        assert result == [8]
+
+    def test_accepts_numeric_league_ids_directly(self, tmp_path, monkeypatch):
+        from agents.core import orchestrator
+
+        test_json = tmp_path / "leagues.json"
+        test_json.write_text(json.dumps({
+            "Premier League": {"id": 8},
+        }), encoding="utf-8")
+        monkeypatch.setattr(orchestrator, "LEAGUES_JSON_PATH", test_json)
+        monkeypatch.setattr(orchestrator, "LEAGUES_JSON_CANDIDATE_PATHS", None)
+
+        orch = orchestrator.Orchestrator(FakeAdapter())
+        assert orch._resolve_league_ids([8]) == [8]
+        assert orch._resolve_league_ids(["8"]) == [8]
+
 
 @pytest.mark.asyncio
 class TestFetchAndPrepare:

@@ -185,6 +185,13 @@ TOOL_SCHEMAS: dict[str, dict] = {
 }
 
 
+def _create_sportmonks_data_service():
+    from datasource.sportmonks.service import SportmonksDataService
+    from mcp_server.internal import get_sportmonks
+
+    return SportmonksDataService(provider=get_sportmonks())
+
+
 class ToolExecutor:
     """执行 Goalcast MCP 工具。通过 getattr 动态分发到 _tool_* 方法。"""
 
@@ -205,10 +212,9 @@ class ToolExecutor:
     async def _tool_goalcast_sportmonks_get_matches(
         self, date: str | None = None, league_ids: list[int] | None = None
     ) -> dict:
-        from datasource.sportmonks.service import SportmonksService
         from mcp_server.tools.sportmonks import _serialize
 
-        service = SportmonksService()
+        service = _create_sportmonks_data_service()
         fixtures = await service.get_matches(date=date, league_ids=league_ids)
         data = _serialize(fixtures)
         return {"ok": True, "count": len(data), "data": data}
@@ -216,10 +222,9 @@ class ToolExecutor:
     async def _tool_goalcast_sportmonks_get_match(
         self, fixture_id: int, match_date: str | None = None
     ) -> dict:
-        from datasource.sportmonks.service import SportmonksService
         from mcp_server.tools.sportmonks import _serialize
 
-        service = SportmonksService()
+        service = _create_sportmonks_data_service()
         payload = await service.get_match_for_analysis(
             fixture_id=fixture_id, match_date=match_date
         )

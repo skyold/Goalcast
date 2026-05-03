@@ -40,6 +40,6 @@
 
 ## 不推荐用法
 
-- ❌ `get_league_matches` 获取完整赛程（超限风险）
-- ❌ `get_todays_matches` 不带 `league_filter` 分析单联赛
-- ✅ 替代：`get_todays_matches(league_filter=...)` → `get_match_details`
+- `get_league_matches` 获取完整赛程（超限风险）
+- `get_todays_matches` 不带 `league_filter` 分析单联赛
+- 替代：`get_todays_matches(league_filter=...)` → `get_match_details`

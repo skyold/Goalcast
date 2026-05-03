@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Activity, CheckCircle2, Clock, PlayCircle, Loader2 } from 'lucide-react';
+import { getWebSocketUrl, shouldIgnoreSocketClose } from './ws';
 
 interface ChatMessage {
   id: string;
@@ -33,24 +34,123 @@ const App: React.FC = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const addMessage = useCallback((sender: 'user' | 'system' | 'orchestrator', text: string) => {
+    setMessages(prev => [...prev, {
+      id: Math.random().toString(36).substring(7),
+      sender,
+      text,
+      timestamp: new Date()
+    }]);
+  }, []);
+
+  const handleServerEvent = useCallback((data: unknown) => {
+    const event = data as { type?: string; payload?: Record<string, unknown> };
+    const type = event.type;
+    const payload = event.payload ?? {};
+
+    switch (type) {
+      case 'chat_chunk':
+        addMessage('orchestrator', String(payload.text ?? ''));
+        break;
+      
+      case 'pipeline_start':
+        setGlobalStatus('Pipeline Running...');
+        addMessage('orchestrator', String(payload.message ?? 'Starting analysis pipeline...'));
+        setMatches({});
+        break;
+
+      case 'matches_found': {
+        addMessage('orchestrator', `Found ${String(payload.total ?? 0)} matches to analyze.`);
+        const newMatches: Record<string, MatchData> = {};
+        const matchList = payload.matches;
+        if (Array.isArray(matchList)) {
+          matchList.forEach((item) => {
+            const match = item as Partial<MatchData>;
+            if (!match.match_id) return;
+            newMatches[match.match_id] = {
+              match_id: match.match_id,
+              home_team: match.home_team ?? '',
+              away_team: match.away_team ?? '',
+              kickoff_time: match.kickoff_time ?? '',
+              status: 'pending'
+            };
+          });
+        }
+        setMatches(prev => ({ ...prev, ...newMatches }));
+        break;
+      }
+
+      case 'match_step_start':
+        setMatches(prev => {
+          const matchId = String(payload.match_id ?? '');
+          if (!prev[matchId]) return prev;
+          return {
+            ...prev,
+            [matchId]: {
+              ...prev[matchId],
+              status: payload.step === 'analyst' ? 'analyzing' : 
+                      payload.step === 'trader' ? 'trading' : 'analyzing'
+            }
+          };
+        });
+        break;
+
+      case 'match_result_ready':
+        setMatches(prev => {
+          const matchId = String(payload.match_id ?? '');
+          if (!prev[matchId]) return prev;
+          return {
+            ...prev,
+            [matchId]: {
+              ...prev[matchId],
+              status: 'done',
+              predictions: payload.predictions as MatchData['predictions'],
+              ev: typeof payload.ev === 'number' ? payload.ev : undefined,
+              recommendation: typeof payload.recommendation === 'string' ? payload.recommendation : undefined
+            }
+          };
+        });
+        break;
+        
+      case 'match_step_error':
+        setMatches(prev => {
+          const matchId = String(payload.match_id ?? '');
+          if (!prev[matchId]) return prev;
+          return {
+            ...prev,
+            [matchId]: {
+              ...prev[matchId],
+              status: 'error',
+              error: String(payload.message ?? 'Unknown error occurred')
+            }
+          };
+        });
+        break;
+
+      case 'pipeline_complete':
+        setGlobalStatus('Pipeline Completed');
+        addMessage('orchestrator', String(payload.message ?? 'All matches analyzed.'));
+        break;
+
+      default:
+        console.log('Unknown event type:', type, payload);
+    }
+  }, [addMessage]);
+
   useEffect(() => {
     // Scroll to bottom of chat
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    // Determine WS URL based on environment (local dev vs docker)
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // If in dev mode, point to backend directly, otherwise use relative path via Nginx
-    const wsUrl = import.meta.env.DEV 
-      ? `ws://localhost:8000/ws/chat`
-      : `${protocol}//${window.location.host}/ws/chat`;
+    const wsUrl = getWebSocketUrl();
 
     console.log(`Connecting to WebSocket: ${wsUrl}`);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (wsRef.current !== ws) return;
       setIsConnected(true);
       addMessage('system', 'Connected to Goalcast Orchestrator.');
       setGlobalStatus('Ready');
@@ -66,107 +166,19 @@ const App: React.FC = () => {
     };
 
     ws.onclose = () => {
+      if (shouldIgnoreSocketClose(ws, wsRef.current)) return;
       setIsConnected(false);
       addMessage('system', 'Connection lost. Please refresh.');
       setGlobalStatus('Disconnected');
     };
 
     return () => {
+      if (wsRef.current === ws) {
+        wsRef.current = null;
+      }
       ws.close();
     };
-  }, []);
-
-  const handleServerEvent = (data: any) => {
-    const { type, payload } = data;
-
-    switch (type) {
-      case 'chat_chunk':
-        addMessage('orchestrator', payload.text);
-        break;
-      
-      case 'pipeline_start':
-        setGlobalStatus('Pipeline Running...');
-        addMessage('orchestrator', payload.message || 'Starting analysis pipeline...');
-        // Clear previous matches on new run
-        setMatches({});
-        break;
-
-      case 'matches_found':
-        addMessage('orchestrator', `Found ${payload.total} matches to analyze.`);
-        const newMatches: Record<string, MatchData> = {};
-        if (payload.matches && Array.isArray(payload.matches)) {
-          payload.matches.forEach((m: any) => {
-            newMatches[m.match_id] = {
-              ...m,
-              status: 'pending'
-            };
-          });
-        }
-        setMatches(prev => ({ ...prev, ...newMatches }));
-        break;
-
-      case 'match_step_start':
-        setMatches(prev => {
-          if (!prev[payload.match_id]) return prev;
-          return {
-            ...prev,
-            [payload.match_id]: {
-              ...prev[payload.match_id],
-              status: payload.step === 'analyst' ? 'analyzing' : 
-                      payload.step === 'trader' ? 'trading' : 'analyzing'
-            }
-          };
-        });
-        break;
-
-      case 'match_result_ready':
-        setMatches(prev => {
-          if (!prev[payload.match_id]) return prev;
-          return {
-            ...prev,
-            [payload.match_id]: {
-              ...prev[payload.match_id],
-              status: 'done',
-              predictions: payload.predictions,
-              ev: payload.ev,
-              recommendation: payload.recommendation
-            }
-          };
-        });
-        break;
-        
-      case 'match_step_error':
-        setMatches(prev => {
-          if (!prev[payload.match_id]) return prev;
-          return {
-            ...prev,
-            [payload.match_id]: {
-              ...prev[payload.match_id],
-              status: 'error',
-              error: payload.message || 'Unknown error occurred'
-            }
-          };
-        });
-        break;
-
-      case 'pipeline_complete':
-        setGlobalStatus('Pipeline Completed');
-        addMessage('orchestrator', payload.message || 'All matches analyzed.');
-        break;
-
-      default:
-        console.log('Unknown event type:', type, payload);
-    }
-  };
-
-  const addMessage = (sender: 'user' | 'system' | 'orchestrator', text: string) => {
-    setMessages(prev => [...prev, {
-      id: Math.random().toString(36).substring(7),
-      sender,
-      text,
-      timestamp: new Date()
-    }]);
-  };
+  }, [addMessage, handleServerEvent]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();

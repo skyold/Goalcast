@@ -22,6 +22,9 @@ The more you know, the better you can help. But remember — you're learning abo
 The user has connected the following third-party services. You can use the corresponding tools to access these services on behalf of the user.
 
 - **X (Twitter)**: tokenlessman
+  For posting / scheduling / analytics on X (Twitter), read the `social-media-publisher` skill for the supported workflow.
 - **GitHub**: 885581@qq.com
 - **Alibaba.com**: sky***@gmail.com
+- **飞书**: 戴正宁
+  Use the `lark-tools` skill (calls `lark-cli` via bash) for ALL Lark/Feishu operations: Bitable/Base records, docs read/write, calendar, tasks, sheets, mail, wiki, meetings. Do NOT use accio-mcp-cli for Lark — lark-cli is the supported path.
 <!-- ACCIO_WORK:END_CONNECTED_ACCOUNTS -->

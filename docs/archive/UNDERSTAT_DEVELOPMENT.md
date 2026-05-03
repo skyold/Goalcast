@@ -1,14 +1,14 @@
 # Understat Provider 开发总结
 
-## 📊 进展
+## 进展
 
 ### 已完成
-1. ✅ 创建了 Understat Provider 基础架构
-2. ✅ 实现了 HTML 数据提取功能
-3. ✅ 发现了部分 JSON API 端点
-4. ✅ 测试了球员统计 API 端点
+1. 创建了 Understat Provider 基础架构
+2. 实现了 HTML 数据提取功能
+3. 发现了部分 JSON API 端点
+4. 测试了球员统计 API 端点
 
-### 🔍 研究发现
+### 研究发现
 
 #### Understat 网站结构
 Understat.com 使用 JavaScript 动态加载数据，主要通过以下端点：
@@ -18,11 +18,11 @@ Understat.com 使用 JavaScript 动态加载数据，主要通过以下端点：
    - 需要解析 `teamsData` 等变量
 
 2. **球员统计 API**: `/main/getPlayersStats/{LEAGUE}/{SEASON}`
-   - ✅ 返回 JSON 格式数据
-   - ✅ 已在测试中验证可用
+   - 返回 JSON 格式数据
+   - 已在测试中验证可用
 
 3. **联赛数据 API**: 实际端点待确认
-   - ❌ `/getLeagueData/{LEAGUE}/{SEASON}` 返回 404
+   - `/getLeagueData/{LEAGUE}/{SEASON}` 返回 404
 
 #### 可用联赛
 - EPL (英格兰超级联赛)
@@ -35,7 +35,7 @@ Understat.com 使用 JavaScript 动态加载数据，主要通过以下端点：
 #### 可用赛季
 2014-2025（多个赛季）
 
-## ⚠️ 挑战
+## 挑战
 
 ### 1. 数据提取困难
 Understat 不是传统的 REST API，而是：
@@ -52,7 +52,7 @@ Understat 不是传统的 REST API，而是：
 ### 3. 会话管理问题
 测试中出现 "Unclosed client session" 警告，需要改进资源管理。
 
-## 💡 解决方案建议
+## 解决方案建议
 
 ### 方案 1: 使用现有 Python 库
 使用成熟的 `understatapi` 库：
@@ -63,10 +63,10 @@ from understat import Understat
 async with Understat() as understat:
     # 获取联赛球队
     teams = await understat.get_league_teams("bundesliga", "2024")
-    
+
     # 获取联赛球员
     players = await understat.get_league_players("bundesliga", "2024")
-    
+
     # 获取比赛数据
     matches = await understat.get_league_matches("bundesliga", "2024")
 ```
@@ -93,7 +93,7 @@ async def get_league_data(self, league, season):
     async with session.get(url) as response:
         html = await response.text()
         soup = BeautifulSoup(html, 'html.parser')
-        
+
         # 查找所有 script 标签
         scripts = soup.find_all('script')
         for script in scripts:
@@ -112,7 +112,7 @@ async def get_league_data(self, league, season):
 
 1. **优先使用已验证的 JSON API**
    - `/main/getPlayersStats/{league}/{season}` - 球员数据
-   
+
 2. **对于联赛数据，使用 understatapi 库**
    - 更可靠
    - 处理边缘情况
@@ -121,7 +121,7 @@ async def get_league_data(self, league, season):
    - 如果 API 失败，尝试 HTML 解析
    - 如果 HTML 解析失败，使用缓存数据
 
-## 📝 下一步行动
+## 下一步行动
 
 ### 立即行动
 1. 安装并测试 `understatapi` 库
@@ -138,7 +138,7 @@ async def get_league_data(self, league, season):
 2. 实现射门地图可视化
 3. 创建数据分析工具
 
-## 🔧 代码改进建议
+## 代码改进建议
 
 ### 1. 修复 URL 拼接
 ```python
@@ -170,7 +170,7 @@ async def _request(self, endpoint, **kwargs):
     # 请求逻辑
 ```
 
-## 📦 依赖建议
+## 依赖建议
 
 ```txt
 # requirements.txt
@@ -180,7 +180,7 @@ lxml>=4.9.0  # 快速 XML/HTML 解析
 tenacity>=8.2.0  # 重试逻辑
 ```
 
-## 🎯 最终架构建议
+## 最终架构建议
 
 ```
 provider/
@@ -193,7 +193,7 @@ provider/
 └── ...
 ```
 
-## 📚 参考资料
+## 参考资料
 
 - Understat API: https://understat.com
 - understatapi PyPI: https://pypi.org/project/understatapi/

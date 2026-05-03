@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 
 IDLE_SLEEP_SECONDS = 5
 
-LEAGUES_JSON_PATH = (
-    Path(__file__).parent.parent
-    / "roles" / "analyst" / "sportmonks_leagues.json"
+LEAGUES_JSON_PATH = Path(__file__).parent.parent / "roles" / "analyst" / "sportmonks_leagues.json"
+LEAGUES_JSON_CANDIDATE_PATHS: list[Path] | None = None
+LEAGUES_JSON_FALLBACK_PATH = (
+    Path(__file__).parent.parent.parent / "skills" / "goalcast-analysis-orchestrator" / "sportmonks_leagues.json"
 )
 _CST = timezone(timedelta(hours=8))
 
@@ -42,14 +43,25 @@ class Orchestrator:
         leagues: list[str] | None = None,
         date: str | None = None,
         max_matches: int | None = None,
+        models: list[str] | None = None,
     ) -> dict:
         await self.emitter.emit("pipeline_start", {"message": "Starting pipeline..."})
         
         signal.signal(signal.SIGINT, lambda s, f: self.stop_event.set())
         signal.signal(signal.SIGTERM, lambda s, f: self.stop_event.set())
 
-        fetched = await self._fetch_and_prepare(leagues, date)
+        match_store.abandon_active()
+
+        fetched = await self._fetch_and_prepare(leagues, date, models=models)
         logger.info("[Orchestrator] 已准备 %d 场比赛", fetched)
+
+        if fetched == 0 and not match_store.list_all(status="reviewed"):
+            await self.emitter.emit("pipeline_complete", {"message": "没有可分析的比赛。"})
+            return {
+                "prepared": 0,
+                "reviewed": 0,
+                "reported": len(match_store.list_all(status="reported")),
+            }
 
         tasks = [
             asyncio.create_task(self._analyst_loop()),
@@ -103,6 +115,7 @@ class Orchestrator:
         fixtures = result.get("data", [])
 
         count = 0
+        prepared_matches = []
         for fixture in fixtures:
             match_id = match_store.generate_match_id()
             fixture_id = fixture.get("fixture_id", fixture.get("id"))
@@ -136,13 +149,36 @@ class Orchestrator:
             filepath = match_store.MATCHES_DIR / f"{match_id}.json"
             
             # 保留旧版 match_store 内存兼容性（兼容后续步骤和队列轮询）
-            legacy_record = {"match_id": match_id, "status": "pending", "orchestrator": {"prepared_at": record["metadata"]["prepared_at"]}}
+            legacy_record = {
+                "match_id": match_id,
+                "status": "pending",
+                "orchestrator": {
+                    "prepared_at": record["metadata"]["prepared_at"],
+                    "fixture_id": fixture_id,
+                    "home_team": record["metadata"]["home_team"],
+                    "away_team": record["metadata"]["away_team"],
+                    "league": record["metadata"]["league"],
+                    "kickoff_time": record["metadata"]["kickoff_time"],
+                },
+            }
             match_store.save(legacy_record)
             
             merge_update(filepath, record)
+            prepared_matches.append(
+                {
+                    "match_id": match_id,
+                    "home_team": record["metadata"]["home_team"],
+                    "away_team": record["metadata"]["away_team"],
+                    "kickoff_time": record["metadata"]["kickoff_time"],
+                    "league": record["metadata"]["league"],
+                }
+            )
             count += 1
             
-        await self.emitter.emit("matches_found", {"total": count, "matches": []})
+        await self.emitter.emit(
+            "matches_found",
+            {"total": count, "matches": prepared_matches},
+        )
         return count
 
     async def _fetch_raw_data_for_models(self, executor, fixture_id: int, models: list[str]) -> dict:
@@ -154,23 +190,57 @@ class Orchestrator:
         # 实际情况中，这里将解析 goalcast-analyzer-v40/SKILL.md 等文件
         if "v4.0" in models or "v3.0" in models:
             # 示例: 两者都需要 sportmonks 的 match context
-            if hasattr(executor, "_tool_goalcast_sportmonks_resolve_match"):
-                res = await executor._tool_goalcast_sportmonks_resolve_match(fixture_id=fixture_id)
+            res = None
+            get_match = getattr(executor, "_tool_goalcast_sportmonks_get_match", None)
+            if callable(get_match):
+                res = await get_match(fixture_id=fixture_id)
+            if not isinstance(res, dict):
+                resolve_match = getattr(executor, "_tool_goalcast_sportmonks_resolve_match", None)
+                if callable(resolve_match):
+                    res = await resolve_match(fixture_id=fixture_id)
+            if isinstance(res, dict):
                 raw_data["sportmonks"] = res.get("data", {})
         return raw_data
 
-    def _resolve_league_ids(self, leagues: list[str]) -> list[int] | None:
-        if not LEAGUES_JSON_PATH.exists():
-            return None
-        try:
-            league_dict = json.loads(
-                LEAGUES_JSON_PATH.read_text(encoding="utf-8")
-            )
-        except (json.JSONDecodeError, IOError):
+    def _has_active_work(self) -> bool:
+        active_statuses = [
+            "pending",
+            "analyzing",
+            "analyzed",
+            "trading",
+            "traded",
+            "reviewing",
+            "feedback",
+        ]
+        return any(match_store.count_by_status([status]) > 0 for status in active_statuses)
+
+    def _resolve_league_ids(self, leagues: list[str | int]) -> list[int] | None:
+        league_dict = None
+        candidate_paths = LEAGUES_JSON_CANDIDATE_PATHS or [
+            LEAGUES_JSON_PATH,
+            LEAGUES_JSON_FALLBACK_PATH,
+        ]
+        for path in candidate_paths:
+            if not path.exists():
+                continue
+            try:
+                league_dict = json.loads(path.read_text(encoding="utf-8"))
+                break
+            except (json.JSONDecodeError, IOError):
+                continue
+        if league_dict is None:
             return None
 
         ids = []
         for name in leagues:
+            if isinstance(name, int):
+                ids.append(name)
+                continue
+            if isinstance(name, str) and name.isdigit():
+                ids.append(int(name))
+                continue
+            if not isinstance(name, str):
+                continue
             name_lower = name.lower()
             for key, value in league_dict.items():
                 if name_lower in key.lower() or name_lower in str(value).lower():
@@ -203,7 +273,19 @@ class Orchestrator:
                 continue
             await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "trader"})
             try:
-                await self.pipeline.run_trader_step(record)
+                trade = await self.pipeline.run_trader_step(record)
+                await self.emitter.emit(
+                    "match_result_ready",
+                    {
+                        "match_id": record["match_id"],
+                        "predictions": trade.get("predictions", {}),
+                        "ev": trade.get("ev"),
+                        "recommendation": trade.get("recommendation")
+                        or trade.get("ah_recommendation")
+                        or trade.get("bet_direction")
+                        or trade.get("direction"),
+                    },
+                )
             except Exception as exc:
                 logger.error("[Orchestrator] Trader 异常: %s", exc)
                 match_store.update_status(record["match_id"], "analyzed")
@@ -224,15 +306,27 @@ class Orchestrator:
         batch_size = 10
         while not self.stop_event.is_set():
             reviewed = match_store.list_all(status="reviewed")
-            if len(reviewed) < batch_size:
+            active_work = self._has_active_work()
+
+            if len(reviewed) >= batch_size:
+                batch = reviewed[:batch_size]
+            elif reviewed and not active_work:
+                batch = reviewed
+            elif not reviewed and not active_work:
+                self.stop_event.set()
+                continue
+            else:
                 await self._sleep(IDLE_SLEEP_SECONDS * 2)
                 continue
-            batch = reviewed[:batch_size]
+
             match_ids = [r["match_id"] for r in batch]
             try:
                 await self.pipeline.run_reporter_step(match_ids)
             except Exception as exc:
                 logger.error("[Orchestrator] Reporter 异常: %s", exc)
+            if not self._has_active_work() and not match_store.list_all(status="reviewed"):
+                self.stop_event.set()
+                continue
             await self._sleep(IDLE_SLEEP_SECONDS)
 
     async def _sleep(self, seconds: float):

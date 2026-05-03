@@ -1,5 +1,5 @@
 services:
-  mcp-server:
+  backend:
     build: .
     env_file:
       - .env
@@ -13,5 +13,5 @@ services:
     ports:
       - "${PORT:-80}:80"
     depends_on:
-      - mcp-server
+      - backend
     restart: unless-stopped

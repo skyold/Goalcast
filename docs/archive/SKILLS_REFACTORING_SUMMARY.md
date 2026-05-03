@@ -1,8 +1,8 @@
 # Skills 重构总结
 
-## 📊 完成情况
+## 完成情况
 
-### ✅ 已完成的工作
+### 已完成的工作
 
 1. **创建了 3 个 Provider Skill 目录**
    - `sportmonks-provider/` - SportMonks API 使用技能
@@ -21,16 +21,16 @@
    - 包含使用建议和组合使用示例
    - 说明了 skill 格式规范
 
-## 📁 新的目录结构
+## 新的目录结构
 
 ```
 skills/
-├── README.md                      # Skills 总览和使用指南 ⭐ NEW
-├── sportmonks-provider/           # SportMonks API 完整指南 ⭐ NEW
+├── README.md                      # Skills 总览和使用指南
+├── sportmonks-provider/           # SportMonks API 完整指南
 │   └── SKILL.md                   # 22 个端点测试 + 使用示例
-├── footystats-provider/           # FootyStats API 完整指南 ⭐ NEW
+├── footystats-provider/           # FootyStats API 完整指南
 │   └── SKILL.md                   # 16 个端点 + 使用示例
-├── understat-provider/            # Understat API 高级统计 ⭐ NEW
+├── understat-provider/            # Understat API 高级统计
 │   └── SKILL.md                   # xG/xA数据 + 分析方法
 ├── goalcast-analyzer-v25/         # 保留的现有 skills
 │   └── SKILL.md
@@ -41,17 +41,17 @@ skills/
 └── .gitkeep
 ```
 
-## 📊 Skills 内容对比
+## Skills 内容对比
 
 ### 1. SportMonks Provider Skill
 
 **内容**:
-- ✅ 免费计划可用端点（6 个）
-- ❌ 不可用端点（16 个）
-- 💻 使用示例和代码模板
-- 🔍 常见问题解答（5 个）
-- 📊 与 FootyStats 对比表
-- ⚠️ 注意事项和最佳实践
+- 免费计划可用端点（6 个）
+- 不可用端点（16 个）
+- 使用示例和代码模板
+- 常见问题解答（5 个）
+- 与 FootyStats 对比表
+- 注意事项和最佳实践
 
 **特色**:
 - 详细的端点测试结果
@@ -62,15 +62,15 @@ skills/
 ### 2. FootyStats Provider Skill
 
 **内容**:
-- 📋 16 个端点详细分类
+- 16 个端点详细分类
   - 基础数据端点（3 个）
   - 联赛数据端点（6 个）
   - 详细数据端点（4 个）
   - 统计数据端点（2 个）
-- 💻 5 个完整使用场景
-- 📊 数据字段说明表格
-- ⚠️ 缓存实现代码
-- 🔍 常见问题解答（5 个）
+- 5 个完整使用场景
+- 数据字段说明表格
+- 缓存实现代码
+- 常见问题解答（5 个）
 
 **特色**:
 - 所有 16 个端点的完整文档
@@ -81,12 +81,12 @@ skills/
 ### 3. Understat Provider Skill
 
 **内容**:
-- 📋 支持的 6 个联赛
-- ✅ 可用端点（球员统计）
-- ⚠️ 需要 HTML 解析的端点
-- 📊 xG 数据字段说明
-- 💻 4 个分析场景示例
-- 🔍 xG 相关问题解答（5 个）
+- 支持的 6 个联赛
+- 可用端点（球员统计）
+- 需要 HTML 解析的端点
+- xG 数据字段说明
+- 4 个分析场景示例
+- xG 相关问题解答（5 个）
 
 **特色**:
 - 专注于 xG 等高级统计
@@ -94,7 +94,7 @@ skills/
 - 球员表现评估模型
 - 推荐使用 understatapi 库
 
-## 🎯 触发条件映射
+## 触发条件映射
 
 ### SportMonks Provider
 当用户询问：
@@ -119,19 +119,19 @@ skills/
 - "获取球员 xG 数据"
 - "高级足球统计数据"
 
-## 📊 Provider 对比总结
+## Provider 对比总结
 
 | 维度 | SportMonks | FootyStats | Understat |
 |------|-----------|------------|-----------|
 | **API Key** | 需要 | 需要 | 不需要 |
-| **免费程度** | ⭐⭐ (有限) | ⭐⭐⭐⭐ (完整) | ⭐⭐⭐⭐⭐ (免费) |
-| **xG 数据** | ❌ 付费 | ⭐⭐ 部分 | ⭐⭐⭐⭐ 完整 |
-| **联赛数据** | ⭐⭐ 有限 | ⭐⭐⭐⭐ 完整 | ⭐⭐ 需解析 |
-| **实时数据** | ❌ 付费 | ❌ 无 | ❌ 无 |
-| **使用难度** | ⭐⭐⭐ 中等 | ⭐⭐ 简单 | ⭐⭐⭐ 中等 |
-| **文档质量** | ⭐⭐⭐⭐ 详细 | ⭐⭐⭐⭐ 详细 | ⭐⭐⭐⭐ 详细 |
+| **免费程度** | 有限 | 完整 | 免费 |
+| **xG 数据** | 付费 | 部分 | 完整 |
+| **联赛数据** | 有限 | 完整 | 需解析 |
+| **实时数据** | 付费 | 无 | 无 |
+| **使用难度** | 中等 | 简单 | 中等 |
+| **文档质量** | 详细 | 详细 | 详细 |
 
-## 💡 使用建议
+## 使用建议
 
 ### 推荐组合
 
@@ -176,71 +176,31 @@ players = await understat.get_league_players("EPL", "2024")
 analyze_xg_performance(players)
 ```
 
-## 📝 Skill 格式规范
+## Skill 格式规范
 
 每个 skill 目录包含一个 `SKILL.md` 文件，遵循以下结构：
 
-1. **概述** - 简要说明用途
-2. **触发条件** - 列出触发场景
-3. **核心知识** - API 端点、配置等
-4. **使用方法** - 代码示例
-5. **注意事项** - 限制和警告
-6. **常见问题** - Q&A 格式
-7. **数据字段** - 表格说明
-8. **相关文档** - 链接
-9. **故障排除** - 问题解决方案
-10. **最佳实践** - 推荐做法
-11. **更新日志** - 版本历史
+1. 概述 - 简要说明用途
+2. 触发条件 - 列出触发场景
+3. 核心知识 - API 端点、配置等
+4. 使用方法 - 代码示例
+5. 注意事项 - 限制和警告
+6. 常见问题 - Q&A 格式
+7. 数据字段 - 表格说明
+8. 相关文档 - 链接
+9. 故障排除 - 问题解决方案
+10. 最佳实践 - 推荐做法
+11. 更新日志 - 版本历史
 
-## 🔄 后续工作
+## 相关文档
 
-### 建议改进
-
-1. **添加更多示例**
-   - 实际项目中的使用案例
-   - 复杂场景的完整代码
-
-2. **更新维护**
-   - 定期更新 API 变化
-   - 添加新的使用场景
-
-3. **扩展技能**
-   - 数据分析技能
-   - 可视化技能
-   - 报告生成技能
-
-### 文档链接
-
-确保所有相关文档都有正确的链接：
-- Provider 实现代码
-- API 官方文档
-- 测试报告
-- 使用指南
-
-## ✅ 验证清单
-
-- [x] 创建 sportmonks-provider 目录和 SKILL.md
-- [x] 创建 footystats-provider 目录和 SKILL.md
-- [x] 创建 understat-provider 目录和 SKILL.md
-- [x] 创建 skills README.md
-- [x] 删除旧的 *.skill 文件
-- [x] 验证目录结构正确
-- [x] 确保所有链接正确
-- [x] 提供完整的使用示例
-- [x] 包含故障排除指南
-- [x] 添加 Provider 对比表
-
-## 📚 相关文档
-
-- [SportMonks 测试报告](../docs/SPORTMONKS_TEST_REPORT.md)
-- [SportMonks 使用指南](../docs/SPORTMONKS_USAGE.md)
-- [Understat 开发总结](../docs/UNDERSTAT_DEVELOPMENT.md)
-- [Understat 实现总结](../docs/UNDERSTAT_IMPLEMENTATION_SUMMARY.md)
-- [MCP 服务器文档](../mcp_server/README.md)
-- [Skills README](./README.md)
+- [SportMonks 测试报告](../providers/SPORTMONKS_TEST_REPORT.md)
+- [SportMonks 使用指南](../providers/SPORTMONKS_USAGE.md)
+- [Understat 集成总结](../providers/UNDERSTAT_INTEGRATION.md)
+- [MCP 服务器文档](../../mcp_server/README.md)
+- [Skills README](../../skills/README.md)
 
 ---
 
-**重构完成时间**: 2026-04-08  
-**重构内容**: 将所有 provider 文档转换为独立的 skill 目录结构  
-**文档质量**: ⭐⭐⭐⭐⭐ 完整、详细、实用
+**重构完成时间**: 2026-04-08
+**重构内容**: 将所有 provider 文档转换为独立的 skill 目录结构

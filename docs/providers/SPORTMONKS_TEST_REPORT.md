@@ -1,18 +1,18 @@
 # SportMonks API v3 免费计划测试报告
 
-## 📋 测试概述
+## 测试概述
 
-**测试时间：** 2026-04-08 21:00:00  
-**API Key:** Y4Q4Lr04PZS7WLz...  
-**计划类型：** Football Free Plan  
+**测试时间：** 2026-04-08 21:00:00
+**API Key:** Y4Q4Lr04PZS7WLz...
+**计划类型：** Football Free Plan
 **测试端点：** 22 个
 
-## ✅ 可用端点（6 个）
+## 可用端点（6 个）
 
 ### 1. Fixtures (比赛数据)
 
 #### `/fixtures` - 比赛列表
-- **状态：** ✅ 可用
+- **状态：** 可用
 - **数据量：** 25 条/页
 - **参数：** `page` (分页)
 - **用途：** 获取历史比赛数据
@@ -23,7 +23,7 @@
   ```
 
 #### `/fixtures/between/{start_date}/{end_date}` - 日期范围比赛
-- **状态：** ✅ 可用
+- **状态：** 可用
 - **数据量：** 可变（取决于日期范围）
 - **参数：** 开始日期、结束日期 (YYYY-MM-DD)
 - **用途：** 获取特定时间段的比赛
@@ -39,7 +39,7 @@
 ### 2. Leagues (联赛数据)
 
 #### `/leagues` - 联赛列表
-- **状态：** ✅ 可用
+- **状态：** 可用
 - **数据量：** 25 条/页（实际返回 4 条）
 - **参数：** `page` (分页)
 - **用途：** 获取可用联赛列表
@@ -52,7 +52,7 @@
 ### 3. Seasons (赛季数据)
 
 #### `/seasons` - 赛季列表
-- **状态：** ✅ 可用
+- **状态：** 可用
 - **数据量：** 25 条/页
 - **参数：** `page` (分页)
 - **用途：** 获取联赛赛季信息
@@ -64,7 +64,7 @@
 ### 4. Teams (球队数据)
 
 #### `/teams` - 球队列表
-- **状态：** ✅ 可用
+- **状态：** 可用
 - **数据量：** 25 条/页
 - **参数：** `page` (分页)
 - **用途：** 获取球队基本信息
@@ -77,7 +77,7 @@
 ### 5. Players (球员数据)
 
 #### `/players` - 球员列表
-- **状态：** ✅ 可用
+- **状态：** 可用
 - **数据量：** 25 条/页
 - **参数：** `page` (分页)
 - **用途：** 获取球员基本信息
@@ -86,39 +86,39 @@
   response = await provider.get_players(page=1)
   ```
 
-## ❌ 不可用端点（16 个）
+## 不可用端点（16 个）
 
 ### 实时数据（3 个）
-- ❌ `/livescores` - 实时比分
-- ❌ `/livescores/inplay` - 正在进行比赛
-- ❌ `/livescores/latest` - 最新比赛
+- `/livescores` - 实时比分
+- `/livescores/inplay` - 正在进行比赛
+- `/livescores/latest` - 最新比赛
 
 **错误信息：** "No result(s) found matching your request"
 
 ### 高级筛选（3 个）
-- ❌ `/fixtures/date/{date}` - 按日期筛选
-- ❌ `/leagues/countries/{id}` - 按国家筛选
-- ❌ `/leagues/search/{name}` - 搜索联赛
+- `/fixtures/date/{date}` - 按日期筛选
+- `/leagues/countries/{id}` - 按国家筛选
+- `/leagues/search/{name}` - 搜索联赛
 
 **错误信息：** "No result(s) found matching your request"
 
 ### 统计数据（6 个）
-- ❌ `/standings/seasons/{id}` - 积分榜
-- ❌ `/teams/seasons/{id}` - 赛季球队数据
-- ❌ `/topscorers/seasons/{id}` - 射手榜
-- ❌ `/schedules/seasons/{id}` - 赛程计划
-- ❌ `/rounds/seasons/{id}` - 轮次信息
-- ❌ `/stages/seasons/{id}` - 阶段信息
+- `/standings/seasons/{id}` - 积分榜
+- `/teams/seasons/{id}` - 赛季球队数据
+- `/topscorers/seasons/{id}` - 射手榜
+- `/schedules/seasons/{id}` - 赛程计划
+- `/rounds/seasons/{id}` - 轮次信息
+- `/stages/seasons/{id}` - 阶段信息
 
 **错误信息：** "No result(s) found matching your request"
 
 ### 赔率与预测（4 个）
-- ❌ `/odds/markets` - 赔率市场 (HTTP 404)
-- ❌ `/odds/bookmakers` - 博彩公司 (HTTP 404)
-- ❌ `/predictions/value-bets` - 价值投注 (HTTP 403)
-- ❌ `/fixtures/seasons/{id}` - 赛季比赛 (HTTP 404)
+- `/odds/markets` - 赔率市场 (HTTP 404)
+- `/odds/bookmakers` - 博彩公司 (HTTP 404)
+- `/predictions/value-bets` - 价值投注 (HTTP 403)
+- `/fixtures/seasons/{id}` - 赛季比赛 (HTTP 404)
 
-## 📊 数据使用统计
+## 数据使用统计
 
 ### 测试中获取的数据量
 
@@ -161,9 +161,9 @@
 }
 ```
 
-## 💡 使用建议
+## 使用建议
 
-### ✅ 推荐使用场景
+### 推荐使用场景
 
 1. **历史比赛分析**
    - 使用 `/fixtures` 获取历史数据
@@ -178,7 +178,7 @@
    - 分页获取完整数据集
    - 后处理筛选特定联赛/球队
 
-### ❌ 不推荐使用场景
+### 不推荐使用场景
 
 1. **实时数据需求**
    - 实时比分
@@ -194,7 +194,7 @@
    - 单日比赛查询（改用日期范围）
    - 按国家筛选联赛
 
-## 🔄 替代方案
+## 替代方案
 
 ### 需要实时数据
 **推荐：** 使用 FootyStats API
@@ -214,26 +214,26 @@ standings = await footystats_get_league_tables(season_id=14968)
 team_stats = await footystats_get_team_details(team_id=46)
 ```
 
-## 📈 免费计划限制总结
+## 免费计划限制总结
 
 ### 数据访问限制
-- ✅ 基础数据：联赛、球队、球员、比赛
-- ❌ 实时数据：比分、赛况
-- ❌ 高级统计：积分榜、射手榜
-- ❌ 赔率预测：价值投注、详细赔率
+- 基础数据：联赛、球队、球员、比赛 — 可用
+- 实时数据：比分、赛况 — 不可用
+- 高级统计：积分榜、射手榜 — 不可用
+- 赔率预测：价值投注、详细赔率 — 不可用
 
 ### 功能限制
-- ✅ 分页访问（每页 25 条）
-- ✅ 日期范围查询
-- ❌ 单日期精确查询
-- ❌ 按国家/名称筛选
+- 分页访问（每页 25 条）— 可用
+- 日期范围查询 — 可用
+- 单日期精确查询 — 不可用
+- 按国家/名称筛选 — 不可用
 
 ### 数据更新
-- ⚠️ 历史数据较为完整
-- ⚠️ 实时数据不可用
-- ⚠️ 数据更新可能有延迟
+- 历史数据较为完整
+- 实时数据不可用
+- 数据更新可能有延迟
 
-## 🎯 最佳实践
+## 最佳实践
 
 ### 1. 分页获取数据
 ```python
@@ -280,21 +280,21 @@ bundesliga_matches = [
 ]
 ```
 
-## 📝 结论
+## 结论
 
 SportMonks API v3 免费计划提供**基础但有限**的足球数据访问：
 
 ### 优势
-- ✅ 6 个核心端点可用
-- ✅ 支持分页获取数据
-- ✅ 可获取历史比赛记录
-- ✅ 基础联赛/球队/球员数据
+- 6 个核心端点可用
+- 支持分页获取数据
+- 可获取历史比赛记录
+- 基础联赛/球队/球员数据
 
 ### 劣势
-- ❌ 无实时数据
-- ❌ 无高级统计
-- ❌ 无赔率预测
-- ❌ 筛选功能受限
+- 无实时数据
+- 无高级统计
+- 无赔率预测
+- 筛选功能受限
 
 ### 建议
 对于需要**完整足球数据**的应用，建议：
@@ -304,6 +304,6 @@ SportMonks API v3 免费计划提供**基础但有限**的足球数据访问：
 
 ---
 
-**生成时间：** 2026-04-08 21:00:29  
-**测试脚本：** `test_sportmonks_endpoints.py`  
+**生成时间：** 2026-04-08 21:00:29
+**测试脚本：** `test_sportmonks_endpoints.py`
 **详细报告：** `sportmonks_api_report.json`
