@@ -112,10 +112,10 @@ async def test_orchestrator_run_completes_with_small_reviewed_batch(tmp_path, mo
 @pytest.mark.parametrize(
     ("method_name", "expected_role"),
     [
-        ("run_analyst_step", "agents/roles/analyst"),
-        ("run_trader_step", "agents/roles/trader"),
-        ("run_reviewer_step", "agents/roles/reviewer"),
-        ("run_reporter_step", "agents/roles/reporter"),
+        ("run_analyst_step", "backend/agents/roles/analyst"),
+        ("run_trader_step", "backend/agents/roles/trader"),
+        ("run_reviewer_step", "backend/agents/roles/reviewer"),
+        ("run_reporter_step", "backend/agents/roles/reporter"),
     ],
 )
 async def test_pipeline_uses_full_role_paths(method_name, expected_role, tmp_path, monkeypatch):

@@ -49,12 +49,6 @@ data/cache/
 # Logs
 logs/
 *.log
-
-# Data files (keep directory, ignore generated files)
-data/*.json
-data/cache/
-data/exports/
-
 # OS
 .DS_Store
 Thumbs.db
@@ -62,14 +56,11 @@ Thumbs.db
 /.trae
 /.claude
 /.github
-data/backtests/
-.accio/cron/jobs.json
-data/predictions/
-/.accio
-/data
-/diary
+/backend/data/
+.accio
 .mcp.json
 debug
 .
 *.xsd
-agents/roles/orchestrator/skills/
+.ruff_cache
+.pytest_cache

@@ -118,29 +118,6 @@ class TestParseVerdict:
         assert p._parse_verdict("无法确定") == "rejected"
 
 
-class TestBuildAnalystPrompt:
-    def test_contains_key_fields(self):
-        p = MatchPipeline(FakeAdapter())
-        prompt = p._build_analyst_prompt({
-            "home_team": "Man City",
-            "away_team": "Arsenal",
-            "league": "Premier League",
-            "fixture_id": 12345,
-            "model_version": "v4.0",
-        })
-        assert "Man City vs Arsenal" in prompt
-        assert "Premier League" in prompt
-        assert "12345" in prompt
-        assert "goalcast_sportmonks_get_match" in prompt
-        assert "goalcast_calculate_poisson" in prompt
-
-    def test_defaults_model_version(self):
-        p = MatchPipeline(FakeAdapter())
-        prompt = p._build_analyst_prompt({
-            "home_team": "A", "away_team": "B", "league": "L",
-        })
-        assert "v4.0" in prompt
-
 
 @pytest.mark.asyncio
 class TestRunAnalystStep:
@@ -151,7 +128,7 @@ class TestRunAnalystStep:
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "analyst": AgentResult(
+            "backend/agents/roles/analyst": AgentResult(
                 "analyst",
                 '{"home_xg":1.8,"away_xg":1.1,"confidence":78}',
                 [],
@@ -161,9 +138,9 @@ class TestRunAnalystStep:
         p = MatchPipeline(adapter)
         result = await p.run_analyst_step(record)
 
-        assert result["home_xg"] == 1.8
-        assert result["away_xg"] == 1.1
-        assert "analyzed_at" in result
+        assert result["v4.0"]["home_xg"] == 1.8
+        assert result["v4.0"]["away_xg"] == 1.1
+        assert "analyzed_at" in result["v4.0"]
 
         updated = match_store.load("MC-TEST-A1")
         assert updated["status"] == "analyzed"
@@ -176,13 +153,13 @@ class TestRunAnalystStep:
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "analyst": AgentResult("analyst", "garbage output no json", [], 1),
+            "backend/agents/roles/analyst": AgentResult("analyst", "garbage output no json", [], 1),
         })
         p = MatchPipeline(adapter)
         result = await p.run_analyst_step(record)
 
-        assert result["home_xg"] == 0.0
-        assert result["note"].startswith("failed")
+        assert result["v4.0"]["home_xg"] == 0.0
+        assert result["v4.0"]["note"].startswith("failed")
 
         updated = match_store.load("MC-TEST-A2")
         assert updated["status"] == "analyzed"
@@ -198,9 +175,9 @@ class TestRunTraderStep:
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "trader": AgentResult(
+            "backend/agents/roles/trader": AgentResult(
                 "trader",
-                '{"direction":"home","stake":2.5,"ah_line":-0.5}',
+                '{"direction":"home","stake":2.5}',
                 [],
                 1,
             ),
@@ -214,7 +191,7 @@ class TestRunTraderStep:
 
         updated = match_store.load("MC-TEST-T1")
         assert updated["status"] == "traded"
-        assert updated["trade"]["direction"] == "home"
+        assert updated["trading"]["results"]["direction"] == "home"
 
     async def test_fallback_on_bad_output(self, tmp_matches_dir):
         from agents.core import match_store
@@ -224,7 +201,7 @@ class TestRunTraderStep:
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "trader": AgentResult("trader", "no json", [], 1),
+            "backend/agents/roles/trader": AgentResult("trader", "no json", [], 1),
         })
         p = MatchPipeline(adapter)
         result = await p.run_trader_step(record)
@@ -241,11 +218,11 @@ class TestRunReviewerStep:
 
         record = _sample_record("MC-TEST-R1", "traded")
         record["analysis"] = {"home_xg": 1.8}
-        record["trade"] = {"direction": "home", "stake": 2.5}
+        record["trading"] = {"results": {"direction": "home", "stake": 2.5}}
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "reviewer": AgentResult(
+            "backend/agents/roles/reviewer": AgentResult(
                 "reviewer",
                 "VERDICT: approved\n一切正常",
                 [],
@@ -265,11 +242,11 @@ class TestRunReviewerStep:
 
         record = _sample_record("MC-TEST-R2", "traded")
         record["analysis"] = {"home_xg": 0.5}
-        record["trade"] = {"direction": "home", "stake": 10}
+        record["trading"] = {"results": {"direction": "home", "stake": 10}}
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "reviewer": AgentResult(
+            "backend/agents/roles/reviewer": AgentResult(
                 "reviewer",
                 "VERDICT: feedback\n注额过高",
                 [],
@@ -288,11 +265,11 @@ class TestRunReviewerStep:
 
         record = _sample_record("MC-TEST-R3", "traded")
         record["analysis"] = {}
-        record["trade"] = {}
+        record["trading"] = {"results": {}}
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "reviewer": AgentResult(
+            "backend/agents/roles/reviewer": AgentResult(
                 "reviewer", "VERDICT: rejected", [], 1,
             ),
         })
@@ -311,12 +288,12 @@ class TestRunReporterStep:
 
         record = _sample_record("MC-TEST-RP1", "reviewed")
         record["analysis"] = {"home_xg": 1.8, "away_xg": 1.1}
-        record["trade"] = {"direction": "home", "stake": 2.5}
+        record["trading"] = {"results": {"direction": "home", "stake": 2.5}}
         record["review"] = {"verdict": "approved"}
         match_store.save(record)
 
         adapter = FakeAdapter({
-            "reporter": AgentResult(
+            "backend/agents/roles/reporter": AgentResult(
                 "reporter",
                 "# Match Report\n## Analysis\nGood game",
                 [],
@@ -336,18 +313,18 @@ class TestRunReporterStep:
 
         r1 = _sample_record("MC-TEST-RP2", "reviewed")
         r1["analysis"] = {"home_xg": 1.0}
-        r1["trade"] = {"direction": "home"}
+        r1["trading"] = {"results": {"direction": "home"}}
         r1["review"] = {"verdict": "approved"}
         match_store.save(r1)
 
         r2 = _sample_record("MC-TEST-RP3", "reviewed")
         r2["analysis"] = {"home_xg": 0.5}
-        r2["trade"] = {"direction": "away"}
+        r2["trading"] = {"results": {"direction": "away"}}
         r2["review"] = {"verdict": "feedback"}
         match_store.save(r2)
 
         adapter = FakeAdapter({
-            "reporter": AgentResult("reporter", "# Report", [], 1),
+            "backend/agents/roles/reporter": AgentResult("reporter", "# Report", [], 1),
         })
         p = MatchPipeline(adapter)
         ref = await p.run_reporter_step(["MC-TEST-RP2", "MC-TEST-RP3"])

@@ -110,20 +110,20 @@ class TestAgentDefinition:
 
 class TestDirectoryAgentLoaderLoad:
     def test_load_returns_agent_config(self):
-        cfg = DirectoryAgentLoader.load("agents/roles/analyst")
+        cfg = DirectoryAgentLoader.load("backend/agents/roles/analyst")
         assert isinstance(cfg, AgentConfig)
         assert len(cfg.system_prompt) > 100
         assert "Identity" in cfg.system_prompt or "身份" in cfg.system_prompt
 
     def test_load_returns_tools(self):
-        cfg = DirectoryAgentLoader.load("agents/roles/analyst")
+        cfg = DirectoryAgentLoader.load("backend/agents/roles/analyst")
         assert "mcp" in cfg.tools
         tool_names = [t["name"] for t in cfg.tools["mcp"]]
         assert "goalcast_calculate_poisson" in tool_names
         assert "goalcast_calculate_ev" in tool_names
 
     def test_load_nonexistent_role_returns_empty(self):
-        cfg = DirectoryAgentLoader.load("agents/roles/nonexistent_role")
+        cfg = DirectoryAgentLoader.load("backend/agents/roles/nonexistent_role")
         assert isinstance(cfg, AgentConfig)
         assert cfg.system_prompt == ""
         assert cfg.tools == {}
@@ -131,14 +131,14 @@ class TestDirectoryAgentLoaderLoad:
 
 class TestDirectoryAgentLoaderLoadAgent:
     def test_load_agent_returns_agent_definition(self):
-        ad = DirectoryAgentLoader.load_agent("agents/roles/analyst")
+        ad = DirectoryAgentLoader.load_agent("backend/agents/roles/analyst")
         assert isinstance(ad, AgentDefinition)
-        assert ad.role_path == "agents/roles/analyst"
+        assert ad.role_path == "backend/agents/roles/analyst"
         assert ad.role_name == "analyst"
         assert len(ad.system_prompt) > 100
 
     def test_load_agent_allowed_mcp_tools(self):
-        ad = DirectoryAgentLoader.load_agent("agents/roles/analyst")
+        ad = DirectoryAgentLoader.load_agent("backend/agents/roles/analyst")
         assert "goalcast_calculate_poisson" in ad.allowed_mcp_tools
         assert "goalcast_sportmonks_get_match" in ad.allowed_mcp_tools
 
@@ -147,7 +147,7 @@ class TestDirectoryAgentLoaderLoadAgent:
             "orchestrator", "analyst", "trader",
             "reviewer", "reporter", "backtester",
         ]:
-            role_dir = f"agents/roles/{role}"
+            role_dir = f"backend/agents/roles/{role}"
             ad = DirectoryAgentLoader.load_agent(role_dir)
             assert isinstance(ad, AgentDefinition)
             assert ad.role_name == role
@@ -157,7 +157,7 @@ class TestDirectoryAgentLoaderLoadAgent:
             )
 
     def test_load_agent_nonexistent_returns_empty(self):
-        ad = DirectoryAgentLoader.load_agent("agents/roles/nonexistent")
+        ad = DirectoryAgentLoader.load_agent("backend/agents/roles/nonexistent")
         assert isinstance(ad, AgentDefinition)
         assert ad.system_prompt == ""
         assert ad.allowed_mcp_tools == []

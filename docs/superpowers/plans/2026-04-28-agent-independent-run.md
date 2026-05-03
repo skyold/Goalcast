@@ -1588,7 +1588,7 @@ SearchReplace 精确定位并替换：
 ```bash
 cd /Users/zhengningdai/workspace/skyold/Goalcast && python -c "
 from agents.core.directory_agent import AgentDefinition, DirectoryAgentLoader
-agent_def = DirectoryAgentLoader.load_agent('agents/roles/orchestrator')
+agent_def = DirectoryAgentLoader.load_agent('backend/agents/roles/orchestrator')
 print(f'Role: {agent_def.role_name}')
 print(f'System prompt length: {len(agent_def.system_prompt)}')
 print(f'MCP tools: {agent_def.allowed_mcp_tools}')
@@ -1602,12 +1602,12 @@ print('OK')
 ### Task 8: 更新 6 个 Agent 的 tool-registry.jsonc
 
 **Files:**
-- Modify: `agents/roles/orchestrator/tool-registry.jsonc`
-- Modify: `agents/roles/analyst/tool-registry.jsonc`
-- Modify: `agents/roles/trader/tool-registry.jsonc`
-- Modify: `agents/roles/reviewer/tool-registry.jsonc`
-- Modify: `agents/roles/reporter/tool-registry.jsonc`
-- Modify: `agents/roles/backtester/tool-registry.jsonc`
+- Modify: `backend/agents/roles/orchestrator/tool-registry.jsonc`
+- Modify: `backend/agents/roles/analyst/tool-registry.jsonc`
+- Modify: `backend/agents/roles/trader/tool-registry.jsonc`
+- Modify: `backend/agents/roles/reviewer/tool-registry.jsonc`
+- Modify: `backend/agents/roles/reporter/tool-registry.jsonc`
+- Modify: `backend/agents/roles/backtester/tool-registry.jsonc`
 
 - [ ] **Step 1: Orchestrator 工具注册**
 
@@ -1726,12 +1726,12 @@ print('All roles loaded successfully')
 ### Task 9: 更新 6 个 Agent 的 AGENTS.md
 
 **Files:**
-- Modify: `agents/roles/orchestrator/AGENTS.md`
-- Modify: `agents/roles/analyst/AGENTS.md`
-- Modify: `agents/roles/trader/AGENTS.md`
-- Modify: `agents/roles/reviewer/AGENTS.md`
-- Modify: `agents/roles/reporter/AGENTS.md`
-- Modify: `agents/roles/backtester/AGENTS.md`
+- Modify: `backend/agents/roles/orchestrator/AGENTS.md`
+- Modify: `backend/agents/roles/analyst/AGENTS.md`
+- Modify: `backend/agents/roles/trader/AGENTS.md`
+- Modify: `backend/agents/roles/reviewer/AGENTS.md`
+- Modify: `backend/agents/roles/reporter/AGENTS.md`
+- Modify: `backend/agents/roles/backtester/AGENTS.md`
 
 - [ ] **Step 1: Orchestrator AGENTS.md —— 从"调度执行者"改为"总管/环境感知"**
 
