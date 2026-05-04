@@ -1,7 +1,7 @@
 """
 异步并行 RD 循环编排器。
-4 路 asyncio.Task 通过 match_store 解耦：
-  _orchestrator_loop → _analyst_loop → _trader_loop → _reviewer_loop → _reporter_loop
+5 路 asyncio.Task 通过 match_store 解耦：
+  _orchestrator_loop（定时拉取比赛）→ _analyst_loop → _trader_loop → _reviewer_loop → _reporter_loop
 """
 
 from __future__ import annotations
@@ -15,12 +15,14 @@ from pathlib import Path
 from typing import Any
 
 from agents.core import match_store
+from agents.core import league_config as lc
 from agents.core.pipeline import MatchPipeline
 from agents.core.events import EventEmitter
 
 logger = logging.getLogger(__name__)
 
 IDLE_SLEEP_SECONDS = 5
+FETCH_INTERVAL_SECONDS = 3600
 
 LEAGUES_JSON_PATH = (
     Path(__file__).parent.parent.parent / "config" / "sportmonks_leagues.json"
@@ -46,33 +48,26 @@ class Orchestrator:
         date: str | None = None,
         max_matches: int | None = None,
         models: list[str] | None = None,
+        fetch_interval: int = 3600,
     ) -> dict:
         await self.emitter.emit("pipeline_start", {"message": "Starting pipeline..."})
+
+        if leagues:
+            lc.init(leagues)
         
         signal.signal(signal.SIGINT, lambda s, f: self.stop_event.set())
         signal.signal(signal.SIGTERM, lambda s, f: self.stop_event.set())
 
         match_store.abandon_active()
 
-        print("[Orchestrator] 正在拉取比赛数据...")
-        fetched = await self._fetch_and_prepare(leagues, date, models=models)
-        print(f"[Orchestrator] 已准备 {fetched} 场比赛，各 Agent 开始处理")
-
-        if fetched == 0 and not match_store.list_all(status="reviewed"):
-            await self.emitter.emit("pipeline_complete", {"message": "没有可分析的比赛。"})
-            return {
-                "prepared": 0,
-                "reviewed": 0,
-                "reported": len(match_store.list_all(status="reported")),
-            }
-
         loops = [
+            asyncio.create_task(self._orchestrator_loop(leagues, date, models, fetch_interval)),
             asyncio.create_task(self._analyst_loop()),
             asyncio.create_task(self._trader_loop()),
             asyncio.create_task(self._reviewer_loop()),
             asyncio.create_task(self._reporter_loop()),
         ]
-        print("[Orchestrator] 4 个 Agent loop 已启动")
+        print("[Orchestrator] 5 个 Agent loop 已启动（orchestrator + 4 个处理 loop）")
 
         try:
             await asyncio.gather(*loops)
@@ -87,10 +82,38 @@ class Orchestrator:
         await self.emitter.emit("pipeline_complete", {"message": "所有比赛分析已完成。"})
         
         return {
-            "prepared": fetched,
+            "prepared": 0,
             "reviewed": len(reviewed),
             "reported": len(reported),
         }
+
+    async def _orchestrator_loop(
+        self,
+        leagues: list[str] | None,
+        date: str | None,
+        models: list[str] | None,
+        fetch_interval: int,
+    ) -> None:
+        while not self.stop_event.is_set():
+            active_leagues = lc.get_active()
+            if not active_leagues:
+                print("[Orchestrator] 当前无活跃联赛，跳过拉取（使用 leagues add <联赛名> 添加）")
+                try:
+                    await asyncio.wait_for(self.stop_event.wait(), timeout=fetch_interval)
+                except asyncio.TimeoutError:
+                    pass
+                continue
+            print(f"[Orchestrator] 正在拉取比赛数据... 当前联赛: {active_leagues}")
+            fetched = await self._fetch_and_prepare(active_leagues, date, models=models)
+            print(f"[Orchestrator] 已准备 {fetched} 场比赛")
+
+            if self.stop_event.is_set():
+                break
+
+            try:
+                await asyncio.wait_for(self.stop_event.wait(), timeout=fetch_interval)
+            except asyncio.TimeoutError:
+                pass
 
     async def _fetch_and_prepare(
         self, leagues: list[str] | None, date: str | None, models: list[str] = None

@@ -30,7 +30,7 @@ services:
     image: goalcast/backend:latest
     container_name: goalcast-backend
 
-    command: ["python", "-m", "main", "run", "--infinite", "--cooldown", "3600"]
+    command: ["python", "-m", "main", "run", "--infinite", "--fetch-interval", "3600"]
     
     restart: unless-stopped
     stop_grace_period: 30s

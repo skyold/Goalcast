@@ -143,7 +143,6 @@ async def _create_adapter(
         model=model or os.environ.get("LLM_MODEL", "mimo-v2.5-pro"),
         executor=executor,
         loader=loader,
-        provider=provider,
         base_url=base_url,
         api_key=api_key,
     )
@@ -155,6 +154,7 @@ async def cmd_run(
     mode: str,
     infinite: bool,
     cooldown: float,
+    fetch_interval: int,
     model: str | None,
     provider: str | None,
     base_url: str | None,
@@ -166,14 +166,14 @@ async def cmd_run(
 
     print(f"\n{'═'*60}")
     print(f"  Goalcast 足球量化分析系统")
-    print(f"  联赛       : {', '.join(leagues)}")
-    print(f"  模式       : {mode.upper()}")
+    print(f"  联赛           : {', '.join(leagues)}")
+    print(f"  模式           : {mode.upper()}")
+    print(f"  数据拉取间隔   : {fetch_interval}s（自动更新赛程）")
     if infinite:
-        print(f"  运行方式   : ∞（无限循环，docker stop 可优雅退出）")
+        print(f"  运行方式       : ∞（无限循环，docker stop 可优雅退出）")
     else:
-        print(f"  运行方式   : 单次运行")
-    print(f"  冷却间隔   : {cooldown:.0f}s")
-    print(f"  提供商     : {adapter.__class__.__name__.replace('Adapter','')}  |  模型：{adapter.model}")
+        print(f"  运行方式       : 单次运行")
+    print(f"  提供商         : {adapter.__class__.__name__.replace('Adapter','')}  |  模型：{adapter.model}")
     print(f"{'═'*60}\n")
 
     stop_event = asyncio.Event()
@@ -186,42 +186,25 @@ async def cmd_run(
         except NotImplementedError:
             pass
 
-    total_rounds = 0
     try:
-        while not stop_event.is_set():
-            total_rounds += 1
-            print(f"\n{'─'*30} 第 {total_rounds} 轮 {'─'*30}")
+        orch = Orchestrator(adapter, semi_mode=(mode == "semi"))
+        result = await orch.run(
+            leagues=leagues,
+            date=date,
+            fetch_interval=fetch_interval,
+        )
 
-            orch = Orchestrator(adapter, semi_mode=(mode == "semi"))
-            result = await orch.run(leagues=leagues, date=date)
-
-            reviewed = result.get("reviewed", 0)
-            prepared = result.get("prepared", 0)
-            print(f"  本轮处理   : {prepared} 场获取, {reviewed} 场已审核")
-
-            if stop_event.is_set():
-                break
-
-            if infinite:
-                print(f"  等待 {cooldown:.0f}s 后启动下一轮...")
-                try:
-                    await asyncio.wait_for(stop_event.wait(), timeout=cooldown)
-                except asyncio.TimeoutError:
-                    pass
-            else:
-                break
-
+        reviewed = result.get("reviewed", 0)
+        print(f"\n{'─'*60}")
+        print(f"  运行结束")
+        print(f"  已审核比赛   : {reviewed} 场")
+        print(f"{'─'*60}\n")
     finally:
         for sig in (signal.SIGTERM, signal.SIGINT):
             try:
                 loop.remove_signal_handler(sig)
             except NotImplementedError:
                 pass
-
-    print(f"\n{'─'*60}")
-    print(f"  运行结束")
-    print(f"  总轮次     : {total_rounds}")
-    print(f"{'─'*60}\n")
 
 
 async def cmd_analyze(
@@ -442,6 +425,42 @@ def cmd_check(
     print()
 
 
+def cmd_leagues(args: argparse.Namespace) -> None:
+    from agents.core.league_config import list_leagues, add, remove
+
+    action = args.league_action
+
+    if action == "list" or action is None:
+        current = list_leagues()
+        if not current:
+            print("当前无活跃联赛。可使用以下命令添加：")
+            print("  python main.py leagues add <联赛名>")
+            return
+        print(f"\n当前活跃联赛（{len(current)} 个）:")
+        for i, league in enumerate(current, 1):
+            print(f"  {i}. {league}")
+        print()
+        return
+
+    if action == "add":
+        ok = add(args.name)
+        if ok:
+            print(f"✅ 已添加联赛: {args.name}")
+        else:
+            print(f"ℹ️  联赛已存在: {args.name}")
+        print(f"当前活跃联赛: {list_leagues()}")
+        return
+
+    if action == "remove":
+        ok = remove(args.name)
+        if ok:
+            print(f"✅ 已移除联赛: {args.name}")
+        else:
+            print(f"ℹ️  联赛不存在: {args.name}")
+        print(f"当前活跃联赛: {list_leagues()}")
+        return
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="goalcast",
@@ -460,12 +479,12 @@ def main() -> None:
         "--mode", choices=["full", "semi"], default="full"
     )
     run_parser.add_argument(
-        "--infinite", action="store_true", default=False,
-        help="无限循环分析，直到 docker stop / Ctrl+C"
+        "--infinite", action="store_true", default=True,
+        help="无限循环分析（默认开启，docker stop 可优雅退出）"
     )
     run_parser.add_argument(
-        "--cooldown", type=float, default=3600.0,
-        help="每轮结束后的冷却秒数（默认 3600，即 1 小时）"
+        "--fetch-interval", type=int, default=3600,
+        help="定时拉取比赛间隔秒数（默认 3600，即 1 小时）"
     )
     run_parser.add_argument("--model", default=None, help="Claude 模型名")
     _add_llm_args(run_parser)
@@ -499,6 +518,14 @@ def main() -> None:
     backtest_parser.add_argument("--end-date", default=None)
     backtest_parser.add_argument("--method", default=None)
 
+    leagues_parser = subparsers.add_parser("leagues", help="运行时动态管理联赛")
+    leagues_sub = leagues_parser.add_subparsers(dest="league_action")
+    leagues_sub.add_parser("list", help="列出当前活跃联赛")
+    leagues_add = leagues_sub.add_parser("add", help="添加联赛到运行时")
+    leagues_add.add_argument("name", help="联赛名称（如 西甲、意甲）")
+    leagues_rm = leagues_sub.add_parser("remove", help="从运行时移除联赛")
+    leagues_rm.add_argument("name", help="联赛名称（如 英超）")
+
     subparsers.add_parser("status", help="查看系统状态")
     subparsers.add_parser("list-agents", help="列出所有 Agent 角色")
     p_check = subparsers.add_parser("check", help="检查环境配置")
@@ -513,7 +540,8 @@ def main() -> None:
             date=args.date,
             mode=args.mode,
             infinite=args.infinite,
-            cooldown=args.cooldown,
+            cooldown=0,
+            fetch_interval=args.fetch_interval,
             model=args.model,
             provider=args.provider,
             base_url=args.base_url,
@@ -567,6 +595,8 @@ def main() -> None:
             base_url=getattr(args, "base_url", None),
             api_key=getattr(args, "api_key", None),
         )
+    elif args.command == "leagues":
+        cmd_leagues(args)
     else:
         parser.print_help()
 

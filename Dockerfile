@@ -17,7 +17,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 
 RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
@@ -32,4 +32,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["python", "-m", "main", "run", "--infinite", "--cooldown", "3600"]
+CMD ["python", "-m", "main", "run", "--infinite", "--fetch-interval", "3600"]
