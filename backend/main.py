@@ -472,7 +472,9 @@ def main() -> None:
 
     run_parser = subparsers.add_parser("run", help="一键启动 RD 循环")
     run_parser.add_argument(
-        "--leagues", nargs="+", default=["英超"], help="目标联赛"
+        "--leagues", nargs="+",
+        default=["英超", "西甲", "意甲", "德甲", "法甲", "荷甲", "葡超", "苏超", "比甲", "土超", "瑞超", "丹超", "挪超", "奥超", "波超", "瑞士超"],
+        help="目标联赛"
     )
     run_parser.add_argument("--date", help="日期 (YYYY-MM-DD)，默认今天")
     run_parser.add_argument(
