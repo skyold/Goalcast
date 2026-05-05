@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 IDLE_SLEEP_SECONDS = 5
 FETCH_INTERVAL_SECONDS = 3600
 
+TRIGGER_FILE = Path(__file__).parent.parent.parent / "data" / "trigger.json"
+PIPELINE_EVENTS_FILE = Path(__file__).parent.parent.parent / "data" / "pipeline_events.jsonl"
+
 LEAGUES_JSON_PATH = (
     Path(__file__).parent.parent.parent / "config" / "sportmonks_leagues.json"
 )
@@ -41,6 +44,26 @@ class Orchestrator:
         self.stop_event = asyncio.Event()
         self.pipeline = MatchPipeline(adapter, semi_mode)
         self.emitter = emitter or EventEmitter()
+        self._events_seq = 0
+
+    def _write_pipeline_event(self, event_name: str, payload: dict):
+        PIPELINE_EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self._events_seq += 1
+        line = json.dumps({
+            "seq": self._events_seq,
+            "ts": datetime.now(_CST).isoformat(),
+            "type": event_name,
+            "payload": payload,
+        }, ensure_ascii=False)
+        try:
+            with open(PIPELINE_EVENTS_FILE, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception as e:
+            logger.warning("[Orchestrator] 写入流水线事件失败: %s", e)
+
+    async def _emit_and_write(self, event_name: str, payload: dict):
+        self._write_pipeline_event(event_name, payload)
+        await self.emitter.emit(event_name, payload)
 
     async def run(
         self,
@@ -50,7 +73,7 @@ class Orchestrator:
         models: list[str] | None = None,
         fetch_interval: int = 3600,
     ) -> dict:
-        await self.emitter.emit("pipeline_start", {"message": "Starting pipeline..."})
+        await self._emit_and_write("pipeline_start", {"message": "Starting pipeline..."})
 
         if leagues:
             lc.init(leagues)
@@ -79,7 +102,7 @@ class Orchestrator:
         reviewed = match_store.list_all(status="reviewed")
         reported = match_store.list_all(status="reported")
         
-        await self.emitter.emit("pipeline_complete", {"message": "所有比赛分析已完成。"})
+        await self._emit_and_write("pipeline_complete", {"message": "所有比赛分析已完成。"})
         
         return {
             "prepared": 0,
@@ -94,26 +117,46 @@ class Orchestrator:
         models: list[str] | None,
         fetch_interval: int,
     ) -> None:
+        _TRIGGER_CHECK_SECONDS = 5
+
+        async def _sleep_with_trigger_check(seconds: int) -> bool:
+            elapsed = 0
+            while elapsed < seconds:
+                if self.stop_event.is_set():
+                    return True
+                if TRIGGER_FILE.exists():
+                    return True
+                chunk = min(_TRIGGER_CHECK_SECONDS, seconds - elapsed)
+                try:
+                    await asyncio.wait_for(self.stop_event.wait(), timeout=chunk)
+                except asyncio.TimeoutError:
+                    pass
+                elapsed += chunk
+            return False
+
         while not self.stop_event.is_set():
             active_leagues = lc.get_active()
             if not active_leagues:
                 print("[Orchestrator] 当前无活跃联赛，跳过拉取（使用 leagues add <联赛名> 添加）")
-                try:
-                    await asyncio.wait_for(self.stop_event.wait(), timeout=fetch_interval)
-                except asyncio.TimeoutError:
-                    pass
+                if await _sleep_with_trigger_check(fetch_interval):
+                    if TRIGGER_FILE.exists():
+                        TRIGGER_FILE.unlink()
+                        print("[Orchestrator] Trigger 收到，但无活跃联赛，跳过")
                 continue
             print(f"[Orchestrator] 正在拉取比赛数据... 当前联赛: {active_leagues}")
             fetched = await self._fetch_and_prepare(active_leagues, date, models=models)
             print(f"[Orchestrator] 已准备 {fetched} 场比赛")
 
+            if TRIGGER_FILE.exists():
+                TRIGGER_FILE.unlink()
+                print("[Orchestrator] Trigger 完成，恢复正常等待间隔")
+
             if self.stop_event.is_set():
                 break
 
-            try:
-                await asyncio.wait_for(self.stop_event.wait(), timeout=fetch_interval)
-            except asyncio.TimeoutError:
-                pass
+            triggered = await _sleep_with_trigger_check(fetch_interval)
+            if triggered and not self.stop_event.is_set():
+                print("[Orchestrator] Trigger 信号接收，立即开始下一轮拉取")
 
     async def _fetch_and_prepare(
         self, leagues: list[str] | None, date: str | None, models: list[str] = None
@@ -158,11 +201,25 @@ class Orchestrator:
 
         count = 0
         prepared_matches = []
+        trigger_force = False
+        if TRIGGER_FILE.exists():
+            try:
+                tdata = json.loads(TRIGGER_FILE.read_text(encoding="utf-8"))
+                trigger_force = tdata.get("force", False)
+            except Exception:
+                pass
+
         existing_fixture_ids = self._load_existing_fixture_ids()
+        active_fixture_ids = self._load_existing_fixture_ids(active_only=True)
         skipped = 0
         for fixture in fixtures:
             fixture_id = fixture.get("fixture_id", fixture.get("id"))
-            if fixture_id in existing_fixture_ids:
+            # Always skip fixtures currently in-flight (non-terminal status)
+            if fixture_id in active_fixture_ids:
+                skipped += 1
+                continue
+            # Without force, also skip terminal fixtures to avoid reprocessing
+            if not trigger_force and fixture_id in existing_fixture_ids:
                 skipped += 1
                 continue
             match_id = match_store.generate_match_id()
@@ -225,7 +282,7 @@ class Orchestrator:
             count += 1
         if skipped > 0:
             print(f"[Orchestrator] 跳过 {skipped} 场已存在的比赛（盘上已有记录）")
-        await self.emitter.emit(
+        await self._emit_and_write(
             "matches_found",
             {"total": count, "matches": prepared_matches},
         )
@@ -264,11 +321,17 @@ class Orchestrator:
         ]
         return any(match_store.count_by_status([status]) > 0 for status in active_statuses)
 
-    def _load_existing_fixture_ids(self) -> set:
+    _TERMINAL_STATUSES = {"reported", "abandoned"}
+
+    def _load_existing_fixture_ids(self, active_only: bool = False) -> set:
         existing = set()
         for fp in match_store.MATCHES_DIR.glob("MC-*.json"):
             try:
                 record = json.loads(fp.read_text(encoding="utf-8"))
+                if active_only:
+                    status = record.get("status", "")
+                    if status in self._TERMINAL_STATUSES:
+                        continue
                 fid = (
                     record.get("orchestrator", {}).get("fixture_id")
                     or record.get("metadata", {}).get("fixture_id")
@@ -286,7 +349,10 @@ class Orchestrator:
         now = datetime.now(tz)
         today = now.strftime("%Y-%m-%d")
         tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-        return [today, tomorrow]
+        day_after = (now + timedelta(days=2)).strftime("%Y-%m-%d")
+        day3 = (now + timedelta(days=3)).strftime("%Y-%m-%d")
+        day4 = (now + timedelta(days=4)).strftime("%Y-%m-%d")
+        return [today, tomorrow, day_after, day3, day4]
 
     def _load_league_dict(self) -> dict | None:
         candidate_paths = LEAGUES_JSON_CANDIDATE_PATHS or [
@@ -395,7 +461,7 @@ class Orchestrator:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
             print(f"[Analyst] 开始分析: {record['match_id']} ({record.get('orchestrator', {}).get('home_team', '?')} vs {record.get('orchestrator', {}).get('away_team', '?')})")
-            await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "analyst"})
+            await self._emit_and_write("match_step_start", {"match_id": record["match_id"], "step": "analyst"})
             try:
                 await self.pipeline.run_analyst_step(record)
                 print(f"[Analyst] 分析完成: {record['match_id']}")
@@ -413,11 +479,11 @@ class Orchestrator:
                 await self._sleep(IDLE_SLEEP_SECONDS)
                 continue
             print(f"[Trader] 开始交易分析: {record['match_id']}")
-            await self.emitter.emit("match_step_start", {"match_id": record["match_id"], "step": "trader"})
+            await self._emit_and_write("match_step_start", {"match_id": record["match_id"], "step": "trader"})
             try:
                 trade = await self.pipeline.run_trader_step(record)
                 print(f"[Trader] 交易分析完成: {record['match_id']}")
-                await self.emitter.emit(
+                await self._emit_and_write(
                     "match_result_ready",
                     {
                         "match_id": record["match_id"],

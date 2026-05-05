@@ -70,6 +70,10 @@ class BaseProvider(ABC):
                     await asyncio.sleep(wait_time)
                     continue
 
+                if response.status_code == 403:
+                    logger.warning(f"Access denied (403) for {url} — subscription/tier limitation")
+                    return None
+
                 if response.status_code >= 400:
                     logger.error(f"Client error {response.status_code} for {url}")
                     return None

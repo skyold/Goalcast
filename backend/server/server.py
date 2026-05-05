@@ -23,11 +23,13 @@ from .routes.config import router as config_router
 from .routes.board import router as board_router
 from .routes.chat import router as chat_router
 from .routes.agents import router as agents_router
+from .routes.pipeline import router as pipeline_router
 
 app.include_router(config_router)
 app.include_router(board_router)
 app.include_router(chat_router)
 app.include_router(agents_router)
+app.include_router(pipeline_router)
 
 
 @app.get("/api/health")

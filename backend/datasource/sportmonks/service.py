@@ -2,12 +2,17 @@
 
 import asyncio
 import json
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Optional
 
 from config.settings import BASE_DIR
+
+logger = logging.getLogger(__name__)
+
+_CST = timezone(timedelta(hours=8))
 
 
 class SimpleCache:
@@ -42,8 +47,8 @@ class SimpleCache:
         path = self.base_dir / filename
         if not path.exists():
             return True
-        mtime = datetime.fromtimestamp(path.stat().st_mtime)
-        return datetime.now() - mtime > timedelta(hours=ttl_hours)
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=_CST)
+        return datetime.now(_CST) - mtime > timedelta(hours=ttl_hours)
 
 
 class SportmonksDataService:
@@ -59,52 +64,65 @@ class SportmonksDataService:
         league_ids: Optional[list[int]] = None,
     ) -> list[dict[str, Any]]:
         """获取指定日期（默认今天）的比赛列表，可按联赛 ID 过滤。"""
-        target_date = date or datetime.today().strftime("%Y-%m-%d")
+        target_date = date or datetime.now(_CST).strftime("%Y-%m-%d")
         cache_key = f"fixtures_{target_date}.json"
 
-        # 判断 TTL：如果是今天的比赛，TTL 设为 2 小时；如果是历史，永不过期 (9999h)
-        is_today = target_date == datetime.today().strftime("%Y-%m-%d")
-        ttl = 2 if is_today else 9999
+        # 判断 TTL：如果是今天的比赛，TTL 设为 2 小时；如果是未来或历史，永不过期
+        is_today = target_date == datetime.now(_CST).strftime("%Y-%m-%d")
+        is_future = target_date > datetime.now(_CST).strftime("%Y-%m-%d")
+        if is_future:
+            ttl = 2
+        elif is_today:
+            ttl = 2
+        else:
+            ttl = 9999
 
         fixtures = self.cache.read_json(cache_key)
         if fixtures is None or self.cache.is_expired(cache_key, ttl_hours=ttl):
-            # 获取数据，使用 include 一次性拿回常用信息以及预测数据
             include_str = "participants;league;scores;season;venue;predictions"
             raw_response = await self.provider.get_fixtures_by_date(
                 target_date, include=include_str
             )
-            fixtures = raw_response.get("data", []) if isinstance(raw_response, dict) else []
+            if not isinstance(raw_response, dict):
+                logger.warning("[Sportmonks] API 调用失败: 返回类型异常 %s", type(raw_response).__name__)
+                return []
+            fixtures = raw_response.get("data", [])
             
-            # 为列表页也提前计算 predictive_xg
-            for fixture in fixtures:
-                predictions = fixture.get("predictions", [])
-                predictive_xg = None
-                if isinstance(predictions, list):
-                    for p in predictions:
-                        if p.get("type_id") == 240:
-                            scores_prob = p.get("predictions", {}).get("scores", {})
-                            if scores_prob:
-                                h_xg, a_xg = 0.0, 0.0
-                                for score, prob in scores_prob.items():
-                                    if "Other" in score:
-                                        if score == "Other_1": h_xg += 4 * prob / 100; a_xg += 1 * prob / 100
-                                        elif score == "Other_2": h_xg += 1 * prob / 100; a_xg += 4 * prob / 100
-                                        elif score == "Other_X": h_xg += 4 * prob / 100; a_xg += 4 * prob / 100
-                                    else:
-                                        try:
-                                            h, a = map(int, score.split('-'))
-                                            h_xg += h * prob / 100; a_xg += a * prob / 100
-                                        except ValueError:
-                                            pass
-                                predictive_xg = {"home": round(h_xg, 3), "away": round(a_xg, 3)}
-                            break
-                if predictive_xg:
-                    fixture["predictive_xg"] = predictive_xg
-                # 移除完整的 predictions 以减小文件体积
-                if "predictions" in fixture:
-                    del fixture["predictions"]
-                    
-            self.cache.write_json(cache_key, fixtures)
+            # 只有当 API 实际返回了数据时才缓存；空结果不缓存（可能是暂时性问题）
+            if fixtures:
+                for fixture in fixtures:
+                    predictions = fixture.get("predictions", [])
+                    predictive_xg = None
+                    if isinstance(predictions, list):
+                        for p in predictions:
+                            if p.get("type_id") == 240:
+                                scores_prob = p.get("predictions", {}).get("scores", {})
+                                if scores_prob:
+                                    h_xg, a_xg = 0.0, 0.0
+                                    for score, prob in scores_prob.items():
+                                        if "Other" in score:
+                                            if score == "Other_1": h_xg += 4 * prob / 100; a_xg += 1 * prob / 100
+                                            elif score == "Other_2": h_xg += 1 * prob / 100; a_xg += 4 * prob / 100
+                                            elif score == "Other_X": h_xg += 4 * prob / 100; a_xg += 4 * prob / 100
+                                        else:
+                                            try:
+                                                h, a = map(int, score.split('-'))
+                                                h_xg += h * prob / 100; a_xg += a * prob / 100
+                                            except ValueError:
+                                                pass
+                                    predictive_xg = {"home": round(h_xg, 3), "away": round(a_xg, 3)}
+                                break
+                    if predictive_xg:
+                        fixture["predictive_xg"] = predictive_xg
+                    if "predictions" in fixture:
+                        del fixture["predictions"]
+                        
+                self.cache.write_json(cache_key, fixtures)
+            elif not is_future:
+                # 历史日期 API 可能没有数据，这是正常的；只对非未来日期打印 info
+                logger.info("[Sportmonks] %s: API 返回 0 场比赛", target_date)
+            elif is_future:
+                logger.info("[Sportmonks] %s: API 返回 0 场比赛（未来日期，数据可能尚未发布）", target_date)
 
         if league_ids and fixtures:
             filtered = []

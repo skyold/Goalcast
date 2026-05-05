@@ -14,6 +14,8 @@ import type {
   TokenRecord,
   AppConfig,
   JsonRecord,
+  PipelineLeaguesResponse,
+  PipelineMatchesResponse,
 } from "../types";
 
 const BASE = "/api";
@@ -127,4 +129,23 @@ export const api = {
 
   getBoardItemCustom: (url: string) =>
     request<Record<string, unknown>>(`${url}`),
+
+  getPipelineLeagues: () => request<PipelineLeaguesResponse>("/pipeline/leagues"),
+
+  updatePipelineLeagues: (leagues: string[]) =>
+    request<{ active: string[]; message: string }>("/pipeline/leagues", {
+      method: "POST",
+      body: JSON.stringify({ leagues }),
+    }),
+
+  triggerPipeline: () =>
+    request<{ message: string }>("/pipeline/trigger", {
+      method: "POST",
+      body: JSON.stringify({ force: true }),
+    }),
+
+  getPipelineMatches: (params?: { date_from?: string; date_to?: string }) => {
+    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
+    return request<PipelineMatchesResponse>(`/pipeline/matches${qs}`);
+  },
 };

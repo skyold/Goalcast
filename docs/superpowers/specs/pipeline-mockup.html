@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline 页面设计稿 v2</title>
+<style>
+  :root {
+    --bg: #060810; --card: #0f1220; --nav: #0b0d17; --border: rgba(255,255,255,0.07);
+    --border-sub: rgba(255,255,255,0.04); --hover: rgba(255,255,255,0.04);
+    --text: #e8eaf0; --text2: #9ba3b8; --text3: #555d72;
+    --accent: #00FF9D; --accent-bg: rgba(0,255,157,0.08); --accent-border: rgba(0,255,157,0.28);
+    --green: #4ade80; --red: #ef4444; --orange: #ff9500; --blue: #3b82f6;
+    --font: 'SF Pro Display', -apple-system, sans-serif;
+    --mono: 'SF Mono', 'JetBrains Mono', monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font); padding:24px; }
+  .mockup-title { font-size:11px; color:var(--text3); letter-spacing:.06em; text-transform:uppercase; margin-bottom:16px; }
+
+  /* ── League Bar ── */
+  .league-bar { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:16px; }
+  .league-bar .tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .league-tag { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; border:1px solid var(--border); color:var(--text2); background:var(--nav); }
+  .league-tag.active { color:var(--accent); border-color:var(--accent-border); background:var(--accent-bg); }
+  .league-tag .dot { width:6px; height:6px; border-radius:50%; }
+  .league-tag.active .dot { background:var(--accent); box-shadow:0 0 6px var(--accent); }
+  .more-tag { opacity:.5; }
+  .bar-footer { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text2); }
+  .bar-footer span strong { color:var(--accent); }
+  .bar-center { display:flex; align-items:center; gap:10px; }
+  .date-range {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 10px; border-radius:6px; border:1px solid var(--border);
+    background:var(--nav); font-family:var(--mono); font-size:12px; color:var(--text); cursor:pointer;
+  }
+  .date-range:hover { border-color:var(--accent-border); }
+  .date-range input {
+    background:transparent; border:none; color:var(--text); font-family:var(--mono); font-size:12px; outline:none; width:110px;
+    -webkit-color-scheme:dark; color-scheme:dark;
+  }
+  .date-range .sep { color:var(--text3); }
+  .btn-refresh {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:5px 12px; border-radius:6px; border:1px solid var(--accent-border);
+    background:var(--accent-bg); color:var(--accent); font-size:12px; cursor:pointer;
+    font-family:inherit;
+  }
+  .btn-refresh:hover { background:rgba(0,255,157,0.15); }
+
+  /* ── Card Grid ── */
+  .card-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:12px; }
+  .match-card {
+    background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden;
+    transition: border-color .15s;
+  }
+  .match-card:hover { border-color:var(--accent-border); }
+  .card-header {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 14px; background:var(--nav); border-bottom:1px solid var(--border);
+  }
+  .card-league { font-size:11px; color:var(--text2); }
+  .card-time { font-size:11px; color:var(--text3); font-family:var(--mono); }
+  .card-body { padding:14px 16px; display:flex; flex-direction:column; gap:14px; }
+
+  /* ── Matchup ── */
+  .matchup { display:flex; align-items:center; gap:12px; }
+  .team { flex:1; }
+  .team-name { font-size:16px; font-weight:700; color:var(--text); }
+  .team-sub { font-size:11px; color:var(--text3); margin-top:2px; }
+  .xg-duel { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:80px; }
+  .xg-score { font-family:var(--mono); font-size:20px; font-weight:700; }
+  .xg-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.06em; }
+  .xg-bar-wrap { display:flex; width:80px; height:4px; border-radius:2px; overflow:hidden; gap:1px; }
+  .xg-bar-home { background:var(--accent); }
+  .xg-bar-away { background:var(--blue); }
+
+  /* ── Prob Row ── */
+  .prob-row { display:flex; gap:6px; font-size:11px; }
+  .prob-item { flex:1; display:flex; flex-direction:column; gap:3px; }
+  .prob-label { color:var(--text3); }
+  .prob-val { font-family:var(--mono); font-weight:600; }
+  .prob-track { height:5px; border-radius:3px; background:var(--border); overflow:hidden; }
+  .prob-fill { height:100%; border-radius:3px; }
+  .prob-fill-h { background:var(--accent); }
+  .prob-fill-d { background:var(--text3); }
+  .prob-fill-a { background:var(--blue); }
+
+  /* ── Meta Footer ── */
+  .meta-footer { display:flex; align-items:center; justify-content:space-between; padding-top:8px; border-top:1px solid var(--border-sub); gap:8px; }
+  .meta-item { display:flex; flex-direction:column; gap:2px; }
+  .meta-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.04em; }
+  .meta-val { font-family:var(--mono); font-size:13px; font-weight:600; }
+  .rec-badge {
+    padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600;
+    background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent-border);
+  }
+
+  /* ── Status Badge ── */
+  .status-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:600; }
+  .st-reported  { color:var(--blue);  background:rgba(59,130,246,0.1); }
+  .st-analyzing { color:var(--accent); background:var(--accent-bg); }
+  .st-pending   { color:var(--text3); background:var(--hover); }
+
+  /* ── Pending Card ── */
+  .card-pending { display:flex; align-items:center; justify-content:center; padding:40px 0; flex-direction:column; gap:8px; }
+  .card-pending .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="mockup-title">Goalcast / Pipeline Monitor — 卡片设计稿 v2</div>
+
+<!-- League Bar -->
+<div class="league-bar">
+  <div class="tags">
+    <span class="league-tag active"><span class="dot"></span> 英超</span>
+    <span class="league-tag"><span class="dot"></span> 西甲</span>
+    <span class="league-tag"><span class="dot"></span> 德甲</span>
+    <span class="league-tag"><span class="dot"></span> 意甲</span>
+    <span class="league-tag"><span class="dot"></span> 法甲</span>
+    <span class="league-tag"><span class="dot"></span> 荷甲</span>
+    <span class="league-tag"><span class="dot"></span> 葡超</span>
+    <span class="league-tag more-tag"><span class="dot"></span> ▼ 更多 (23)</span>
+  </div>
+  <div class="bar-footer">
+    <span>激活: <strong>英超</strong></span>
+    <div class="bar-center">
+      <span style="color:var(--text3)">📅</span>
+      <span class="date-range">
+        <input type="date" value="2026-05-05"> <span class="sep">→</span> <input type="date" value="2026-05-08">
+      </span>
+      <span>· <strong>5</strong> 场比赛</span>
+    </div>
+    <button class="btn-refresh">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      强制刷新
+    </button>
+  </div>
+</div>
+
+<!-- Card Grid -->
+<div class="card-grid">
+
+  <!-- CARD 1: Chelsea vs Nott'm Forest (Reported) -->
+  <div class="match-card">
+    <div class="card-header">
+      <span class="card-league">Premier League</span>
+      <span class="status-badge st-reported">Reported</span>
+    </div>
+    <div class="card-body">
+      <div class="matchup">
+        <div class="team" style="text-align:right;">
+          <div class="team-name">Chelsea</div>
+          <div class="team-sub">4th · 68 pts</div>
+        </div>
+        <div class="xg-duel">
+          <div class="xg-score"><span style="color:var(--accent)">1.63</span></div>
+          <div class="xg-bar-wrap">
+            <div class="xg-bar-home" style="flex:1.63"></div>
+            <div class="xg-bar-away" style="flex:1.23"></div>
+          </div>
+          <div class="xg-label">xG</div>
+        </div>
+        <div class="team">
+          <div class="team-name">Nott'm Forest</div>
+          <div class="team-sub">11th · 42 pts</div>
+        </div>
+      </div>
+
+      <div class="prob-row">
+        <div class="prob-item">
+          <span class="prob-label">主胜</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-h" style="width:47.6%"></div></div>
+          <span class="prob-val" style="color:var(--accent)">47.6%</span>
+        </div>
+        <div class="prob-item">
+          <span class="prob-label">平局</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-d" style="width:24.3%"></div></div>
+          <span class="prob-val" style="color:var(--text3)">24.3%</span>
+        </div>
+        <div class="prob-item">
+          <span class="prob-label">客胜</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-a" style="width:28.2%"></div></div>
+          <span class="prob-val" style="color:var(--blue)">28.2%</span>
+        </div>
+      </div>
+
+      <div class="meta-footer">
+        <div class="meta-item">
+          <span class="meta-label">推荐</span>
+          <span class="rec-badge">Home -0.75</span>
+        </div>
+        <div class="meta-item" style="align-items:flex-end;">
+          <span class="meta-label">信心</span>
+          <span class="meta-val" style="color:var(--accent)">72%</span>
+        </div>
+        <div class="meta-item" style="align-items:flex-end;">
+          <span class="meta-label">EV</span>
+          <span class="meta-val" style="color:var(--accent)">+0.081</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD 2: Everton vs Man City -->
+  <div class="match-card">
+    <div class="card-header">
+      <span class="card-league">Premier League</span>
+      <span class="status-badge st-reported">Reported</span>
+    </div>
+    <div class="card-body">
+      <div class="matchup">
+        <div class="team" style="text-align:right;">
+          <div class="team-name">Everton</div>
+          <div class="team-sub">15th · 36 pts</div>
+        </div>
+        <div class="xg-duel">
+          <div class="xg-score"><span style="color:var(--blue)">2.15</span></div>
+          <div class="xg-bar-wrap">
+            <div class="xg-bar-home" style="flex:0.82"></div>
+            <div class="xg-bar-away" style="flex:2.15"></div>
+          </div>
+          <div class="xg-label">xG</div>
+        </div>
+        <div class="team">
+          <div class="team-name">Manchester City</div>
+          <div class="team-sub">2nd · 74 pts</div>
+        </div>
+      </div>
+
+      <div class="prob-row">
+        <div class="prob-item">
+          <span class="prob-label">主胜</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-h" style="width:22%"></div></div>
+          <span class="prob-val" style="color:var(--text2)">22.0%</span>
+        </div>
+        <div class="prob-item">
+          <span class="prob-label">平局</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-d" style="width:18%"></div></div>
+          <span class="prob-val" style="color:var(--text3)">18.0%</span>
+        </div>
+        <div class="prob-item">
+          <span class="prob-label">客胜</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-a" style="width:60%"></div></div>
+          <span class="prob-val" style="color:var(--blue)">60.0%</span>
+        </div>
+      </div>
+
+      <div class="meta-footer">
+        <div class="meta-item">
+          <span class="meta-label">推荐</span>
+          <span class="rec-badge">Away -0.5</span>
+        </div>
+        <div class="meta-item" style="align-items:flex-end;">
+          <span class="meta-label">信心</span>
+          <span class="meta-val" style="color:var(--orange)">58%</span>
+        </div>
+        <div class="meta-item" style="align-items:flex-end;">
+          <span class="meta-label">EV</span>
+          <span class="meta-val" style="color:var(--orange)">+0.037</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD 3: Al Ittihad vs Petrojet (No Bet) -->
+  <div class="match-card">
+    <div class="card-header">
+      <span class="card-league">Premier League</span>
+      <span class="status-badge st-reported">Reported</span>
+    </div>
+    <div class="card-body">
+      <div class="matchup">
+        <div class="team" style="text-align:right;">
+          <div class="team-name">Al Ittihad</div>
+          <div class="team-sub">7th · 52 pts</div>
+        </div>
+        <div class="xg-duel">
+          <div class="xg-score">0.96</div>
+          <div class="xg-bar-wrap">
+            <div class="xg-bar-home" style="flex:0.96"></div>
+            <div class="xg-bar-away" style="flex:0.97"></div>
+          </div>
+          <div class="xg-label">xG</div>
+        </div>
+        <div class="team">
+          <div class="team-name">Petrojet</div>
+          <div class="team-sub">12th · 41 pts</div>
+        </div>
+      </div>
+
+      <div class="prob-row">
+        <div class="prob-item">
+          <span class="prob-label">主胜</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-h" style="width:33%"></div></div>
+          <span class="prob-val" style="color:var(--text2)">33.1%</span>
+        </div>
+        <div class="prob-item">
+          <span class="prob-label">平局</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-d" style="width:34%"></div></div>
+          <span class="prob-val" style="color:var(--text3)">33.8%</span>
+        </div>
+        <div class="prob-item">
+          <span class="prob-label">客胜</span>
+          <div class="prob-track"><div class="prob-fill prob-fill-a" style="width:33%"></div></div>
+          <span class="prob-val" style="color:var(--text2)">33.1%</span>
+        </div>
+      </div>
+
+      <div class="meta-footer">
+        <div class="meta-item">
+          <span class="meta-label">推荐</span>
+          <span style="font-size:11px;color:var(--text3);">No Bet</span>
+        </div>
+        <div class="meta-item" style="align-items:flex-end;">
+          <span class="meta-label">信心</span>
+          <span class="meta-val" style="color:var(--red)">35%</span>
+        </div>
+        <div class="meta-item" style="align-items:flex-end;">
+          <span class="meta-label">EV</span>
+          <span class="meta-val" style="color:var(--red)">-0.012</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD 4: Analyzing -->
+  <div class="match-card">
+    <div class="card-header">
+      <span class="card-league">Premier League</span>
+      <span class="status-badge st-analyzing">Analyzing</span>
+    </div>
+    <div class="card-pending">
+      <div class="spinner"></div>
+      <span style="font-size:16px;font-weight:700;color:var(--text);">Arsenal vs Liverpool</span>
+      <span style="font-size:12px;color:var(--text3);">05-07 15:00 · 泊松模型计算中...</span>
+    </div>
+  </div>
+
+  <!-- CARD 5: Pending -->
+  <div class="match-card">
+    <div class="card-header">
+      <span class="card-league">Premier League</span>
+      <span class="status-badge st-pending">Pending</span>
+    </div>
+    <div class="card-pending">
+      <span style="font-size:16px;font-weight:700;color:var(--text);">Tottenham vs Newcastle</span>
+      <span style="font-size:12px;color:var(--text3);">05-07 20:00 · 等待 Analyst 认领</span>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

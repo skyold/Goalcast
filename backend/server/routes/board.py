@@ -67,3 +67,16 @@ def _flatten_metadata(data: dict) -> None:
                 data["league_id"] = v.get("id")
             elif k not in data:
                 data[k] = v
+
+    orch = data.get("orchestrator")
+    if isinstance(orch, dict):
+        league_val = orch.get("league", "")
+        if isinstance(league_val, dict):
+            data["league_name"] = data.get("league_name") or league_val.get("name", "")
+        elif league_val and not data.get("league_name"):
+            data["league_name"] = str(league_val)
+        for k in ("home_team", "away_team", "kickoff_time"):
+            if k not in data or not data.get(k):
+                v = orch.get(k)
+                if v:
+                    data[k] = v

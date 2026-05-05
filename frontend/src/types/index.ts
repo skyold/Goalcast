@@ -248,4 +248,40 @@ export interface BoardUpdatePayload {
   action: "created" | "updated" | "deleted";
 }
 
+export interface PipelineLeague {
+  id: number;
+  chinese_name: string;
+  name: string;
+  active: boolean;
+}
+
+export interface PipelineLeaguesResponse {
+  available: PipelineLeague[];
+  active_count: number;
+}
+
+export interface PipelineMatch {
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  league_name: string;
+  kickoff_time: string;
+  status: string;
+  state: Record<string, string>;
+  home_xg?: number;
+  away_xg?: number;
+  total_xg?: number;
+  result_probs?: { home_win: number; draw: number; away_win: number };
+  ev?: number;
+  recommendation?: string;
+  confidence?: number;
+  verdict?: string;
+}
+
+export interface PipelineMatchesResponse {
+  items: PipelineMatch[];
+  total: number;
+  date_range: { from: string; to: string };
+}
+
 export type { PipelineControlRequest, HypothesisFormData } from "./extensions";
