@@ -54,13 +54,15 @@ async def ws_logs(websocket: WebSocket):
     await websocket.accept()
     logger.info("Log WebSocket connected")
 
-    log_dir = Path(__file__).resolve().parents[2] / "data" / "logs"
+    log_dir = Path(__file__).resolve().parent.parent / "data" / "logs"
     log_file = log_dir / "goalcast.log"
 
-    if not log_file.exists():
-        await websocket.send_text("[info] Log file not found, waiting for logs...")
-
-    last_size = log_file.stat().st_size if log_file.exists() else 0
+    last_size = 0
+    if log_file.exists():
+        content = log_file.read_text(encoding="utf-8")
+        if content.strip():
+            await websocket.send_text(content)
+        last_size = log_file.stat().st_size
 
     try:
         while True:

@@ -33,8 +33,8 @@ export default function LogViewer() {
   }, [logs, autoScroll]);
 
   const parseLevel = (line: string) => line.match(/\b(INFO|WARN|ERROR|DEBUG)\b/)?.[0] ?? "";
-  const parseTime  = (line: string) => line.match(/^\[[\d:]+\]/)?.[0] ?? "";
-  const parseRest  = (line: string) => line.match(/^\[\d+:\d+:\d+\]\s+\w+\s+(.*)/)?.[1] ?? line;
+  const parseTime  = (line: string) => line.match(/^\d{2}:\d{2}:\d{2}/)?.[0] ?? "";
+  const parseRest  = (line: string) => line.replace(/^\d{2}:\d{2}:\d{2}\s+\w+\s+(.*)/, "$1") ?? line;
 
   const levelColor: Record<string, string> = {
     ERROR: "#ef4444",
