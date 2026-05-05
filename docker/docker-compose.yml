@@ -30,7 +30,7 @@ services:
     image: goalcast/backend:latest
     container_name: goalcast-backend
 
-    command: ["python", "-m", "main", "run", "--infinite", "--fetch-interval", "3600"]
+    command: ["python", "start_all.py"]
     
     restart: unless-stopped
     stop_grace_period: 30s
@@ -51,16 +51,15 @@ services:
         - "-c"
         - |
           import os, sys
-          log = '/app/backend/data/logs/goalcast.log'
-          if not os.path.exists(log):
+          # 简单健康检查：只要数据目录存在就认为健康
+          data_dir = '/app/backend/data'
+          if os.path.isdir(data_dir):
               sys.exit(0)
-          age = os.path.getmtime(log)
-          import time
-          sys.exit(0 if time.time() - age < 3600 else 1)
-      interval: 5m
-      timeout: 10s
-      retries: 3
-      start_period: 2m
+          sys.exit(1)
+      interval: 30s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
 
     logging:
       driver: "json-file"

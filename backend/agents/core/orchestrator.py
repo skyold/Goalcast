@@ -459,9 +459,6 @@ class Orchestrator:
                 batch = reviewed[:batch_size]
             elif reviewed and not active_work:
                 batch = reviewed
-            elif not reviewed and not active_work:
-                self.stop_event.set()
-                continue
             else:
                 await self._sleep(IDLE_SLEEP_SECONDS * 2)
                 continue
@@ -474,9 +471,6 @@ class Orchestrator:
             except Exception as exc:
                 print(f"[Reporter] 报告异常: {exc}")
                 logger.error("[Orchestrator] Reporter 异常: %s", exc)
-            if not self._has_active_work() and not match_store.list_all(status="reviewed"):
-                self.stop_event.set()
-                continue
             await self._sleep(IDLE_SLEEP_SECONDS)
 
     async def _sleep(self, seconds: float):

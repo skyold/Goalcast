@@ -1,0 +1,43 @@
+{
+  "app": { "name": "Goalcast", "subtitle": "Football Quant System" },
+  "modules": {
+    "agents": true,
+    "board": true,
+    "tokens": true,
+    "chat": true,
+    "logs": true
+  },
+  "agents": {
+    "clusters": [
+      { "key": "orchestrator", "label": "Orchestrator", "color": "#00FF9D", "desc": "Pipeline coordinator" },
+      { "key": "analyst",      "label": "Analyst",      "color": "#4ade80", "desc": "Match analysis" },
+      { "key": "trader",       "label": "Trader",       "color": "#ff9500", "desc": "Trade execution" },
+      { "key": "reviewer",     "label": "Reviewer",     "color": "#ef4444", "desc": "Quality review" },
+      { "key": "reporter",     "label": "Reporter",     "color": "#3b82f6", "desc": "Report generation" }
+    ]
+  },
+  "board": {
+    "tabs": [
+      {
+        "dir": "matches",
+        "label": "Matches",
+        "columns": [
+          { "key": "match_id",     "label": "ID",       "render": "text" },
+          { "key": "home_team",    "label": "Home",     "render": "text" },
+          { "key": "away_team",    "label": "Away",     "render": "text" },
+          { "key": "kickoff_time", "label": "Kickoff",  "render": "date_time" },
+          { "key": "status",       "label": "Status",   "render": "status_badge",
+            "status_map": {
+              "pending":   { "color": "default",    "text": "Pending" },
+              "analyzing": { "color": "processing", "text": "Analyzing" },
+              "traded":    { "color": "orange",     "text": "Traded" },
+              "reviewed":  { "color": "green",      "text": "Reviewed" },
+              "rejected":  { "color": "red",        "text": "Rejected" },
+              "reported":  { "color": "blue",       "text": "Reported" }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -32,4 +32,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["python", "-m", "main", "run", "--infinite", "--fetch-interval", "3600"]
+CMD ["python", "start_all.py"]
