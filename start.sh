@@ -213,9 +213,9 @@ cmd_pull() {
 
 _start_backend() {
     header "启动 Goalcast 后端服务（无限循环分析引擎）"
-    local env_file="${REPO_ROOT}/.env"
+    local env_file="${REPO_ROOT}/backend/.env"
     if [[ ! -f "${env_file}" ]]; then
-        warn ".env 不存在，从 backend/.env.example 复制..."
+        warn "backend/.env 不存在，从 backend/.env.example 复制..."
         cp "${REPO_ROOT}/backend/.env.example" "${env_file}"
         warn "请编辑 ${env_file} 填入真实密钥后重新运行"
         exit 1
@@ -416,11 +416,11 @@ cmd_check() {
     check_docker
     header "环境检查"
 
-    local env_file="${REPO_ROOT}/.env"
+    local env_file="${REPO_ROOT}/backend/.env"
     if [[ -f "${env_file}" ]]; then
-        success ".env 存在"
+        success "backend/.env 存在"
     else
-        warn ".env 不存在（请从 backend/.env.example 复制并填写）"
+        warn "backend/.env 不存在（请从 backend/.env.example 复制并填写）"
     fi
 
     if docker image inspect "${BACKEND_IMAGE}:latest" &>/dev/null; then
@@ -486,8 +486,8 @@ ${BOLD}选项：${RESET}
 
 ${BOLD}常用工作流：${RESET}
   ${GREEN}# 首次部署${RESET}
-  cp backend/.env.example .env
-  vim .env                          # 填入 API_KEY 等
+  cp backend/.env.example backend/.env
+  vim backend/.env                  # 填入 API_KEY 等
   ./start.sh start --build         # 构建并启动全部服务
   # 打开 http://localhost
 
