@@ -24,16 +24,6 @@ async def send_chat(body: dict) -> dict:
     }
 
 
-@router.get("/api/agents/status")
-async def get_agent_status() -> list:
-    return []
-
-
-@router.get("/api/pipelines/status")
-async def get_pipeline_status() -> list:
-    return []
-
-
 @router.get("/api/tokens/summary")
 async def get_token_summary() -> dict:
     return {

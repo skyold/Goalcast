@@ -22,10 +22,12 @@ if IS_DEV:
 from .routes.config import router as config_router
 from .routes.board import router as board_router
 from .routes.chat import router as chat_router
+from .routes.agents import router as agents_router
 
 app.include_router(config_router)
 app.include_router(board_router)
 app.include_router(chat_router)
+app.include_router(agents_router)
 
 
 @app.get("/api/health")
@@ -42,6 +44,42 @@ async def ws_status(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+@app.websocket("/ws/logs")
+async def ws_logs(websocket: WebSocket):
+    import asyncio
+    from pathlib import Path
+
+    await websocket.accept()
+    logger.info("Log WebSocket connected")
+
+    log_dir = Path(__file__).resolve().parents[2] / "data" / "logs"
+    log_file = log_dir / "goalcast.log"
+
+    if not log_file.exists():
+        await websocket.send_text("[info] Log file not found, waiting for logs...")
+
+    last_size = log_file.stat().st_size if log_file.exists() else 0
+
+    try:
+        while True:
+            if log_file.exists():
+                current_size = log_file.stat().st_size
+                if current_size > last_size:
+                    with open(log_file, "r", encoding="utf-8") as f:
+                        f.seek(last_size)
+                        new_lines = f.read()
+                        if new_lines:
+                            await websocket.send_text(new_lines)
+                    last_size = current_size
+            await asyncio.sleep(1)
+    except Exception:
+        logger.info("Log WebSocket disconnected")
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.websocket("/ws/chat")

@@ -9,11 +9,8 @@
   },
   "agents": {
     "clusters": [
-      { "key": "orchestrator", "label": "Orchestrator", "color": "#00FF9D", "desc": "Pipeline coordinator" },
-      { "key": "analyst",      "label": "Analyst",      "color": "#4ade80", "desc": "Match analysis" },
-      { "key": "trader",       "label": "Trader",       "color": "#ff9500", "desc": "Trade execution" },
-      { "key": "reviewer",     "label": "Reviewer",     "color": "#ef4444", "desc": "Quality review" },
-      { "key": "reporter",     "label": "Reporter",     "color": "#3b82f6", "desc": "Report generation" }
+      { "key": "prediction", "label": "Prediction", "color": "#00FF9D", "desc": "预测生产流水线（编排→分析→交易→审核→报告）" },
+      { "key": "backtester", "label": "Backtester", "color": "#a855f7", "desc": "历史回测与绩效评估" }
     ]
   },
   "board": {
@@ -21,10 +18,24 @@
       {
         "dir": "matches",
         "label": "Matches",
+        "source": {
+          "provider": "default",
+          "id_field": "match_id",
+          "detail": {
+            "mode": "tabs",
+            "tabs": [
+              { "label": "分析摘要", "field": "analysis", "format": "json" },
+              { "label": "交易决策", "field": "trading.results", "format": "json" },
+              { "label": "质量审查", "field": "review.verdict", "format": "markdown" },
+              { "label": "原始数据", "field": "", "format": "json" }
+            ]
+          }
+        },
         "columns": [
           { "key": "match_id",     "label": "ID",       "render": "text" },
           { "key": "home_team",    "label": "Home",     "render": "text" },
           { "key": "away_team",    "label": "Away",     "render": "text" },
+          { "key": "league_name",  "label": "League",   "render": "text" },
           { "key": "kickoff_time", "label": "Kickoff",  "render": "date_time" },
           { "key": "status",       "label": "Status",   "render": "status_badge",
             "status_map": {

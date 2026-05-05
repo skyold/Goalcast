@@ -6,6 +6,7 @@ import { useConfig } from "../config";
 import type { AgentStatus } from "../types";
 import LogViewer from "../components/LogViewer";
 import AgentDetailDrawer from "../components/AgentDetailDrawer";
+import DashboardExtras from "../extensions/DashboardExtras";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -80,31 +81,9 @@ function StatCard({
   );
 }
 
-// ── Cluster Health Bar ─────────────────────────────────────────────────
+// ── Agent Unified Panel ────────────────────────────────────────────────
 
-function ClusterHealthBar({ agents }: { agents: AgentStatus[] }) {
-  const total   = agents.length;
-  if (!total) return <span style={{ fontSize: 10, color: "var(--text-muted)" }}>—</span>;
-  const running = agents.filter((a) => a.status === "running").length;
-  const error   = agents.filter((a) => a.status === "error").length;
-  const idle    = total - running - error;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <div style={{ display: "flex", height: 4, borderRadius: 2, overflow: "hidden", width: 60, gap: 1 }}>
-        <div style={{ flex: running, background: "var(--green)" }}/>
-        <div style={{ flex: idle,    background: "var(--border)" }}/>
-        <div style={{ flex: error,   background: "#ef4444" }}/>
-      </div>
-      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-        {running}/{total}
-      </span>
-    </div>
-  );
-}
-
-// ── Agent Cluster Panel ────────────────────────────────────────────────
-
-function AgentClusterPanel({
+function AgentUnifiedPanel({
   agents,
   onSelectAgent,
 }: {
@@ -112,52 +91,14 @@ function AgentClusterPanel({
   onSelectAgent: (id: string) => void;
 }) {
   const config = useConfig();
-  const CLUSTERS = config.agents.clusters;
-  const [activeCluster, setActiveCluster] = useState<string>(CLUSTERS[0]?.key ?? "");
-
-  const clusterAgents = (key: string) => agents.filter((a) => a.cluster === key);
-  const activeClusterDef = CLUSTERS.find((c) => c.key === activeCluster) ?? CLUSTERS[0];
 
   return (
     <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-      {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--nav-bg)" }}>
-        {CLUSTERS.map((cluster) => {
-          const clAgents = clusterAgents(cluster.key);
-          const isActive = activeCluster === cluster.key;
-          const hasError = clAgents.some((a) => a.status === "error");
-          return (
-            <button
-              key={cluster.key}
-              onClick={() => setActiveCluster(cluster.key)}
-              style={{
-                flex: 1, padding: "11px 10px", border: "none", cursor: "pointer",
-                fontFamily: "inherit", background: "transparent",
-                borderBottom: isActive ? `2px solid ${cluster.color}` : "2px solid transparent",
-                transition: "all 0.15s",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color: isActive ? cluster.color : "var(--text-muted)" }}>
-                    {cluster.label}
-                  </span>
-                  {hasError && (
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444", display: "inline-block", boxShadow: "0 0 6px #ef4444" }}/>
-                  )}
-                </div>
-                <ClusterHealthBar agents={clAgents}/>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Description row */}
+      {/* Header row */}
       <div style={{ padding: "7px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{activeClusterDef.desc}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>All Agents</span>
         <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-          {clusterAgents(activeCluster).length} agents
+          {agents.length} agents
         </span>
       </div>
 
@@ -166,7 +107,7 @@ function AgentClusterPanel({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: "var(--nav-bg)" }}>
-              {["Agent ID", "Role", "Status", "Current Task", "Last Active"].map((h) => (
+              {["Cluster", "Agent ID", "Role", "Status", "Current Task", "Last Active"].map((h) => (
                 <th key={h} style={{ padding: "8px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>
                   {h}
                 </th>
@@ -174,38 +115,48 @@ function AgentClusterPanel({
             </tr>
           </thead>
           <tbody>
-            {clusterAgents(activeCluster).length === 0 ? (
+            {agents.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-                  No agents in this cluster
+                <td colSpan={6} style={{ padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  No agents available
                 </td>
               </tr>
             ) : (
-              clusterAgents(activeCluster).map((agent, i, arr) => (
-                <tr
-                  key={agent.agent_id}
-                  style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border-subtle)" : "none" }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--hover-bg)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
-                >
-                  <td style={{ padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-                    <span
-                      onClick={() => onSelectAgent(agent.agent_id)}
-                      style={{ color: "var(--accent)", cursor: "pointer", borderBottom: "1px dashed var(--accent-border)" }}
-                    >
-                      {agent.agent_id}
-                    </span>
-                  </td>
-                  <td style={{ padding: "10px 16px", color: "var(--text-secondary)" }}>{agent.role}</td>
-                  <td style={{ padding: "10px 16px" }}><StatusBadge status={agent.status}/></td>
-                  <td style={{ padding: "10px 16px", color: "var(--text-muted)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {agent.task || "—"}
-                  </td>
-                  <td style={{ padding: "10px 16px", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap" }}>
-                    {agent.last_active || "—"}
-                  </td>
-                </tr>
-              ))
+              agents.map((agent, i, arr) => {
+                const clusterDef = config.agents.clusters.find((c) => c.key === agent.cluster);
+                return (
+                  <tr
+                    key={agent.agent_id}
+                    style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border-subtle)" : "none" }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--hover-bg)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+                  >
+                    <td style={{ padding: "10px 16px" }}>
+                      <span style={{
+                        color: clusterDef?.color ?? "var(--text-muted)", fontSize: 11, fontWeight: 600,
+                      }}>
+                        {clusterDef?.label ?? agent.cluster}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                      <span
+                        onClick={() => onSelectAgent(agent.agent_id)}
+                        style={{ color: "var(--accent)", cursor: "pointer", borderBottom: "1px dashed var(--accent-border)" }}
+                      >
+                        {agent.agent_id}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 16px", color: "var(--text-secondary)" }}>{agent.role}</td>
+                    <td style={{ padding: "10px 16px" }}><StatusBadge status={agent.status}/></td>
+                    <td style={{ padding: "10px 16px", color: "var(--text-muted)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {agent.task || "—"}
+                    </td>
+                    <td style={{ padding: "10px 16px", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap" }}>
+                      {agent.last_active || "—"}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -301,8 +252,8 @@ export default function DashboardPage() {
         </Tooltip>
       </div>
 
-      {/* Cluster agent panel */}
-      <AgentClusterPanel agents={agents} onSelectAgent={setSelectedAgentId}/>
+      {/* Agent unified panel */}
+      <AgentUnifiedPanel agents={agents} onSelectAgent={setSelectedAgentId}/>
 
       {/* System log */}
       <LogViewer/>

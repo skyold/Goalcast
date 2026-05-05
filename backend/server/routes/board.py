@@ -29,6 +29,7 @@ async def get_board_list(
     for f in sorted(dir_path.glob("*.json")):
         try:
             data: dict = json.loads(f.read_text(encoding="utf-8"))
+            _flatten_metadata(data)
             data["_filename"] = f.name
             items.append(data)
         except Exception:
@@ -55,3 +56,14 @@ async def get_board_item(dir: str, filename: str) -> dict:
         raise HTTPException(status_code=500, detail=f"Failed to read {filename}: {e}") from e
     data["_filename"] = file_path.name
     return data
+
+
+def _flatten_metadata(data: dict) -> None:
+    md = data.get("metadata")
+    if isinstance(md, dict):
+        for k, v in md.items():
+            if k == "league" and isinstance(v, dict):
+                data["league_name"] = v.get("name", v.get("short_code", ""))
+                data["league_id"] = v.get("id")
+            elif k not in data:
+                data[k] = v
