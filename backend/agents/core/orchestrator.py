@@ -222,7 +222,9 @@ class Orchestrator:
             if not trigger_force and fixture_id in existing_fixture_ids:
                 skipped += 1
                 continue
-            match_id = match_store.generate_match_id()
+            # Force: reuse existing match_id to avoid duplicate files
+            existing_match_id = self._find_match_id_for_fixture(fixture_id) if trigger_force else None
+            match_id = existing_match_id or match_store.generate_match_id()
             
             # 读取 skill 依赖并预先获取原始数据
             raw_data = await self._fetch_raw_data_for_models(executor, fixture_id, models)
@@ -322,6 +324,22 @@ class Orchestrator:
         return any(match_store.count_by_status([status]) > 0 for status in active_statuses)
 
     _TERMINAL_STATUSES = {"reported", "abandoned"}
+
+    def _find_match_id_for_fixture(self, fixture_id: int) -> str | None:
+        """返回已存在的某个 fixture_id 对应的 match_id（取最新文件）。"""
+        found = None
+        for fp in sorted(match_store.MATCHES_DIR.glob("MC-*.json")):
+            try:
+                record = json.loads(fp.read_text(encoding="utf-8"))
+                fid = (
+                    record.get("orchestrator", {}).get("fixture_id")
+                    or record.get("metadata", {}).get("fixture_id")
+                )
+                if fid == fixture_id:
+                    found = record.get("match_id", fp.stem)
+            except (json.JSONDecodeError, IOError):
+                continue
+        return found
 
     def _load_existing_fixture_ids(self, active_only: bool = False) -> set:
         existing = set()
