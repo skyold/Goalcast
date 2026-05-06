@@ -100,7 +100,7 @@ export default function LogViewer() {
                 <span style={{ color: levelColor[lv] ?? "var(--text-muted)", fontWeight: 600, flexShrink: 0, minWidth: 40 }}>
                   {lv}
                 </span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap", wordBreak: "break-all", overflowWrap: "break-word" }}>
                   {parseRest(log)}
                 </span>
               </div>

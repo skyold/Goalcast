@@ -87,6 +87,10 @@ class ClaudeAdapter:
             return await self._run_openai_agent(role_path, agent_def.system_prompt, schemas, messages)
         return await self._run_anthropic_agent(role_path, agent_def.system_prompt, schemas, messages)
 
+    def _masked_key(self) -> str:
+        key = getattr(self.client, "api_key", None) or ""
+        return key[:8] + "..." if len(key) > 8 else "(未设置)"
+
     async def _run_anthropic_agent(
         self,
         role_path: str,
@@ -113,7 +117,12 @@ class ClaudeAdapter:
             if schemas:
                 request_kwargs["tools"] = schemas
 
-            response = await self.client.messages.create(**request_kwargs)
+            try:
+                response = await self.client.messages.create(**request_kwargs)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Anthropic API 调用失败 | 模型: {self.model} | Key前缀: {self._masked_key()} | 原因: {exc}"
+                ) from exc
 
             messages.append({"role": "assistant", "content": response.content})
 
@@ -203,7 +212,12 @@ class ClaudeAdapter:
                 request_kwargs["tools"] = openai_tools
                 request_kwargs["tool_choice"] = "auto"
 
-            response = await self.client.chat.completions.create(**request_kwargs)
+            try:
+                response = await self.client.chat.completions.create(**request_kwargs)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"OpenAI API 调用失败 | 模型: {self.model} | Key前缀: {self._masked_key()} | 原因: {exc}"
+                ) from exc
             message = response.choices[0].message
 
             assistant_message = {"role": "assistant"}
