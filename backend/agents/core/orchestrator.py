@@ -209,21 +209,21 @@ class Orchestrator:
             except Exception:
                 pass
 
-        existing_fixture_ids = self._load_existing_fixture_ids()
         active_fixture_ids = self._load_existing_fixture_ids(active_only=True)
+        completed_fixture_ids = self._load_fixture_ids_by_status({"reported"})
         skipped = 0
         for fixture in fixtures:
             fixture_id = fixture.get("fixture_id", fixture.get("id"))
-            # Always skip fixtures currently in-flight (non-terminal status)
+            # Always skip fixtures currently in-flight
             if fixture_id in active_fixture_ids:
                 skipped += 1
                 continue
-            # Without force, also skip terminal fixtures to avoid reprocessing
-            if not trigger_force and fixture_id in existing_fixture_ids:
+            # Without force, skip only successfully completed fixtures
+            if not trigger_force and fixture_id in completed_fixture_ids:
                 skipped += 1
                 continue
-            # Force: reuse existing match_id to avoid duplicate files
-            existing_match_id = self._find_match_id_for_fixture(fixture_id) if trigger_force else None
+            # Reuse existing file (if any) to avoid duplicates
+            existing_match_id = self._find_match_id_for_fixture(fixture_id)
             match_id = existing_match_id or match_store.generate_match_id()
             
             # 读取 skill 依赖并预先获取原始数据
@@ -340,6 +340,24 @@ class Orchestrator:
             except (json.JSONDecodeError, IOError):
                 continue
         return found
+
+    def _load_fixture_ids_by_status(self, statuses: set[str]) -> set:
+        """返回状态在 statuses 中的所有 fixture_id。"""
+        result = set()
+        for fp in match_store.MATCHES_DIR.glob("MC-*.json"):
+            try:
+                record = json.loads(fp.read_text(encoding="utf-8"))
+                if record.get("status", "") not in statuses:
+                    continue
+                fid = (
+                    record.get("orchestrator", {}).get("fixture_id")
+                    or record.get("metadata", {}).get("fixture_id")
+                )
+                if fid:
+                    result.add(fid)
+            except (json.JSONDecodeError, IOError):
+                continue
+        return result
 
     def _load_existing_fixture_ids(self, active_only: bool = False) -> set:
         existing = set()
