@@ -28,6 +28,7 @@ class Settings:
     FOOTYSTATS_API_KEY: str = ""
     FOOTBALL_DATA_API_KEY: str = ""
     ODDS_API_KEY: str = ""
+    ODDALERTS_API_KEY: str = ""
     OPENWEATHER_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
@@ -127,6 +128,7 @@ class Settings:
         self._warn_if_missing()
         self.FOOTBALL_DATA_API_KEY = self._get_env("FOOTBALL_DATA_API_KEY", "")
         self.ODDS_API_KEY = self._get_env("ODDS_API_KEY", "")
+        self.ODDALERTS_API_KEY = self._get_env("ODDALERTS_API_KEY", "")
         self.OPENWEATHER_API_KEY = self._get_env("OPENWEATHER_API_KEY", "")
         self.ANTHROPIC_API_KEY = self._get_env("ANTHROPIC_API_KEY", "")
         self.DEEPSEEK_API_KEY = self._get_env("DEEPSEEK_API_KEY", "")
