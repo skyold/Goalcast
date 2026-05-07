@@ -1,0 +1,9 @@
+backend/data/matches/
+backend/data/reports/
+backend/data/backtests/
+backend/data/cache/
+backend/data/logs/
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc

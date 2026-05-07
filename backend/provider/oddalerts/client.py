@@ -46,11 +46,18 @@ API 文档: https://documenter.getpostman.com/view/17615275/2s935uG1WF
   GET /api/user                  账户信息
 """
 
-from typing import Dict, Any, Optional, Literal
+from __future__ import annotations
+
+from datetime import datetime, timezone, timedelta
+from typing import TYPE_CHECKING, Dict, Any, Optional, Literal
 import httpx
+
 from provider.base import BaseProvider
 from utils.logger import logger
 from config.settings import settings
+
+if TYPE_CHECKING:
+    from provider.models import ProviderFixture
 
 TrendMarket = Literal["homeWin", "awayWin", "btts"]
 StatsType = Literal["season", "fixture"]
@@ -119,6 +126,21 @@ class OddAlertsProvider(BaseProvider):
         if result and isinstance(result.get("data"), list):
             return result["data"][0] if result["data"] else None
         return result
+
+    async def get_fixtures_between(
+        self,
+        start_date: str,
+        end_date: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取日期范围内的赛程（注：API 实测此端点始终返回空数据，疑似 bug）
+
+        Args:
+            start_date: 开始日期，格式 YYYY-MM-DD
+            end_date:   结束日期，格式 YYYY-MM-DD
+        """
+        logger.debug("Provider %s: get_fixtures_between(%s, %s)", self.name, start_date, end_date)
+        return await self._request_raw("/fixtures/between", {"start": start_date, "end": end_date})
 
     # ==================== 赔率端点 ====================
 
@@ -270,6 +292,136 @@ class OddAlertsProvider(BaseProvider):
         """
         logger.debug(f"Provider {self.name}: get_account_info()")
         return await self._request_raw("/user", {})
+
+    # ==================== Provider 抽象接口实现 ====================
+
+    async def discover_fixtures(
+        self,
+        league_ids: list[int],
+        dates: list[str],
+    ) -> list[ProviderFixture]:
+        """
+        两阶段发现策略：
+        1. 尝试 /fixtures/between（快速但已知 API 有 bug，通常返回空）
+        2. 合并 homeWin / awayWin / btts 三个趋势端点扫描（无 min_stat 过滤）
+
+        league_ids: OddAlerts competition_id 列表，空表示不过滤。
+        dates:      ISO 日期字符串列表。
+        """
+        from provider.models import ProviderFixture
+
+        if not dates:
+            return []
+
+        start_date = min(dates)
+        end_date = max(dates)
+
+        # 将日期转为 unix 范围 [day_start, day_end + 24h)
+        day_start_unix = int(datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+        day_end_unix = int(
+            (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).replace(tzinfo=timezone.utc).timestamp()
+        )
+
+        # ── 策略 1：/fixtures/between ──────────────────────────────────────────
+        resp = await self.get_fixtures_between(start_date, end_date)
+        tier1_items: list[dict] = []
+        if isinstance(resp, dict):
+            tier1_items = resp.get("data", [])
+
+        if tier1_items:
+            logger.info("oddalerts: discover_fixtures tier-1 returned %d items", len(tier1_items))
+            return self._parse_fixtures_list(tier1_items, league_ids, day_start_unix, day_end_unix)
+
+        # ── 策略 2：合并三个趋势端点 ──────────────────────────────────────────
+        logger.info("oddalerts: tier-1 empty, falling back to trends scan")
+        seen: set[int] = set()
+        result: list[ProviderFixture] = []
+
+        for market in ("homeWin", "awayWin", "btts"):
+            page = 1
+            while True:
+                resp = await self.get_trends(market, page=page)
+                if not isinstance(resp, dict):
+                    break
+                items = resp.get("data", [])
+                if not items:
+                    break
+
+                found_in_window = False
+                for item in items:
+                    fid = item.get("id")
+                    if fid is None or fid in seen:
+                        continue
+
+                    unix = item.get("unix")
+                    if unix is None:
+                        continue
+                    unix = int(unix)
+                    if not (day_start_unix <= unix < day_end_unix):
+                        continue
+
+                    found_in_window = True
+                    if league_ids and item.get("competition_id") not in league_ids:
+                        continue
+
+                    seen.add(fid)
+                    result.append(ProviderFixture(
+                        provider=self.name,
+                        fixture_id=fid,
+                        home_team=item.get("home_name", ""),
+                        away_team=item.get("away_name", ""),
+                        kickoff_unix=unix,
+                        league_name=item.get("competition_name"),
+                        raw=item,
+                    ))
+
+                meta = resp.get("meta", {})
+                current_page = meta.get("current_page", page)
+                last_page = meta.get("last_page", 1)
+                if current_page >= last_page:
+                    break
+                # 如果本页无任何目标日期内的比赛且已翻超 10 页，停止扫描
+                if not found_in_window and page >= 10:
+                    break
+                page += 1
+
+        logger.info("oddalerts: discover_fixtures found %d fixtures via trends", len(result))
+        return result
+
+    def _parse_fixtures_list(
+        self,
+        items: list[dict],
+        league_ids: list[int],
+        day_start_unix: int,
+        day_end_unix: int,
+    ) -> list[ProviderFixture]:
+        from provider.models import ProviderFixture
+
+        seen: set[int] = set()
+        result: list[ProviderFixture] = []
+        for item in items:
+            fid = item.get("id")
+            if fid is None or fid in seen:
+                continue
+            unix = item.get("unix")
+            if unix is None:
+                continue
+            unix = int(unix)
+            if not (day_start_unix <= unix < day_end_unix):
+                continue
+            if league_ids and item.get("competition_id") not in league_ids:
+                continue
+            seen.add(fid)
+            result.append(ProviderFixture(
+                provider=self.name,
+                fixture_id=fid,
+                home_team=item.get("home_name", ""),
+                away_team=item.get("away_name", ""),
+                kickoff_unix=unix,
+                league_name=item.get("competition_name"),
+                raw=item,
+            ))
+        return result
 
     # ==================== 组合方法 ====================
 

@@ -148,4 +148,10 @@ export const api = {
     const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
     return request<PipelineMatchesResponse>(`/pipeline/matches${qs}`);
   },
+
+  refreshMatchSource: (matchId: string, source: string) =>
+    request<{ source: string; data: Record<string, unknown> }>(
+      `/board/matches/${encodeURIComponent(matchId)}/refresh/${encodeURIComponent(source)}`,
+      { method: "POST" },
+    ),
 };

@@ -1,0 +1,10 @@
+{
+  "_note": "OddAlerts competition_id → Sportmonks league_id mapping. Run scripts/discover_oa_leagues.py to populate.",
+  "_sportmonks_to_oddalerts": {
+    "8": null,
+    "82": null,
+    "301": null,
+    "384": null,
+    "564": null
+  }
+}

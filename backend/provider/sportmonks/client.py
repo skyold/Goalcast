@@ -4,11 +4,18 @@ Sportmonks API v3 Football Provider
 实现 Sportmonks API v3 的核心端点，支持丰富的数据包含 (Includes) 和过滤功能。
 """
 
-from typing import Dict, Any, Optional, List
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Dict, Any, Optional, List
+
 from provider.base import BaseProvider
 from utils.logger import logger
 from config.settings import settings
 import json
+
+if TYPE_CHECKING:
+    from provider.models import ProviderFixture
 
 
 class SportmonksProvider(BaseProvider):
@@ -802,6 +809,73 @@ class SportmonksProvider(BaseProvider):
     async def get_trophies_by_player(self, player_id: int, include: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """获取球员获得的荣誉/奖杯"""
         return await self._request_raw(f"/trophies/players/{player_id}", {"include": include} if include else None)
+
+    # ==================== Provider 抽象接口实现 ====================
+
+    async def discover_fixtures(
+        self,
+        league_ids: list[int],
+        dates: list[str],
+    ) -> list[ProviderFixture]:
+        from provider.models import ProviderFixture
+
+        filters = f"filterFixturesByLeagueIds:{','.join(map(str, league_ids))}" if league_ids else None
+        seen: set[int] = set()
+        result: list[ProviderFixture] = []
+
+        for date in dates:
+            resp = await self.get_fixtures_by_date(
+                date,
+                include="participants;league",
+                filters=filters,
+            )
+            if not isinstance(resp, dict):
+                logger.warning("sportmonks: discover_fixtures date=%s returned non-dict", date)
+                continue
+
+            for raw in resp.get("data", []):
+                fid = raw.get("id")
+                if fid is None or fid in seen:
+                    continue
+                seen.add(fid)
+
+                home_name, away_name = "", ""
+                for p in raw.get("participants", []):
+                    loc = p.get("meta", {}).get("location")
+                    if loc == "home":
+                        home_name = p.get("name", "")
+                    elif loc == "away":
+                        away_name = p.get("name", "")
+
+                starting_at = raw.get("starting_at", "")
+                kickoff_unix = 0
+                if starting_at:
+                    try:
+                        dt = datetime.strptime(starting_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                        kickoff_unix = int(dt.timestamp())
+                    except ValueError:
+                        try:
+                            kickoff_unix = int(datetime.fromisoformat(starting_at.replace("Z", "+00:00")).timestamp())
+                        except Exception:
+                            pass
+
+                league_name: str | None = None
+                league_data = raw.get("league")
+                if isinstance(league_data, dict):
+                    league_name = league_data.get("name")
+
+                result.append(ProviderFixture(
+                    provider=self.name,
+                    fixture_id=fid,
+                    home_team=home_name,
+                    away_team=away_name,
+                    kickoff_unix=kickoff_unix,
+                    league_name=league_name,
+                    raw=raw,
+                ))
+
+        logger.info("sportmonks: discover_fixtures found %d fixtures across %d dates", len(result), len(dates))
+        return result
 
     # ==================== 兼容性方法 (适配 Goalcast 现有接口) ====================
 

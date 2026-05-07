@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import TYPE_CHECKING, Dict, Any, Optional
+
+if TYPE_CHECKING:
+    from provider.models import ProviderFixture
+
 import asyncio
 import httpx
 from utils.logger import logger
@@ -110,6 +116,24 @@ class BaseProvider(ABC):
 
     @abstractmethod
     async def is_available(self) -> bool:
+        pass
+
+    @abstractmethod
+    async def discover_fixtures(
+        self,
+        league_ids: list[int],
+        dates: list[str],
+    ) -> list[ProviderFixture]:
+        """
+        返回指定联赛和日期范围内的所有 fixture。
+
+        Args:
+            league_ids: 该 provider 自己体系的联赛 ID 列表，空列表表示不过滤。
+            dates:      ISO 日期字符串列表，如 ["2026-05-07", "2026-05-08"]。
+
+        Returns:
+            list[ProviderFixture]
+        """
         pass
 
     def __repr__(self) -> str:
