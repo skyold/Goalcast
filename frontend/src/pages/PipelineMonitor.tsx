@@ -45,58 +45,6 @@ function getStatusColor(status: string): string {
   }
 }
 
-// ─── Summary cells ────────────────────────────────────────────────────────────
-
-function XGCell({ homeXg, awayXg }: { homeXg?: number; awayXg?: number }) {
-  if (homeXg == null || awayXg == null) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-  const homeColor = homeXg >= awayXg ? "var(--accent)" : "var(--text-secondary)";
-  const awayColor = awayXg > homeXg ? "var(--accent)" : "var(--text-secondary)";
-  return (
-    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
-      <span style={{ color: homeColor, fontWeight: 600 }}>{homeXg.toFixed(2)}</span>
-      {" : "}
-      <span style={{ color: awayColor, fontWeight: 600 }}>{awayXg.toFixed(2)}</span>
-    </span>
-  );
-}
-
-function ProbBar({ probs }: { probs?: { home_win: number; draw: number; away_win: number } }) {
-  if (!probs) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-  const h = Math.round(probs.home_win * 100);
-  const d = Math.round(probs.draw * 100);
-  const a = Math.round(probs.away_win * 100);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ display: "flex", height: 8, borderRadius: 2, overflow: "hidden", width: 100, gap: 1 }}>
-        <div style={{ flex: h, background: "var(--accent)" }} />
-        <div style={{ flex: d, background: "var(--text-muted)" }} />
-        <div style={{ flex: a, background: "#3b82f6" }} />
-      </div>
-      <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
-        {h}/{d}/{a}
-      </span>
-    </div>
-  );
-}
-
-function RecEVCell({ rec, ev }: { rec?: string; ev?: number }) {
-  const recLabel = rec || "";
-  const evColor = ev == null ? "var(--text-muted)" : ev > 0.05 ? "var(--accent)" : ev > 0 ? "var(--orange)" : "var(--red)";
-  const evLabel = ev != null ? `${ev >= 0 ? "+" : ""}${ev.toFixed(3)}` : "—";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      {recLabel ? (
-        <span style={{ fontSize: 11, padding: "1px 6px", borderRadius: 3, background: "var(--accent-bg)", color: "var(--accent)", border: "1px solid var(--accent-border)", fontFamily: "var(--font-mono)" }}>
-          {recLabel}
-        </span>
-      ) : <span style={{ color: "var(--text-muted)", fontSize: 11 }}>—</span>}
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: evColor }}>
-        {evLabel}
-      </span>
-    </div>
-  );
-}
-
 // ─── Raw JSON Drawer ──────────────────────────────────────────────────────────
 
 function RawDataDrawer({ raw, onClose }: { raw: { title: string; data: unknown } | null; onClose: () => void }) {
@@ -258,7 +206,19 @@ export default function PipelineMonitor() {
     }
   };
 
-  const cols = ["联赛", "主队", "客队", "开赛", "状态", "xG", "胜率", "推荐/EV"];
+  const filteredMatches = leagues.some((l) => l.active)
+    ? matches.filter((m) =>
+        leagues.some(
+          (l) =>
+            l.active &&
+            (l.name === m.league_name ||
+              l.chinese_name === m.league_name ||
+              m.league_name.toLowerCase() === l.name.toLowerCase())
+        )
+      )
+    : matches;
+
+  const cols = ["联赛", "主队", "客队", "开赛"];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -332,7 +292,10 @@ export default function PipelineMonitor() {
               </button>
             ))}
             <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, fontFamily: "var(--font-mono)" }}>
-              {selectedDate} · <strong style={{ color: "var(--accent)" }}>{matches.length}</strong> 场
+              {selectedDate} · <strong style={{ color: "var(--accent)" }}>{filteredMatches.length}</strong> 场
+              {filteredMatches.length !== matches.length && (
+                <span style={{ color: "var(--text-muted)", marginLeft: 4 }}>/ {matches.length} 总</span>
+              )}
             </span>
           </div>
 
@@ -367,7 +330,7 @@ export default function PipelineMonitor() {
       {/* Match table */}
       {loading && matches.length === 0 ? (
         <Spin style={{ display: "block", margin: "40px auto" }} />
-      ) : matches.length === 0 ? (
+      ) : filteredMatches.length === 0 ? (
         <Empty description="暂无比赛数据。请选择联赛后等待 Orchestrator 拉取，或点击强制刷新。" style={{ padding: 40 }} />
       ) : (
         <div style={{
@@ -389,9 +352,9 @@ export default function PipelineMonitor() {
               </tr>
             </thead>
             <tbody>
-              {matches.map((m, i) => {
+              {filteredMatches.map((m, i) => {
                 const isExpanded = expandedMatchId === m.match_id;
-                const isLast = i === matches.length - 1;
+                const isLast = i === filteredMatches.length - 1;
                 return (
                   <Fragment key={m.match_id}>
                     <tr
@@ -419,19 +382,10 @@ export default function PipelineMonitor() {
                       <td style={{ padding: "9px 14px", color: "var(--text)", fontWeight: 600 }}>{m.home_team}</td>
                       <td style={{ padding: "9px 14px", color: "var(--text-secondary)" }}>{m.away_team}</td>
                       <td style={{ padding: "9px 14px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>
-                        {m.kickoff_time ? dayjs(m.kickoff_time).format("MM-DD HH:mm") : "—"}
-                      </td>
-                      <td style={{ padding: "9px 14px" }}>
-                        <Tag color={getStatusColor(m.status)} style={{ fontSize: 10, fontWeight: 600 }}>{m.status}</Tag>
-                      </td>
-                      <td style={{ padding: "9px 14px" }}>
-                        <XGCell homeXg={m.home_xg} awayXg={m.away_xg} />
-                      </td>
-                      <td style={{ padding: "9px 14px" }}>
-                        <ProbBar probs={m.result_probs} />
-                      </td>
-                      <td style={{ padding: "9px 14px" }}>
-                        <RecEVCell rec={m.recommendation} ev={m.ev} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span>{m.kickoff_time ? dayjs(m.kickoff_time).format("MM-DD HH:mm") : "—"}</span>
+                          <Tag color={getStatusColor(m.status)} style={{ fontSize: 10, fontWeight: 600, margin: 0 }}>{m.status}</Tag>
+                        </div>
                       </td>
                     </tr>
 

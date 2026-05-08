@@ -184,6 +184,67 @@ class OddAlertsProvider(BaseProvider):
         logger.debug(f"Provider {self.name}: get_dropping_odds(page={page})")
         return await self._request_raw("/odds/dropping", {"page": page})
 
+    # ==================== 预测端点 ====================
+
+    async def get_predictions_generate(self, fixture_id: int) -> Optional[Dict[str, Any]]:
+        """
+        蒙特卡洛模拟（50k 次）—— /predictions/generate/{fixture_id}
+
+        Returns 字段:
+            home_win_percentage, draw_percentage, away_win_percentage
+            btts_percentage, btts_no_percentage
+            o15/o25/o35_goals_percentage
+            expected_goals: {home, away, total}
+            scorelines: {"1_0": 15.2, "0_0": 8.1, ...}
+            first_half: {home_win_percentage, draw_percentage, away_win_percentage}
+            asian_handicap: {home_p025: 52.1, away_p025: 47.9, ...}
+        """
+        logger.debug("Provider %s: get_predictions_generate(fixture_id=%s)", self.name, fixture_id)
+        result = await self._request_raw(f"/predictions/generate/{fixture_id}")
+        if result and isinstance(result.get("data"), list):
+            return result["data"][0] if result["data"] else None
+        return result
+
+    async def get_fixture_h2h(self, fixture_id: int) -> Optional[Dict[str, Any]]:
+        """
+        获取比赛详情，含 H2H 历史和正确比分概率 —— /fixtures/{fixture_id}?include=h2h,correctScores
+
+        注意：URL 使用路径参数，与 get_fixture 的查询参数 (?id=) 不同。
+
+        Returns 字段:
+            h2h: 近期对阵记录列表，每条含
+                date, home_name, away_name, home_goals, away_goals,
+                home_win, away_win, draw, btts, over_25
+            correct_scores: {score_string: probability, ...}
+                e.g. {"1_0": 14.2, "0_0": 8.5, "1_1": 11.3, ...}
+        """
+        logger.debug("Provider %s: get_fixture_h2h(fixture_id=%s)", self.name, fixture_id)
+        result = await self._request_raw(f"/fixtures/{fixture_id}", {"include": "h2h,correctScores"})
+        if result and isinstance(result.get("data"), list):
+            return result["data"][0] if result["data"] else None
+        return result
+
+    async def get_stats_recent(self, season_id: int, last_x: str) -> Optional[Dict[str, Any]]:
+        """
+        获取赛季内近期状态统计 —— /stats/season/{season_id}?last_x=...
+
+        Args:
+            season_id: 赛季 ID（来自 fixture.season_id）
+            last_x:    "5_home"    → 主队近 5 场主场数据
+                       "5_away"    → 客队近 5 场客场数据
+                       "10_overall"→ 近 10 场总体数据
+
+        Returns: 包含赛季内所有球队的统计列表，取用 team_id 匹配目标球队。
+                 字段同 get_stats（PPG、进失球均值、BTTS、大球率、xG 等）
+        """
+        logger.debug(
+            "Provider %s: get_stats_recent(season_id=%s, last_x=%s)", self.name, season_id, last_x
+        )
+        return await self._request_raw(f"/stats/season/{season_id}", {
+            "last_x": last_x,
+            "include_frozen": "false",
+        })
+
     # ==================== 统计端点 ====================
 
     async def get_stats(

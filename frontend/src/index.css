@@ -7,17 +7,18 @@
   --accent-glow:   rgba(255, 149, 0, 0.25);
 
   --green:         #4ade80;
-  --bg:            #060810;
-  --nav-bg:        #0b0d17;
-  --card-bg:       #0f1220;
+  --bg:            #07080e;
+  --nav-bg:        #0c0e1c;
+  --card-bg:       #151928;
 
-  --border:        rgba(255, 255, 255, 0.07);
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --hover-bg:      rgba(255, 255, 255, 0.04);
+  --border:        rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --hover-bg:      rgba(255, 255, 255, 0.05);
 
-  --text-primary:   #e8eaf0;
-  --text-secondary: #9ba3b8;
-  --text-muted:     #555d72;
+  --text:           #eceef5;
+  --text-primary:   #eceef5;
+  --text-secondary: #a2aac0;
+  --text-muted:     #687088;
 
   --font-sans: 'Space Grotesk', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
