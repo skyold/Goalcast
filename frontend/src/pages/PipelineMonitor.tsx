@@ -1,12 +1,36 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { Tag, Button, Empty, Spin, Drawer } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useAppStore } from "../store/appStore";
 import { api } from "../services/api";
+import { PipelineMatchPanel } from "../components/MatchSourcePanel";
 import type { PipelineLeague, PipelineMatch } from "../types";
 
 const POLL_INTERVAL = 10000;
+
+// ─── Time tab config ──────────────────────────────────────────────────────────
+
+type TimeTab = "today" | "tomorrow" | "day_after" | "custom";
+
+function getTabDate(tab: TimeTab, customDate: string): string {
+  const today = dayjs();
+  switch (tab) {
+    case "today": return today.format("YYYY-MM-DD");
+    case "tomorrow": return today.add(1, "day").format("YYYY-MM-DD");
+    case "day_after": return today.add(2, "day").format("YYYY-MM-DD");
+    case "custom": return customDate;
+  }
+}
+
+const TIME_TABS: { key: TimeTab; label: string }[] = [
+  { key: "today", label: "今天" },
+  { key: "tomorrow", label: "明天" },
+  { key: "day_after", label: "后天" },
+  { key: "custom", label: "日期" },
+];
+
+// ─── Status helpers ───────────────────────────────────────────────────────────
 
 function getStatusColor(status: string): string {
   switch (status) {
@@ -20,6 +44,8 @@ function getStatusColor(status: string): string {
     default: return "default";
   }
 }
+
+// ─── Summary cells ────────────────────────────────────────────────────────────
 
 function XGCell({ homeXg, awayXg }: { homeXg?: number; awayXg?: number }) {
   if (homeXg == null || awayXg == null) return <span style={{ color: "var(--text-muted)" }}>—</span>;
@@ -71,22 +97,30 @@ function RecEVCell({ rec, ev }: { rec?: string; ev?: number }) {
   );
 }
 
-function MatchDetailDrawer({ match, onClose }: { match: PipelineMatch | null; onClose: () => void }) {
-  if (!match) return null;
+// ─── Raw JSON Drawer ──────────────────────────────────────────────────────────
+
+function RawDataDrawer({ raw, onClose }: { raw: { title: string; data: unknown } | null; onClose: () => void }) {
   return (
     <Drawer
-      title={`${match.home_team} vs ${match.away_team}`}
+      title={raw?.title ?? "原始数据"}
       placement="right"
-      width={500}
+      width={580}
       onClose={onClose}
-      open={!!match}
+      open={!!raw}
     >
-      <pre style={{ background: "#0a0a12", color: "var(--green)", padding: 16, borderRadius: 8, fontSize: 12, overflowX: "auto", whiteSpace: "pre-wrap", border: "1px solid var(--border)" }}>
-        {JSON.stringify(match, null, 2)}
+      <pre style={{
+        background: "#0a0a12", color: "var(--green)",
+        padding: 16, borderRadius: 8, fontSize: 12,
+        overflowX: "auto", whiteSpace: "pre-wrap",
+        border: "1px solid var(--border)",
+      }}>
+        {raw ? JSON.stringify(raw.data, null, 2) : ""}
       </pre>
     </Drawer>
   );
 }
+
+// ─── Main PipelineMonitor ─────────────────────────────────────────────────────
 
 export default function PipelineMonitor() {
   const wsConnected = useAppStore((s) => s.wsConnected);
@@ -97,17 +131,28 @@ export default function PipelineMonitor() {
   const [matches, setMatches] = useState<PipelineMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<PipelineMatch | null>(null);
+  const [leagueExpanded, setLeagueExpanded] = useState(false);
+
+  // Time tab
+  const todayStr = dayjs().format("YYYY-MM-DD");
+  const [activeTimeTab, setActiveTimeTab] = useState<TimeTab>("today");
+  const [customDate, setCustomDate] = useState(todayStr);
+
+  // Expandable rows
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [expandedMatchFull, setExpandedMatchFull] = useState<Record<string, unknown> | null>(null);
+  const [loadingMatchDetail, setLoadingMatchDetail] = useState(false);
+  const [refreshingSource, setRefreshingSource] = useState<string | null>(null);
+
+  // Raw JSON drawer
+  const [rawDrawer, setRawDrawer] = useState<{ title: string; data: unknown } | null>(null);
+
   const initialTriggerRef = useRef(false);
 
-  const threeDaysLater = dayjs().add(3, "day").format("YYYY-MM-DD");
-  const todayStr = dayjs().format("YYYY-MM-DD");
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(threeDaysLater);
-
   const activeLeagueNames = leagues.filter((l) => l.active).map((l) => l.chinese_name);
-  const visibleLeagues = expanded ? leagues : leagues.slice(0, 8);
+  const visibleLeagues = leagueExpanded ? leagues : leagues.slice(0, 8);
+
+  const selectedDate = getTabDate(activeTimeTab, customDate);
 
   const fetchLeagues = useCallback(async () => {
     try {
@@ -116,20 +161,24 @@ export default function PipelineMonitor() {
     } catch { /* ignore */ }
   }, []);
 
-  const fetchMatches = useCallback(async () => {
+  const fetchMatches = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      const res = await api.getPipelineMatches({ date_from: dateFrom, date_to: dateTo });
+      const res = await api.getPipelineMatches({ date_from: date, date_to: date });
       setMatches(res.items);
     } catch {
       setMatches([]);
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  }, []);
 
   useEffect(() => { fetchLeagues(); }, [fetchLeagues]);
-  useEffect(() => { fetchMatches(); }, [fetchMatches]);
+
+  useEffect(() => {
+    fetchMatches(selectedDate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   useEffect(() => {
     if (initialTriggerRef.current) return;
@@ -142,9 +191,10 @@ export default function PipelineMonitor() {
   }, [activeLeagueNames]);
 
   useEffect(() => {
-    const timer = setInterval(fetchMatches, POLL_INTERVAL);
+    const timer = setInterval(() => fetchMatches(selectedDate), POLL_INTERVAL);
     return () => clearInterval(timer);
-  }, [fetchMatches]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, fetchMatches]);
 
   const handleLeagueToggle = async (cn: string) => {
     const newActive = activeLeagueNames.includes(cn)
@@ -166,14 +216,53 @@ export default function PipelineMonitor() {
     setTimeout(() => setTriggering(false), 2000);
   };
 
-  const handleDateFromChange = (val: string) => {
-    setDateFrom(val);
-    if (val > dateTo) setDateTo(val);
+  const handleTimeTabChange = (tab: TimeTab) => {
+    setActiveTimeTab(tab);
+    setExpandedMatchId(null);
+    setExpandedMatchFull(null);
   };
+
+  const handleRowToggle = async (match: PipelineMatch) => {
+    if (expandedMatchId === match.match_id) {
+      setExpandedMatchId(null);
+      setExpandedMatchFull(null);
+      return;
+    }
+    setExpandedMatchId(match.match_id);
+    setExpandedMatchFull(null);
+    setLoadingMatchDetail(true);
+    try {
+      const full = await api.getMatchDetail(match.match_id);
+      setExpandedMatchFull(full);
+    } catch {
+      setExpandedMatchFull({});
+    } finally {
+      setLoadingMatchDetail(false);
+    }
+  };
+
+  const handleRefreshSource = async (matchId: string, source: string) => {
+    setRefreshingSource(source);
+    try {
+      const result = await api.refreshMatchSource(matchId, source);
+      setExpandedMatchFull((prev) => prev ? {
+        ...prev,
+        raw_data: {
+          ...(prev.raw_data as Record<string, unknown> ?? {}),
+          [source]: result.data,
+        },
+      } : prev);
+    } catch { /* ignore */ }
+    finally {
+      setRefreshingSource(null);
+    }
+  };
+
+  const cols = ["联赛", "主队", "客队", "开赛", "状态", "xG", "胜率", "推荐/EV"];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* League Bar */}
+      {/* League filter bar */}
       <div style={{
         background: "var(--card-bg)", border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)", padding: "14px 18px",
@@ -194,41 +283,59 @@ export default function PipelineMonitor() {
               {l.chinese_name}
             </Tag.CheckableTag>
           ))}
-          {!expanded && leagues.length > 8 && (
+          {!leagueExpanded && leagues.length > 8 && (
             <Tag
-              onClick={() => setExpanded(true)}
+              onClick={() => setLeagueExpanded(true)}
               style={{ cursor: "pointer", opacity: 0.5, fontSize: 12 }}
             >
               ▼ 更多 ({leagues.length - 8})
             </Tag>
           )}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "var(--text-secondary)" }}>
-          <span>激活: <strong style={{ color: "var(--accent)" }}>{activeLeagueNames.join(", ") || "无"}</strong></span>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => handleDateFromChange(e.target.value)}
-              style={{
-                background: "var(--nav-bg)", border: "1px solid var(--border)", borderRadius: 6,
-                color: "var(--text)", padding: "4px 8px", fontSize: 12, fontFamily: "var(--font-mono)",
-                outline: "none",
-              }}
-            />
-            <span style={{ color: "var(--text-muted)" }}>→</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={{
-                background: "var(--nav-bg)", border: "1px solid var(--border)", borderRadius: 6,
-                color: "var(--text)", padding: "4px 8px", fontSize: 12, fontFamily: "var(--font-mono)",
-                outline: "none",
-              }}
-            />
-            <span>· <strong style={{ color: "var(--accent)" }}>{matches.length}</strong> 场比赛</span>
+
+        {/* Time tab + refresh row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {/* Time tabs */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {TIME_TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => handleTimeTabChange(t.key)}
+                style={{
+                  padding: "4px 12px", fontSize: 12, borderRadius: 6, cursor: "pointer",
+                  border: activeTimeTab === t.key ? "1px solid var(--accent-border)" : "1px solid var(--border)",
+                  background: activeTimeTab === t.key ? "var(--accent-bg)" : "var(--nav-bg)",
+                  color: activeTimeTab === t.key ? "var(--accent)" : "var(--text-muted)",
+                  fontWeight: activeTimeTab === t.key ? 600 : 400,
+                  transition: "all 0.15s",
+                }}
+              >
+                {t.key === "custom" ? (
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {t.label}
+                    <input
+                      type="date"
+                      value={customDate}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        setCustomDate(e.target.value);
+                        setActiveTimeTab("custom");
+                      }}
+                      style={{
+                        background: "transparent", border: "none", outline: "none",
+                        color: "inherit", fontSize: 11, fontFamily: "var(--font-mono)",
+                        cursor: "pointer", width: 90,
+                      }}
+                    />
+                  </span>
+                ) : t.label}
+              </button>
+            ))}
+            <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, fontFamily: "var(--font-mono)" }}>
+              {selectedDate} · <strong style={{ color: "var(--accent)" }}>{matches.length}</strong> 场
+            </span>
           </div>
+
           <Button
             size="small"
             icon={<ReloadOutlined spin={triggering} />}
@@ -241,7 +348,7 @@ export default function PipelineMonitor() {
         </div>
       </div>
 
-      {/* Pipeline status bar */}
+      {/* Connection status */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
         padding: "4px 0", fontSize: 11, color: "var(--text-muted)",
@@ -257,7 +364,7 @@ export default function PipelineMonitor() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Match table */}
       {loading && matches.length === 0 ? (
         <Spin style={{ display: "block", margin: "40px auto" }} />
       ) : matches.length === 0 ? (
@@ -270,48 +377,88 @@ export default function PipelineMonitor() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "var(--nav-bg)" }}>
-                {["联赛", "主队", "客队", "开赛", "状态", "xG (主:客)", "胜率", "推荐 / EV"].map((h) => (
-                  <th key={h} style={{ padding: "8px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>
+                {cols.map((h) => (
+                  <th key={h} style={{
+                    padding: "8px 14px", textAlign: "left", fontSize: 11, fontWeight: 600,
+                    color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em",
+                    borderBottom: "1px solid var(--border)", whiteSpace: "nowrap",
+                  }}>
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {matches.map((m, i) => (
-                <tr
-                  key={m.match_id}
-                  style={{ borderBottom: i < matches.length - 1 ? "1px solid var(--border-subtle)" : "none", cursor: "pointer" }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--hover-bg)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
-                  onClick={() => setSelectedMatch(m)}
-                >
-                  <td style={{ padding: "9px 14px", color: "var(--text)" }}>{m.league_name}</td>
-                  <td style={{ padding: "9px 14px", color: "var(--text)", fontWeight: 600 }}>{m.home_team}</td>
-                  <td style={{ padding: "9px 14px", color: "var(--text-secondary)" }}>{m.away_team}</td>
-                  <td style={{ padding: "9px 14px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>
-                    {m.kickoff_time ? dayjs(m.kickoff_time).format("MM-DD HH:mm") : "—"}
-                  </td>
-                  <td style={{ padding: "9px 14px" }}>
-                    <Tag color={getStatusColor(m.status)} style={{ fontSize: 10, fontWeight: 600 }}>{m.status}</Tag>
-                  </td>
-                  <td style={{ padding: "9px 14px" }}>
-                    <XGCell homeXg={m.home_xg} awayXg={m.away_xg} />
-                  </td>
-                  <td style={{ padding: "9px 14px" }}>
-                    <ProbBar probs={m.result_probs} />
-                  </td>
-                  <td style={{ padding: "9px 14px" }}>
-                    <RecEVCell rec={m.recommendation} ev={m.ev} />
-                  </td>
-                </tr>
-              ))}
+              {matches.map((m, i) => {
+                const isExpanded = expandedMatchId === m.match_id;
+                const isLast = i === matches.length - 1;
+                return (
+                  <Fragment key={m.match_id}>
+                    <tr
+                      style={{
+                        borderBottom: isExpanded ? "none" : (isLast ? "none" : "1px solid var(--border-subtle)"),
+                        background: isExpanded ? "color-mix(in srgb, var(--nav-bg) 40%, transparent)" : "transparent",
+                        cursor: "pointer",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isExpanded) (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isExpanded) (e.currentTarget as HTMLElement).style.background = "transparent";
+                      }}
+                      onClick={() => handleRowToggle(m)}
+                    >
+                      <td style={{ padding: "9px 14px", color: "var(--text)" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ color: "var(--text-muted)", fontSize: 10, flexShrink: 0 }}>
+                            {isExpanded ? <DownOutlined /> : <RightOutlined />}
+                          </span>
+                          <span>{m.league_name}</span>
+                        </span>
+                      </td>
+                      <td style={{ padding: "9px 14px", color: "var(--text)", fontWeight: 600 }}>{m.home_team}</td>
+                      <td style={{ padding: "9px 14px", color: "var(--text-secondary)" }}>{m.away_team}</td>
+                      <td style={{ padding: "9px 14px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>
+                        {m.kickoff_time ? dayjs(m.kickoff_time).format("MM-DD HH:mm") : "—"}
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <Tag color={getStatusColor(m.status)} style={{ fontSize: 10, fontWeight: 600 }}>{m.status}</Tag>
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <XGCell homeXg={m.home_xg} awayXg={m.away_xg} />
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <ProbBar probs={m.result_probs} />
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        <RecEVCell rec={m.recommendation} ev={m.ev} />
+                      </td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={cols.length} style={{ padding: 0, borderBottom: isLast ? "none" : "1px solid var(--border)" }}>
+                          <PipelineMatchPanel
+                            matchId={m.match_id}
+                            pipelineSummary={m as unknown as Record<string, unknown>}
+                            onViewRaw={(title, data) => setRawDrawer({ title, data })}
+                            onRefresh={handleRefreshSource}
+                            refreshingSource={refreshingSource}
+                            fullRecord={expandedMatchFull}
+                            loading={loadingMatchDetail}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      <MatchDetailDrawer match={selectedMatch} onClose={() => setSelectedMatch(null)} />
+      <RawDataDrawer raw={rawDrawer} onClose={() => setRawDrawer(null)} />
     </div>
   );
 }

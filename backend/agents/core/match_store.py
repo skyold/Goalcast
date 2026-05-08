@@ -14,7 +14,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-MATCHES_DIR = Path(__file__).parent.parent.parent / "data" / "matches"
+# 使用相对于 config/settings.py 的 DATA_DIR，确保 Docker volume 挂载后路径一致
+from config.settings import DATA_DIR
+MATCHES_DIR = DATA_DIR / "matches"
 _CST = timezone(timedelta(hours=8))
 
 _STATUS_MAP = {

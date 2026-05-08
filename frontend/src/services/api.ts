@@ -154,4 +154,9 @@ export const api = {
       `/board/matches/${encodeURIComponent(matchId)}/refresh/${encodeURIComponent(source)}`,
       { method: "POST" },
     ),
+
+  getMatchDetail: (matchId: string) =>
+    request<Record<string, unknown>>(
+      `/board/matches/${encodeURIComponent(matchId)}.json`,
+    ),
 };
