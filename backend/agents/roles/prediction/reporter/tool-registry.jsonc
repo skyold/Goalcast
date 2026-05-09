@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "preset": "none",
-  "builtin": {"include":["web_search","web_fetch"],"exclude":[]},
-  "mcp": [],
-  "conditional": [],
-  "notes": "Reporter: 报告生成，读取已审核比赛生成 Markdown 洞察报告。不直接调用数据 MCP 工具。"
-}

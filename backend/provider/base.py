@@ -136,5 +136,17 @@ class BaseProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    async def collect_match(self, provider_fixture_id: int) -> dict | None:
+        """收集单场比赛的完整数据包。
+
+        Args:
+            provider_fixture_id: 该 provider 自己体系的 fixture ID。
+
+        Returns:
+            dict with `_meta` key plus provider-specific data, or None if unavailable.
+        """
+        pass
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} name={self.name}>"

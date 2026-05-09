@@ -522,3 +522,6 @@ class FootyStatsProvider(BaseProvider):
         """
         logger.debug(f"Provider {self.name}: get_matches(competition={competition}, season_id={season_id})")
         return await self.get_league_matches(season_id, page)
+
+    async def collect_match(self, provider_fixture_id: int) -> dict | None:
+        return None

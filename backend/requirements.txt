@@ -10,6 +10,8 @@ websockets>=11.0.3
 
 # Football data providers
 understatapi>=0.6.1
+thefuzz>=0.22.1
+python-Levenshtein>=0.25.0
 
 # Optional: Database support (future use)
 # sqlalchemy>=2.0.0

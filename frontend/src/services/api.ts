@@ -1,21 +1,9 @@
 import type {
-  AgentStatus,
-  AgentDetail,
-  PipelineState,
-  FactorResult,
-  SignalResult,
-  HypothesisResult,
-  HypothesisFormData,
-  ChatRequest,
-  ChatMessage,
-  PipelineControlRequest,
-  PaginatedResponse,
-  TokenSummary,
-  TokenRecord,
-  AppConfig,
-  JsonRecord,
-  PipelineLeaguesResponse,
-  PipelineMatchesResponse,
+  Match,
+  MatchListResponse,
+  PipelineStatus,
+  ProvidersConfig,
+  LeaguesResponse,
 } from "../types";
 
 const BASE = "/api";
@@ -27,136 +15,69 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+    throw new Error(`API ${res.status}: ${text}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
-export const api = {
-  getAgentStatus: () => request<AgentStatus[]>("/agents/status"),
-  getAgentDetail: (agent_id: string) => 
-    request<AgentDetail>(`/agents/${encodeURIComponent(agent_id)}/detail`),
+// ─── Matches ──────────────────────────────────────────────────────────────────
 
-  getPipelineStatus: () => request<PipelineState[]>("/pipelines/status"),
-  startPipeline: (body: PipelineControlRequest) =>
-    request<{ message: string }>("/pipelines/start", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-  stopPipeline: (body: { pipeline: string }) =>
-    request<{ message: string }>("/pipelines/stop", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  getResults: (type: string, params?: Record<string, string>) => {
-    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
-    return request<PaginatedResponse<FactorResult | SignalResult | HypothesisResult>>(
-      `/results/${type}${qs}`
-    );
-  },
-
-  getResultDetail: (type: string, id: string) =>
-    request<Record<string, unknown>>(`/results/${type}/${id}`),
-
-  submitHypothesis: (body: HypothesisFormData) =>
-    request<{ hypothesis_id: string }>("/hypotheses/", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  sendChat: (body: ChatRequest) =>
-    request<ChatMessage>("/chat/", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  getTokenSummary: (params?: { start_date?: string; end_date?: string }) => {
-    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
-    return request<TokenSummary>(`/tokens/summary${qs}`);
-  },
-
-  getTokenRecords: (params?: {
-    agent_id?: string;
-    hypothesis_id?: string;
-    start_date?: string;
-    end_date?: string;
-    limit?: number;
-    offset?: number;
-  }) => {
-    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
-    return request<{ items: TokenRecord[]; total: number; limit: number; offset: number }>(
-      `/tokens/records${qs}`
-    );
-  },
-
-  getAgentTokenStats: (agent_id: string) =>
-    request<{
-      total_records: number;
-      total_input_tokens: number;
-      total_output_tokens: number;
-      total_cost: number;
-      recent_runs: TokenRecord[];
-    }>(`/tokens/agents/${encodeURIComponent(agent_id)}`),
-
-  getConfig: () => request<AppConfig>("/config"),
-
-  getBoardList: (dir: string, params?: { page?: number; page_size?: number }) => {
-    const qs = params
-      ? "?" + new URLSearchParams(params as Record<string, string>).toString()
-      : "";
-    return request<{ items: JsonRecord[]; total: number; page: number; page_size: number }>(
-      `/board/${encodeURIComponent(dir)}${qs}`
-    );
-  },
-
-  getBoardItem: (dir: string, filename: string) =>
-    request<JsonRecord>(
-      `/board/${encodeURIComponent(dir)}/${encodeURIComponent(filename)}`
-    ),
-
-  getBoardListCustom: (
-    url: string,
-    params?: { page?: number; page_size?: number },
-  ) => {
-    const qs = params
-      ? "?" + new URLSearchParams(params as Record<string, string>).toString()
-      : "";
-    return request<{ items: Record<string, unknown>[]; total: number; page: number; page_size: number }>(
-      `${url}${qs}`,
-    );
-  },
-
-  getBoardItemCustom: (url: string) =>
-    request<Record<string, unknown>>(`${url}`),
-
-  getPipelineLeagues: () => request<PipelineLeaguesResponse>("/pipeline/leagues"),
-
-  updatePipelineLeagues: (leagues: string[]) =>
-    request<{ active: string[]; message: string }>("/pipeline/leagues", {
-      method: "POST",
-      body: JSON.stringify({ leagues }),
-    }),
-
-  triggerPipeline: () =>
-    request<{ message: string }>("/pipeline/trigger", {
-      method: "POST",
-      body: JSON.stringify({ force: true }),
-    }),
-
-  getPipelineMatches: (params?: { date_from?: string; date_to?: string }) => {
-    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
-    return request<PipelineMatchesResponse>(`/pipeline/matches${qs}`);
-  },
-
-  refreshMatchSource: (matchId: string, source: string) =>
-    request<{ source: string; data: Record<string, unknown> }>(
-      `/board/matches/${encodeURIComponent(matchId)}/refresh/${encodeURIComponent(source)}`,
-      { method: "POST" },
-    ),
-
-  getMatchDetail: (matchId: string) =>
-    request<Record<string, unknown>>(
-      `/board/matches/${encodeURIComponent(matchId)}.json`,
-    ),
+export const getMatches = (params?: {
+  league?: string;
+  date?: string;
+  status?: string;
+}): Promise<MatchListResponse> => {
+  const qs = params
+    ? "?" +
+      new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(params).filter(([, v]) => v != null)
+        ) as Record<string, string>
+      ).toString()
+    : "";
+  return request<MatchListResponse>(`/matches${qs}`);
 };
+
+export const getMatch = (matchId: string): Promise<Match> =>
+  request<Match>(`/matches/${encodeURIComponent(matchId)}`);
+
+// ─── Pipeline ─────────────────────────────────────────────────────────────────
+
+export const getPipelineStatus = (): Promise<PipelineStatus> =>
+  request<PipelineStatus>("/pipeline/status");
+
+export const runPipeline = (): Promise<{ message: string }> =>
+  request<{ message: string }>("/pipeline/run", { method: "POST", body: "{}" });
+
+export const getLeagues = (): Promise<LeaguesResponse> =>
+  request<LeaguesResponse>("/pipeline/leagues");
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+export const getProviders = (): Promise<ProvidersConfig> =>
+  request<ProvidersConfig>("/config/providers");
+
+export const updateProviders = (body: {
+  providers?: Record<string, boolean>;
+  analyst?: boolean;
+}): Promise<{ message: string; config: ProvidersConfig }> =>
+  request("/config/providers", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const getSchedule = (): Promise<{ interval_hours: number }> =>
+  request("/config/schedule");
+
+export const updateSchedule = (
+  interval_hours: number
+): Promise<{ interval_hours: number }> =>
+  request("/config/schedule", {
+    method: "POST",
+    body: JSON.stringify({ interval_hours }),
+  });
+
+// ─── Health ───────────────────────────────────────────────────────────────────
+
+export const getHealth = (): Promise<{ status: string }> =>
+  request("/health");

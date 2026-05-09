@@ -504,3 +504,93 @@ class OddAlertsProvider(BaseProvider):
 
         fixture, odds, stats = await asyncio.gather(fixture_task, odds_task, stats_task)
         return {"fixture": fixture, "odds": odds, "stats": stats}
+
+    async def collect_match(self, provider_fixture_id: int) -> dict | None:
+        """收集 OddAlerts 单场比赛完整数据包。"""
+        from datetime import datetime, timedelta, timezone
+        _CST = timezone(timedelta(hours=8))
+
+        if not await self.is_available():
+            return None
+
+        def _now_iso() -> str:
+            return datetime.now(_CST).isoformat()
+
+        def _extract_team(stats_resp: object, team_id: object) -> dict | None:
+            if not isinstance(stats_resp, dict):
+                return None
+            rows = stats_resp.get("data") or []
+            if not isinstance(rows, list):
+                return None
+            for row in rows:
+                if isinstance(row, dict) and row.get("team_id") == team_id:
+                    return row
+            return None
+
+        try:
+            fixture, odds, stats, predictions, fixture_h2h = await asyncio.gather(
+                self.get_fixture(provider_fixture_id),
+                self.get_odds_history(provider_fixture_id),
+                self.get_stats("fixture", provider_fixture_id),
+                self.get_predictions_generate(provider_fixture_id),
+                self.get_fixture_h2h(provider_fixture_id),
+                return_exceptions=True,
+            )
+
+            result: dict = {
+                "_meta": {
+                    "collected_at": _now_iso(),
+                    "oa_fixture_id": provider_fixture_id,
+                }
+            }
+
+            if isinstance(fixture, dict):
+                result["fixture"] = fixture
+            if isinstance(odds, dict):
+                result["odds_history"] = odds
+            if isinstance(stats, dict):
+                result["stats"] = stats
+            if isinstance(predictions, dict):
+                result["predictions"] = predictions
+            if isinstance(fixture_h2h, dict):
+                h2h_list = fixture_h2h.get("h2h") or []
+                result["h2h"] = h2h_list[:6]
+                if fixture_h2h.get("correct_scores"):
+                    result["correct_scores"] = fixture_h2h["correct_scores"]
+
+            if len(result) == 1:
+                logger.warning("[OddAlerts] fixture %d 未返回任何数据", provider_fixture_id)
+                return None
+
+            season_id = isinstance(fixture, dict) and fixture.get("season_id")
+            home_id = isinstance(fixture, dict) and fixture.get("home_id")
+            away_id = isinstance(fixture, dict) and fixture.get("away_id")
+
+            if season_id and home_id and away_id:
+                home5h_resp, away5a_resp, overall10_resp = await asyncio.gather(
+                    self.get_stats_recent(season_id, "5_home"),
+                    self.get_stats_recent(season_id, "5_away"),
+                    self.get_stats_recent(season_id, "10_overall"),
+                    return_exceptions=True,
+                )
+                recent: dict = {}
+                home5h = _extract_team(home5h_resp, home_id)
+                away5a = _extract_team(away5a_resp, away_id)
+                home10 = _extract_team(overall10_resp, home_id)
+                away10 = _extract_team(overall10_resp, away_id)
+                if home5h:
+                    recent["home_5h"] = home5h
+                if away5a:
+                    recent["away_5a"] = away5a
+                if home10:
+                    recent["home_10"] = home10
+                if away10:
+                    recent["away_10"] = away10
+                if recent:
+                    result["recent_stats"] = recent
+
+            return result
+
+        except Exception as exc:
+            logger.warning("[OddAlerts] collect_match 失败 fixture_id=%d: %s", provider_fixture_id, exc)
+            return None
