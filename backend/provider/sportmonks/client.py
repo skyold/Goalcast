@@ -888,3 +888,46 @@ class SportmonksProvider(BaseProvider):
     async def get_matches(self, season_id: int, include: str = "league,participants") -> Optional[Dict[str, Any]]:
         """获取赛季所有比赛 (兼容性接口)"""
         return await self.get_fixtures_by_season(season_id, include)
+
+    async def collect_match(self, provider_fixture_id: int) -> dict | None:
+        """收集 Sportmonks 单场比赛完整数据包。
+
+        使用 includes 一次请求获取：participants、scores、statistics、
+        odds、league、season、state、events。
+        """
+        from datetime import datetime, timedelta, timezone
+        _CST = timezone(timedelta(hours=8))
+
+        if not await self.is_available():
+            return None
+
+        includes = (
+            "participants;"
+            "scores;"
+            "statistics;"
+            "odds;"
+            "league;"
+            "season;"
+            "state;"
+            "events"
+        )
+        try:
+            resp = await self.get_fixture_by_id(provider_fixture_id, include=includes)
+        except Exception as exc:
+            logger.warning("[Sportmonks] collect_match 请求失败 fixture_id=%d: %s", provider_fixture_id, exc)
+            return None
+
+        if not isinstance(resp, dict):
+            return None
+
+        data = resp.get("data", {})
+        if not data:
+            return None
+
+        return {
+            "_meta": {
+                "collected_at": datetime.now(_CST).isoformat(),
+                "fixture_id": provider_fixture_id,
+            },
+            **data,
+        }
