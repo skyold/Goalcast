@@ -679,6 +679,9 @@ class UnderstatProvider(BaseProvider):
         
         return result
 
+    async def collect_match(self, provider_fixture_id: int) -> dict | None:
+        return None
+
 
 # 便捷的工厂函数
 def create_provider(use_library: bool = True, **kwargs) -> UnderstatProvider:
