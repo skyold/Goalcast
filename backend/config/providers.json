@@ -1,0 +1,10 @@
+{
+  "analyst": { "enabled": true },
+  "schedule": { "interval_hours": 1 },
+  "providers": {
+    "oddalerts":  { "enabled": true },
+    "sportmonks": { "enabled": true },
+    "footystats":  { "enabled": false },
+    "understat":   { "enabled": false }
+  }
+}
