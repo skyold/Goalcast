@@ -1,21 +1,40 @@
 import { useEffect, useRef } from "react";
 import { useAppStore } from "../store/appStore";
-import { WebSocketClient } from "../services/ws";
+import type { WsEvent } from "../types";
 
 export function useWebSocket() {
-  const handleWsMessage = useAppStore((s) => s.handleWsMessage);
+  const handleWsEvent = useAppStore((s) => s.handleWsEvent);
   const setWsConnected = useAppStore((s) => s.setWsConnected);
-  const clientRef = useRef<WebSocketClient | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const client = new WebSocketClient("/ws/status", handleWsMessage, setWsConnected);
-    clientRef.current = client;
-    client.connect();
+    function connect() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/events`);
+      wsRef.current = ws;
+
+      ws.onopen = () => setWsConnected(true);
+      ws.onclose = () => {
+        setWsConnected(false);
+        reconnectRef.current = setTimeout(connect, 3000);
+      };
+      ws.onerror = () => ws.close();
+      ws.onmessage = (e: MessageEvent) => {
+        try {
+          const event = JSON.parse(e.data as string) as WsEvent;
+          handleWsEvent(event);
+        } catch {
+          /* ignore malformed messages */
+        }
+      };
+    }
+
+    connect();
 
     return () => {
-      client.disconnect();
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      wsRef.current?.close();
     };
-  }, [handleWsMessage, setWsConnected]);
-
-  return clientRef;
+  }, [handleWsEvent, setWsConnected]);
 }
