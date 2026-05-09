@@ -10,7 +10,7 @@ loadConfig().then(() => {
       <App />
     </StrictMode>,
   );
-}).catch((err) => {
+}).catch((err: unknown) => {
   console.error("[boot] Fatal render error", err);
   document.body.innerHTML = "<pre>Application failed to start.</pre>";
 });

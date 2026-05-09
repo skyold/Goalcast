@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { PipelineStatus, WsEvent } from "../types";
+import type { PipelineLastResult, PipelineStatus, WsEvent } from "../types";
 
 interface AppState {
   wsConnected: boolean;
@@ -34,7 +34,7 @@ export const useAppStore = create<AppState>((set) => ({
         pipelineStatus: {
           ...(state.pipelineStatus ?? { running: false, last_result: null }),
           running: false,
-          last_result: (event.payload as { result?: AppState["pipelineStatus"] })?.result ?? state.pipelineStatus?.last_result ?? null,
+          last_result: (event.payload as { result?: PipelineLastResult })?.result ?? state.pipelineStatus?.last_result ?? null,
         },
       }));
     }
