@@ -1,40 +1,44 @@
+"""Normalize OddAlerts fixture responses into a canonical internal shape.
+
+After the 2026-05-14 single-source pivot, the multi-provider merge step is
+no longer needed: every fixture comes from OddAlerts. This module is now a
+thin adapter that flattens a raw OddAlerts `/api/fixtures/id` payload into
+the canonical dict the rest of the codebase consumes.
+"""
 from __future__ import annotations
-
-from provider.models import ProviderFixture, UnifiedFixture
-from utils.normalize import normalize_team_name
+from typing import Any, Optional
 
 
-def _canonical_key(home: str, away: str, kickoff_unix: int) -> str:
-    """构造合并用的规范化 key，时间取整到小时以容忍 ±1h 误差。"""
-    return f"{normalize_team_name(home)}|{normalize_team_name(away)}|{kickoff_unix // 3600}"
+def normalize_oddalerts_fixture(raw: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Convert an OddAlerts fixture payload into a canonical fixture dict.
 
-
-def merge_fixtures(
-    provider_fixtures: list[tuple[str, list[ProviderFixture]]],
-) -> list[UnifiedFixture]:
+    Returns None if the payload is unusable (missing either home or away
+    participant). The original payload is included under ``raw`` so callers
+    that need provider-specific fields can still reach them.
     """
-    将多个 provider 的 fixture 列表合并为统一的 UnifiedFixture 列表。
+    participants = raw.get("participants") or []
+    home = next(
+        (p for p in participants if (p.get("meta") or {}).get("location") == "home"),
+        None,
+    )
+    away = next(
+        (p for p in participants if (p.get("meta") or {}).get("location") == "away"),
+        None,
+    )
+    if not home or not away:
+        return None
 
-    Args:
-        provider_fixtures: [(provider_name, fixtures), ...] 按优先级排列，
-                           优先级高的 provider 的队名会被保留。
-
-    Returns:
-        list[UnifiedFixture]，每个元素的 provider_ids 包含所有匹配到的 provider ID。
-    """
-    unified: dict[str, UnifiedFixture] = {}
-
-    for provider_name, fixtures in provider_fixtures:
-        for pf in fixtures:
-            key = _canonical_key(pf.home_team, pf.away_team, pf.kickoff_unix)
-            if key in unified:
-                unified[key].provider_ids[provider_name] = pf.fixture_id
-            else:
-                unified[key] = UnifiedFixture(
-                    home_team=pf.home_team,
-                    away_team=pf.away_team,
-                    kickoff_unix=pf.kickoff_unix,
-                    provider_ids={provider_name: pf.fixture_id},
-                )
-
-    return list(unified.values())
+    league = raw.get("league") or {}
+    return {
+        "fixture_id": raw.get("id"),
+        "name": raw.get("name"),
+        "kickoff_utc": raw.get("starting_at"),
+        "league": {
+            "id": league.get("id"),
+            "name": league.get("name"),
+            "country": league.get("country"),
+        },
+        "home_team": {"id": home.get("id"), "name": home.get("name")},
+        "away_team": {"id": away.get("id"), "name": away.get("name")},
+        "raw": raw,
+    }
