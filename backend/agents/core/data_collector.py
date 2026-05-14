@@ -83,15 +83,31 @@ def _compute_analysis(bundle: dict[str, Any]) -> Optional[dict[str, Any]]:
         odds_history_present=bool(odds_history),
     )
 
+    pick = max(model_prob, key=model_prob.get)
+    ev_pick = ev_dict.get(pick) or {}
+
+    def _market_prob(d: dict) -> Optional[float]:
+        if "market_prob" in d:
+            return d["market_prob"]
+        if "implied_prob" in d:
+            return d["implied_prob"]
+        odd = d.get("odds")
+        if odd and odd > 0:
+            return 1.0 / odd
+        return None
+
     return {
         "model_prob": model_prob,
-        "poisson": poisson,
-        "ev": {k: ev_dict[k]["ev"] for k in ("H", "D", "A")},
-        "kelly": {k: ev_dict[k]["kelly"] for k in ("H", "D", "A")},
-        "ev_detail": ev_dict,
-        "confidence_score": conf["score"],
+        "market_prob": {k: _market_prob(ev_dict[k]) for k in ("H", "D", "A")},
+        "pick": pick,
+        "odds": ev_pick.get("odds"),
+        "ev": ev_pick.get("ev"),
+        "kelly": ev_pick.get("kelly"),
         "confidence_stars": conf["stars"],
-        "confidence_agreement": conf["agreement"],
+        "analyst_summary": None,
+        "reviewer_verdict": None,
+        "run_id": None,
+        "analyzed_at": _now_iso(),
     }
 
 

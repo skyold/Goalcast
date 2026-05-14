@@ -25,3 +25,12 @@ async def test_collect_all_attaches_analysis():
     assert "model_prob" in a and "H" in a["model_prob"]
     assert "ev" in a and "kelly" in a
     assert a["confidence_stars"] >= 0
+    assert a["pick"] in ("H", "D", "A")
+    assert isinstance(a["ev"], float)
+    assert isinstance(a["kelly"], float)
+    assert isinstance(a["odds"], (int, float))
+    assert "market_prob" in a and set(a["market_prob"].keys()) == {"H", "D", "A"}
+    assert a["analyzed_at"]  # non-empty ISO string
+    assert a["analyst_summary"] is None
+    assert a["reviewer_verdict"] is None
+    assert a["run_id"] is None
