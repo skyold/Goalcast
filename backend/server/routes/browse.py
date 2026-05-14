@@ -94,3 +94,38 @@ async def get_fixture_detail(fixture_id: int):
     result["raw_bundle"] = bundle
     _cache.set(cache_key, result, ttl_seconds=300)
     return result
+
+
+_TREND_TYPES = {"homeWin", "awayWin", "btts"}
+
+
+@router.get("/trends/{trend_type}")
+async def get_trends(trend_type: str):
+    if trend_type not in _TREND_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unknown trend type: {trend_type}")
+    cache_key = f"trends:{trend_type}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        return cached
+    provider = get_provider()
+    raw = await provider.get_trends(market=trend_type)
+    if not raw:
+        raise HTTPException(status_code=502, detail="OddAlerts unavailable")
+    data = raw.get("data") or []
+    _cache.set(cache_key, data, ttl_seconds=900)
+    return data
+
+
+@router.get("/odds/dropping")
+async def get_dropping(window: str = Query("1h", pattern="^(1h|6h|24h)$")):
+    cache_key = f"odds:dropping:{window}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        return cached
+    provider = get_provider()
+    raw = await provider.get_dropping_odds()
+    if not raw:
+        raise HTTPException(status_code=502, detail="OddAlerts unavailable")
+    data = raw.get("data") or []
+    _cache.set(cache_key, data, ttl_seconds=300)
+    return data

@@ -81,3 +81,27 @@ def test_fixture_detail_aggregates(client):
     assert body["home_team"]["id"] == 10
     assert body["away_team"]["id"] == 11
     assert "raw_bundle" in body
+
+
+def test_trends_endpoint(client):
+    fake = {"data": [{"team": "A", "stat": 0.7}]}
+    with patch("provider.oddalerts.client.OddAlertsProvider.get_trends",
+               AsyncMock(return_value=fake)) as mock:
+        r = client.get("/api/trends/homeWin")
+    assert r.status_code == 200
+    assert r.json() == fake["data"]
+    mock.assert_awaited_once()
+
+
+def test_trends_rejects_unknown_type(client):
+    r = client.get("/api/trends/bogus")
+    assert r.status_code == 400
+
+
+def test_dropping_odds_endpoint(client):
+    fake = {"data": [{"id": 1, "drop_percentage": -10.0}]}
+    with patch("provider.oddalerts.client.OddAlertsProvider.get_dropping_odds",
+               AsyncMock(return_value=fake)):
+        r = client.get("/api/odds/dropping?window=1h")
+    assert r.status_code == 200
+    assert r.json() == fake["data"]
