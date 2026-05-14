@@ -161,8 +161,184 @@ class Orchestrator:
     async def _fetch_and_prepare(
         self, leagues: list[str] | None, date: str | None, models: list[str] = None
     ) -> int:
-        """Stub — single-source rewrite pending (Task 9)."""
+        from agents.adapters.tool_executor import ToolExecutor
+        from agents.core.blackboard import merge_update
+        from agents.core import match_store
+        from agents.core.fixture_merger import merge_fixtures
+        # 2026-05-14 pivot: SportmonksProvider removed; OddAlerts-only path below.
+        # from provider.sportmonks.client import SportmonksProvider  # REMOVED
+        from provider.oddalerts.client import OddAlertsProvider
+
+        if models is None:
+            models = ["v4.0"]
+
+        executor = ToolExecutor()
+
+        # ── 联赛 ID 解析 ──────────────────────────────────────────────────────
+        oa_league_ids: list[int] = []
+        if leagues:
+            resolved = self._resolve_oa_league_ids_from_names(leagues)
+            if not resolved:
+                print(f"[Orchestrator] 联赛字典中未找到: {leagues}")
+                logger.warning("[Orchestrator] 联赛字典中未找到: %s", leagues)
+                return 0
+            oa_league_ids = resolved
+            print(f"[Orchestrator] 联赛映射: {leagues} → oa_league_ids={oa_league_ids}")
+
+        dates = self._resolve_date_range(date)
+        print(f"[Orchestrator] 日期范围: {dates}")
+
+        # ── OddAlerts-only fixture discovery ────────────────────────────────
+        # NOTE: 2026-05-14 pivot — SportmonksProvider removed (see Task 2).
+        # sm_fixtures stub: raises NotImplementedError if called directly.
         raise NotImplementedError("Provider removed — see 2026-05-14 pivot: orchestrator._fetch_and_prepare needs Task 9 rewrite")
+        oa_provider = OddAlertsProvider()
+        try:
+            oa_fixtures = await oa_provider.discover_fixtures(oa_league_ids, dates)
+        finally:
+            await oa_provider.close()
+
+        sm_fixtures = []  # Sportmonks removed
+        if isinstance(oa_fixtures, Exception):
+            logger.error("[Orchestrator] OddAlerts discover_fixtures 失败: %s", oa_fixtures)
+            oa_fixtures = []
+
+        print(f"[Orchestrator] 发现: OA={len(oa_fixtures)} 场")
+
+        unified = merge_fixtures([
+            ("oddalerts", oa_fixtures),
+        ])
+        print(f"[Orchestrator] 合并后: {len(unified)} 场 UnifiedFixture")
+
+        # ── 调度循环 ──────────────────────────────────────────────────────────
+        count = 0
+        prepared_matches = []
+        trigger_force = False
+        if TRIGGER_FILE.exists():
+            try:
+                tdata = json.loads(TRIGGER_FILE.read_text(encoding="utf-8"))
+                trigger_force = tdata.get("force", False)
+            except Exception:
+                pass
+
+        active_fixture_ids = self._load_existing_fixture_ids(active_only=True)
+        completed_fixture_ids = self._load_fixture_ids_by_status({"reported"})
+        skipped = 0
+
+        for uf in unified:
+            fixture_id = uf.provider_ids.get("sportmonks")
+            if fixture_id is None:
+                # OA-only fixture — no SM data; skip for now
+                continue
+
+            if fixture_id in active_fixture_ids:
+                skipped += 1
+                continue
+            if not trigger_force and fixture_id in completed_fixture_ids:
+                skipped += 1
+                continue
+
+            existing_match_id = self._find_match_id_for_fixture(fixture_id)
+            match_id = existing_match_id or match_store.generate_match_id()
+
+            home_team = uf.home_team
+            away_team = uf.away_team
+            kickoff_unix = uf.kickoff_unix
+            kickoff_str = (
+                datetime.fromtimestamp(kickoff_unix, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                if kickoff_unix else ""
+            )
+            league_name = next(
+                (pf.league_name for pf in sm_fixtures if pf.fixture_id == fixture_id),
+                "",
+            ) or ""
+
+            raw_data = await self._fetch_raw_data_for_models(
+                executor, uf.provider_ids, models
+            )
+
+            record = {
+                "metadata": {
+                    "match_id": match_id,
+                    "fixture_id": fixture_id,
+                    "oa_fixture_id": uf.provider_ids.get("oddalerts"),
+                    "provider_ids": uf.provider_ids,
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "league": league_name,
+                    "kickoff_time": kickoff_str,
+                    "requested_models": models,
+                    "prepared_at": datetime.now(_CST).isoformat(),
+                },
+                "state": {
+                    "orchestrator": "done",
+                    "analyst": "pending",
+                    "trader": "pending",
+                    "reviewer": "pending",
+                    "reporter": "pending",
+                },
+                "raw_data": raw_data,
+                "analysis": {},
+                "trading": {},
+            }
+
+            filepath = match_store.MATCHES_DIR / f"{match_id}.json"
+            legacy_record = {
+                "match_id": match_id,
+                "status": "pending",
+                "orchestrator": {
+                    "prepared_at": record["metadata"]["prepared_at"],
+                    "fixture_id": fixture_id,
+                    "home_team": home_team,
+                    "away_team": away_team,
+                    "league": league_name,
+                    "kickoff_time": kickoff_str,
+                },
+            }
+            match_store.save(legacy_record)
+            merge_update(filepath, record)
+            print(f"[Orchestrator] 已写入黑板: {match_id} ({home_team} vs {away_team})")
+            prepared_matches.append({
+                "match_id": match_id,
+                "home_team": home_team,
+                "away_team": away_team,
+                "kickoff_time": kickoff_str,
+                "league": league_name,
+            })
+            count += 1
+
+        if skipped > 0:
+            print(f"[Orchestrator] 跳过 {skipped} 场已存在的比赛（盘上已有记录）")
+        await self._emit_and_write(
+            "matches_found",
+            {"total": count, "matches": prepared_matches},
+        )
+        return count
+
+    def _resolve_oa_league_ids(self, sm_league_ids: list[int]) -> list[int]:
+        """将 Sportmonks league ID 列表映射到 OddAlerts competition ID 列表。
+
+        映射来自 config/oddalerts_leagues.json。
+        若配置中没有映射或文件不存在，返回空列表（OddAlerts 不过滤联赛）。
+        """
+        oa_config_path = Path(__file__).parent.parent.parent / "config" / "oddalerts_leagues.json"
+        if not oa_config_path.exists():
+            return []
+        try:
+            cfg = json.loads(oa_config_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return []
+
+        mapping: dict[str, int | None] = cfg.get("_sportmonks_to_oddalerts", {})
+        if not mapping:
+            return []
+
+        result: list[int] = []
+        for sm_id in sm_league_ids:
+            oa_id = mapping.get(str(sm_id))
+            if isinstance(oa_id, int):
+                result.append(oa_id)
+        return result
 
     def _resolve_oa_league_ids_from_names(self, leagues: list[str]) -> list[int]:
         """2026-05-14 pivot stub: resolve league names to OddAlerts IDs.

@@ -45,9 +45,81 @@ async def _load_watchlist(provider: str, league_filter: str | None) -> list[str]
 
 
 async def run_prefetch(date: str, league_filter: str | None) -> dict:
-    """Stub — single-source rewrite pending (Task 9)."""
     # 2026-05-14 pivot: footystats/understat/datafusion providers removed.
+    # This script must be rewritten to use OddAlerts exclusively (Task 9+).
     raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
+
+    leagues = await _load_watchlist("footystats", league_filter)
+    logger.info(f"Prefetching FootyStats data for {date} | leagues: {leagues}")
+
+    # Step 1: List all matches
+    all_matches: list[dict] = []
+    for league in leagues:
+        raw = await fs.get_todays_matches(date, timezone=None)
+
+        data = raw.get("data", []) if isinstance(raw, dict) else []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            comp_name = item.get("competition_name", "")
+            if league and league.lower() not in comp_name.lower():
+                continue
+            all_matches.append({
+                "home_team": item.get("home_name", ""),
+                "away_team": item.get("away_name", ""),
+                "competition": comp_name,
+                "match_id": str(item.get("id", "")),
+                "home_team_id": str(item.get("homeID", "")),
+                "away_team_id": str(item.get("awayID", "")),
+                "season_id": str(item.get("competition_id", "")),
+            })
+
+    logger.info(f"Found {len(all_matches)} matches")
+
+    # Step 2: Warm cache for each match
+    async def _warm_one(match: dict) -> bool:
+        try:
+            fusion = DataFusion(
+                footystats=fs,
+                understat=us,
+            )
+            await fusion.build(
+                fixture_id=match["match_id"],
+                match_id=match["match_id"],
+                home_team=match["home_team"],
+                home_team_id=match["home_team_id"],
+                away_team=match["away_team"],
+                away_team_id=match["away_team_id"],
+                season_id=match["season_id"],
+                league=match["competition"],
+                match_date=date,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(f"  Failed: {match.get('home_team')} vs {match.get('away_team')}: {exc}")
+            return False
+
+    results = await asyncio.gather(*(_warm_one(m) for m in all_matches), return_exceptions=True)
+    cached = sum(1 for r in results if r is True)
+    errors = len(results) - cached
+
+    # Save match list for agent consumption
+    output_dir = Path(__file__).resolve().parent.parent / "data" / "cache" / "footystats" / date
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "matches.json"
+    with open(output_path, "w") as f:
+        json.dump({"date": date, "provider": "footystats", "matches": all_matches}, f, ensure_ascii=False, indent=2)
+
+    summary = {
+        "date": date,
+        "provider": "footystats",
+        "matches_found": len(all_matches),
+        "matches_cached": cached,
+        "errors": errors,
+        "output": str(output_path),
+    }
+    logger.info(f"Prefetch complete: {summary}")
+    return summary
 
 
 def main():
