@@ -48,6 +48,7 @@ API 文档: https://documenter.getpostman.com/view/17615275/2s935uG1WF
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import TYPE_CHECKING, Dict, Any, Optional, Literal
 import httpx
@@ -61,6 +62,19 @@ if TYPE_CHECKING:
 
 TrendMarket = Literal["homeWin", "awayWin", "btts"]
 StatsType = Literal["season", "fixture"]
+
+
+def _extract_team_row(stats_resp: object, team_id: object) -> Optional[Dict[str, Any]]:
+    """Pick the stats row for a given team_id from an OddAlerts /stats response."""
+    if not isinstance(stats_resp, dict):
+        return None
+    rows = stats_resp.get("data") or []
+    if not isinstance(rows, list):
+        return None
+    for row in rows:
+        if isinstance(row, dict) and row.get("team_id") == team_id:
+            return row
+    return None
 
 
 class OddAlertsProvider(BaseProvider):
@@ -485,6 +499,92 @@ class OddAlertsProvider(BaseProvider):
         return result
 
     # ==================== 组合方法 ====================
+
+    async def collect_fixture_data(self, oa_fixture_id: int) -> Optional[Dict[str, Any]]:
+        """Assemble the analytics-spec bundle for one fixture.
+
+        Performs parallel fetches against fixture / odds-history / stats /
+        predictions / h2h endpoints, then a second batch for recent season
+        stats. Maps OddAlerts-internal shapes onto the plan-spec keys so
+        downstream analytics see a stable contract.
+
+        Returns a dict with keys (a subset of):
+            _meta, fixture, odds_history, h2h, stats_home, stats_away, trends
+
+        Returns ``None`` when the provider is not configured or yields no
+        usable data. The internal http client is closed before returning.
+        """
+        if not await self.is_available():
+            logger.debug("OddAlerts API key 未配置，跳过 collect_fixture_data")
+            return None
+
+        try:
+            fixture, odds, stats, predictions, fixture_h2h = await asyncio.gather(
+                self.get_fixture(oa_fixture_id),
+                self.get_odds_history(oa_fixture_id),
+                self.get_stats("fixture", oa_fixture_id),
+                self.get_predictions_generate(oa_fixture_id),
+                self.get_fixture_h2h(oa_fixture_id),
+                return_exceptions=True,
+            )
+
+            cst = timezone(timedelta(hours=8))
+            result: Dict[str, Any] = {
+                "_meta": {
+                    "collected_at": datetime.now(cst).isoformat(),
+                    "oa_fixture_id": oa_fixture_id,
+                }
+            }
+
+            if isinstance(fixture, dict):
+                result["fixture"] = fixture
+            if isinstance(odds, dict):
+                result["odds_history"] = odds
+            if isinstance(fixture_h2h, dict):
+                h2h_list = fixture_h2h.get("h2h") or []
+                result["h2h"] = h2h_list[:6]
+
+            home_id = isinstance(fixture, dict) and fixture.get("home_id")
+            away_id = isinstance(fixture, dict) and fixture.get("away_id")
+
+            # Map stats[data][...] rows → stats_home / stats_away
+            if isinstance(stats, dict) and home_id and away_id:
+                stats_home = _extract_team_row(stats, home_id)
+                stats_away = _extract_team_row(stats, away_id)
+                if stats_home:
+                    result["stats_home"] = stats_home
+                if stats_away:
+                    result["stats_away"] = stats_away
+
+            # Map Monte-Carlo predictions → trends shape consumed by analytics
+            if isinstance(predictions, dict):
+                trends: Dict[str, Any] = {}
+                hw = predictions.get("home_win_percentage")
+                aw = predictions.get("away_win_percentage")
+                dw = predictions.get("draw_percentage")
+                bt = predictions.get("btts_percentage")
+                if hw is not None:
+                    trends["homeWin"] = float(hw) / 100.0
+                if aw is not None:
+                    trends["awayWin"] = float(aw) / 100.0
+                if dw is not None:
+                    trends["draw"] = float(dw) / 100.0
+                if bt is not None:
+                    trends["btts"] = float(bt) / 100.0
+                if trends:
+                    result["trends"] = trends
+
+            if len(result) == 1:
+                logger.warning("OddAlerts fixture %d 未返回任何数据", oa_fixture_id)
+                return None
+
+            return result
+
+        except Exception as exc:
+            logger.warning("OddAlerts collect_fixture_data failed oa_fixture_id=%d: %s", oa_fixture_id, exc)
+            return None
+        finally:
+            await self.close()
 
     async def get_fixture_full(self, fixture_id: int) -> Dict[str, Any]:
         """

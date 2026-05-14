@@ -119,6 +119,17 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
+    async def collect_fixture_data(self, oa_fixture_id: int) -> Optional[Dict[str, Any]]:
+        """Assemble the analytics-spec bundle for a single fixture.
+
+        Returns a dict with the plan-spec keys (subset of):
+            _meta, fixture, odds_history, h2h, stats_home, stats_away, trends
+
+        Returns ``None`` when provider is unavailable or yields no usable data.
+        """
+        pass
+
+    @abstractmethod
     async def discover_fixtures(
         self,
         league_ids: list[int],
