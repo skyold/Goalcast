@@ -190,7 +190,7 @@ def confidence_from_oddalerts(
 
         {
           "score": int,       # raw confidence 30-90 from calculate_confidence
-          "stars": int,       # 0-5 derived from score / 18
+          "stars": int,       # 0-5 derived from score / 20
           "agreement": bool,  # whether model agreed with OddAlerts priors
         }
     """
