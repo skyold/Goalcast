@@ -38,11 +38,13 @@ _CST = timezone(timedelta(hours=8))
 
 
 class Orchestrator:
-    def __init__(self, adapter, semi_mode: bool = False, emitter: EventEmitter | None = None):
+    def __init__(self, adapter=None, semi_mode: bool = False, emitter: EventEmitter | None = None):
         self.adapter = adapter
         self.semi_mode = semi_mode
         self.stop_event = asyncio.Event()
-        self.pipeline = MatchPipeline(adapter, semi_mode)
+        # Pipeline construction needs an adapter for legacy run() loops. The
+        # adapter-less ctor path is only used by run_once() (RD smoke cycle).
+        self.pipeline = MatchPipeline(adapter, semi_mode) if adapter is not None else None
         self.emitter = emitter or EventEmitter()
         self._events_seq = 0
 
@@ -457,15 +459,35 @@ class Orchestrator:
                 logger.error("[Orchestrator] Reporter 异常: %s", exc)
             await self._sleep(IDLE_SLEEP_SECONDS)
 
-    async def run_once(self) -> dict:
-        """Manual single-run trigger. Returns {run_id, status}.
-
-        TODO Task 19/20: wire to real orchestrator execution. Currently returns a
-        stub run_id without starting the long-running run() loop.
-        """
+    async def run_once(self, max_matches: int = 5) -> dict:
+        """One-shot RD cycle: fetch dropping odds → collect_all per fixture → write match_store."""
         import secrets
+        from agents.core.data_collector import collect_all
+        from provider.base import get_provider
+
         run_id = secrets.token_hex(4)
-        return {"run_id": run_id, "status": "started"}
+        provider = get_provider()
+        dropping = await provider.get_dropping_odds()
+        fixtures = (dropping or {}).get("data") or []
+        processed = 0
+        for f in fixtures[:max_matches]:
+            oa_id = f.get("id")
+            if oa_id is None:
+                continue
+            bundle = await collect_all(oa_fixture_id=oa_id)
+            if not bundle:
+                continue
+            record = {
+                "match_id": match_store.generate_match_id(),
+                "run_id": run_id,
+                "status": "analyzed",
+                "fixture": bundle.get("fixture"),
+                "analysis": bundle.get("analysis"),
+                "collected_at": bundle.get("collected_at"),
+            }
+            match_store.save(record)
+            processed += 1
+        return {"run_id": run_id, "status": "completed", "processed": processed}
 
     async def _sleep(self, seconds: float):
         try:

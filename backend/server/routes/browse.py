@@ -152,13 +152,9 @@ async def get_standings(league_id: int):
 
 
 async def _trigger_run() -> dict:
-    """Manual /api/analysis/run handler. Stub until orchestrator adapter wiring lands.
-
-    TODO Task 19/20: instantiate Orchestrator with proper adapter and call
-    run_once, or schedule a background task for a single cycle.
-    """
-    import secrets
-    return {"run_id": secrets.token_hex(4), "status": "queued"}
+    """Manual /api/analysis/run handler — kicks one RD cycle via Orchestrator."""
+    from agents.core.orchestrator import Orchestrator
+    return await Orchestrator().run_once()
 
 
 @router.get("/analysis/recent")
