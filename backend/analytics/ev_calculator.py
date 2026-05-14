@@ -231,3 +231,50 @@ def best_bet_recommendation(
         "max_ev": round(max_ev, 4),
         "max_ev_direction": best_direction,
     }
+
+
+def ev_from_oddalerts(
+    model_probs: dict,
+    odds_history: dict,
+    bookmaker: str = "Bet365",
+    kelly_fraction: float = 0.25,
+) -> Optional[dict]:
+    """High-level wrapper: combine model 1X2 probs with OddAlerts closing
+    odds → EV + Kelly per direction.
+
+    ``model_probs`` must be in decimal form (0.0-1.0). This wrapper
+    multiplies by 100 internally before calling :func:`calculate_ev` and
+    :func:`calculate_kelly`, which expect percentage (0-100).
+
+    Returns ``None`` if odds extraction fails. Otherwise returns:
+
+    .. code-block:: python
+
+        {
+          "H": {"model_prob": 0.62, "odds": 1.72, "ev": 0.066, "kelly": 0.131},
+          "D": {...},
+          "A": {...},
+        }
+
+    ``ev`` is returned as a raw decimal (e.g. 0.066 = +6.6%); ``kelly`` is
+    a raw fraction of bankroll (e.g. 0.131 = 13.1%).
+    """
+    from provider.oddalerts.feature_extractor import extract_market_odds
+    odds = extract_market_odds(odds_history, market="ft_result", bookmaker=bookmaker)
+    if odds is None:
+        return None
+
+    out: dict = {}
+    for direction in ("H", "D", "A"):
+        prob = model_probs[direction]
+        prob_pct = prob * 100.0
+        odd = odds[direction]
+        ev_dict = calculate_ev(prob_pct, odd)
+        kelly_dict = calculate_kelly(prob_pct, odd, fraction=kelly_fraction)
+        out[direction] = {
+            "model_prob": prob,
+            "odds": odd,
+            "ev": float(ev_dict["ev"]),
+            "kelly": float(kelly_dict["fractional_kelly_pct"]) / 100.0,
+        }
+    return out
