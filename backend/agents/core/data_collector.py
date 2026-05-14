@@ -26,7 +26,7 @@ async def collect_oddalerts(oa_fixture_id: int) -> Optional[dict[str, Any]]:
     """Thin wrapper around :meth:`OddAlertsProvider.collect_fixture_data`.
 
     Returns a dict with keys (subset of):
-        _meta, fixture, odds_history, h2h, stats_home, stats_away, trends
+        fixture, odds_history, h2h, stats_home, stats_away, trends
     """
     from provider.base import get_provider
     provider = get_provider()

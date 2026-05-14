@@ -123,7 +123,7 @@ class BaseProvider(ABC):
         """Assemble the analytics-spec bundle for a single fixture.
 
         Returns a dict with the plan-spec keys (subset of):
-            _meta, fixture, odds_history, h2h, stats_home, stats_away, trends
+            fixture, odds_history, h2h, stats_home, stats_away, trends
 
         Returns ``None`` when provider is unavailable or yields no usable data.
         """

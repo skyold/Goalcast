@@ -25,3 +25,17 @@ async def test_collect_all_uses_only_oddalerts():
     assert out["source"] == "oddalerts"
     assert "fixture" in out and "odds_history" in out
     assert "sportmonks" not in out and "footystats" not in out
+
+
+@pytest.mark.asyncio
+async def test_collect_all_returns_none_when_provider_returns_none():
+    with patch("agents.core.data_collector.collect_oddalerts", AsyncMock(return_value=None)):
+        out = await collect_all(oa_fixture_id=1)
+    assert out is None
+
+
+@pytest.mark.asyncio
+async def test_collect_all_returns_none_when_fixture_key_missing():
+    with patch("agents.core.data_collector.collect_oddalerts", AsyncMock(return_value={"odds_history": {}})):
+        out = await collect_all(oa_fixture_id=1)
+    assert out is None

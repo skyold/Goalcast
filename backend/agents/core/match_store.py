@@ -4,6 +4,16 @@
 对齐 yclake 的 hypothesis_store 模式。
 """
 
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
 # MatchRecord (dict shape — no dataclass / TypedDict; module operates on raw dicts):
 # {
 #   "match_id": str,
@@ -26,16 +36,6 @@
 # }
 # The `analysis` layer is appended via ``append_layer(match_id, "analysis", data)``;
 # no schema enforcement happens here — callers are responsible for shape.
-
-from __future__ import annotations
-
-import json
-import logging
-import uuid
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-
-logger = logging.getLogger(__name__)
 
 # 使用相对于 config/settings.py 的 DATA_DIR，确保 Docker volume 挂载后路径一致
 from config.settings import DATA_DIR

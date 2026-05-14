@@ -504,12 +504,11 @@ class OddAlertsProvider(BaseProvider):
         """Assemble the analytics-spec bundle for one fixture.
 
         Performs parallel fetches against fixture / odds-history / stats /
-        predictions / h2h endpoints, then a second batch for recent season
-        stats. Maps OddAlerts-internal shapes onto the plan-spec keys so
-        downstream analytics see a stable contract.
+        predictions / h2h endpoints. Maps OddAlerts-internal shapes onto the
+        plan-spec keys so downstream analytics see a stable contract.
 
         Returns a dict with keys (a subset of):
-            _meta, fixture, odds_history, h2h, stats_home, stats_away, trends
+            fixture, odds_history, h2h, stats_home, stats_away, trends
 
         Returns ``None`` when the provider is not configured or yields no
         usable data. The internal http client is closed before returning.
@@ -528,13 +527,7 @@ class OddAlertsProvider(BaseProvider):
                 return_exceptions=True,
             )
 
-            cst = timezone(timedelta(hours=8))
-            result: Dict[str, Any] = {
-                "_meta": {
-                    "collected_at": datetime.now(cst).isoformat(),
-                    "oa_fixture_id": oa_fixture_id,
-                }
-            }
+            result: Dict[str, Any] = {}
 
             if isinstance(fixture, dict):
                 result["fixture"] = fixture
@@ -544,11 +537,11 @@ class OddAlertsProvider(BaseProvider):
                 h2h_list = fixture_h2h.get("h2h") or []
                 result["h2h"] = h2h_list[:6]
 
-            home_id = isinstance(fixture, dict) and fixture.get("home_id")
-            away_id = isinstance(fixture, dict) and fixture.get("away_id")
+            home_id = fixture.get("home_id") if isinstance(fixture, dict) else None
+            away_id = fixture.get("away_id") if isinstance(fixture, dict) else None
 
             # Map stats[data][...] rows → stats_home / stats_away
-            if isinstance(stats, dict) and home_id and away_id:
+            if isinstance(stats, dict) and home_id is not None and away_id is not None:
                 stats_home = _extract_team_row(stats, home_id)
                 stats_away = _extract_team_row(stats, away_id)
                 if stats_home:
@@ -574,7 +567,7 @@ class OddAlertsProvider(BaseProvider):
                 if trends:
                     result["trends"] = trends
 
-            if len(result) == 1:
+            if not result:
                 logger.warning("OddAlerts fixture %d 未返回任何数据", oa_fixture_id)
                 return None
 
