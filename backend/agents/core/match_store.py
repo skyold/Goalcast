@@ -4,6 +4,29 @@
 对齐 yclake 的 hypothesis_store 模式。
 """
 
+# MatchRecord (dict shape — no dataclass / TypedDict; module operates on raw dicts):
+# {
+#   "match_id": str,
+#   "status": str,
+#   # ...existing fields (orchestrator, metadata, raw_data, trade, review, ...)
+#   "analysis": Optional[dict] = None,
+#       # {
+#       #   "model_prob":   {"H": float, "D": float, "A": float},
+#       #   "market_prob":  {"H": float, "D": float, "A": float},
+#       #   "pick":         "H" | "D" | "A",
+#       #   "odds":         float,
+#       #   "ev":           float,
+#       #   "kelly":        float,
+#       #   "confidence_stars": int,
+#       #   "analyst_summary":  Optional[str],
+#       #   "reviewer_verdict": Optional["pass" | "fail" | "skip"],
+#       #   "run_id":           Optional[str],
+#       #   "analyzed_at":      str,  # ISO-8601 UTC
+#       # }
+# }
+# The `analysis` layer is appended via ``append_layer(match_id, "analysis", data)``;
+# no schema enforcement happens here — callers are responsible for shape.
+
 from __future__ import annotations
 
 import json

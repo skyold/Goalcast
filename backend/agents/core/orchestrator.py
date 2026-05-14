@@ -177,9 +177,21 @@ class Orchestrator:
         provider_ids: dict[str, int],
         models: list[str],
     ) -> dict:
-        """并行从所有已配置的 provider 收集数据。"""
+        """Single-source raw-data fetch (OddAlerts only).
+
+        TODO Task 19: rework the orchestrator's broader fetch/prepare flow now
+        that ``data_collector.collect_all`` takes only ``oa_fixture_id`` and
+        returns a flat OddAlerts-tagged bundle (no more per-provider keys).
+        """
         from agents.core.data_collector import collect_all
-        return await collect_all(executor, provider_ids)
+
+        oa_id = provider_ids.get("oddalerts")
+        if oa_id is None:
+            return {}
+        bundle = await collect_all(oa_fixture_id=oa_id)
+        # Preserve the legacy {provider_name: bundle} shape downstream
+        # consumers still expect until Task 19 lands.
+        return {"oddalerts": bundle} if bundle else {}
 
     def _has_active_work(self) -> bool:
         active_statuses = [
