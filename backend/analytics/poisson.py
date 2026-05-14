@@ -338,3 +338,27 @@ def _calc_single_ah(
         p_push /= total
 
     return {"p_home_cover": p_home, "p_away_cover": p_away, "p_push": p_push}
+
+
+def poisson_from_oddalerts(
+    home_stats: dict,
+    away_stats: dict,
+    max_goals: int = 6,
+) -> Optional[Dict]:
+    """High-level wrapper: OddAlerts stats → standard Poisson distribution.
+
+    Reads xG / goals-avg signals via
+    :func:`provider.oddalerts.feature_extractor.extract_team_lambdas` and
+    forwards the resulting λs to :func:`poisson_distribution`.
+
+    Returns ``None`` if either team lacks attack or defense signal.
+    """
+    from provider.oddalerts.feature_extractor import extract_team_lambdas
+    feats = extract_team_lambdas(home_stats, away_stats)
+    if feats is None:
+        return None
+    return poisson_distribution(
+        home_lambda=feats["home_lambda"],
+        away_lambda=feats["away_lambda"],
+        max_goals=max_goals,
+    )
