@@ -19,7 +19,7 @@ def extract_team_lambdas(
     """Compute home_lambda / away_lambda from OddAlerts season-stats payloads.
 
     Signal preference: xg_for > goals_for_avg (xG is more predictive).
-    Returns None if either team lacks both attack and defense signal.
+    Returns None if either team lacks attack or defense signal.
 
     Output:
         {
@@ -29,10 +29,10 @@ def extract_team_lambdas(
         }
     """
     def _team_lambda(team_for: dict, opp_against: dict) -> Optional[float]:
-        for_signal = team_for.get("xg_for") or team_for.get("goals_for_avg")
-        against_signal = (
-            opp_against.get("xg_against") or opp_against.get("goals_against_avg")
-        )
+        xg_f = team_for.get("xg_for")
+        for_signal = xg_f if xg_f is not None else team_for.get("goals_for_avg")
+        xg_a = opp_against.get("xg_against")
+        against_signal = xg_a if xg_a is not None else opp_against.get("goals_against_avg")
         if for_signal is None or against_signal is None:
             return None
         # Weighted blend: 60% own attack, 40% opponent defense leakage.
@@ -78,5 +78,5 @@ def extract_trend_priors(trends: dict[str, Any]) -> dict[str, float]:
     """
     h = float(trends.get("homeWin") or 0.0)
     a = float(trends.get("awayWin") or 0.0)
-    d = max(0.0, 1.0 - h - a)
+    d = min(1.0, max(0.0, 1.0 - h - a))
     return {"H": h, "D": d, "A": a}

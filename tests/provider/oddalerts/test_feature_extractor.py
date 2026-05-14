@@ -86,3 +86,15 @@ def test_extract_trend_priors_handles_missing_or_zero():
     out2 = extract_trend_priors({"homeWin": 0.6, "awayWin": 0.5})  # impossibly large sum
     # D should clamp to 0, not go negative
     assert out2["D"] == 0.0
+
+
+def test_extract_team_lambdas_zero_xg_not_treated_as_missing():
+    """Regression: xg_for=0.0 should be used, not fallback to goals_for_avg."""
+    home_stats = {"xg_for": 0.0, "goals_for_avg": 5.0, "goals_against_avg": 1.0}
+    away_stats = {"xg_for": 1.0, "goals_for_avg": 1.0, "goals_against_avg": 1.0}
+    out = extract_team_lambdas(home_stats, away_stats)
+    # If the bug were still present, home_lambda would use 5.0 (goals_for_avg).
+    # With the fix, home_lambda should use 0.0 (xg_for) + 0.4 of opponent's against.
+    # away_stats has no xg_against, so opp_against = goals_against_avg = 1.0
+    # home_lambda = 0.0 * 0.6 + 1.0 * 0.4 = 0.4
+    assert out["home_lambda"] == 0.4
