@@ -64,3 +64,5 @@ debug
 *.xsd
 .ruff_cache
 .pytest_cache
+# Visual Companion brainstorm mockups (skill artifacts, do not commit)
+.superpowers/
