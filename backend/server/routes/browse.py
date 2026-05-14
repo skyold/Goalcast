@@ -129,3 +129,23 @@ async def get_dropping(window: str = Query("1h", pattern="^(1h|6h|24h)$")):
     data = raw.get("data") or []
     _cache.set(cache_key, data, ttl_seconds=300)
     return data
+
+
+@router.get("/teams/{team_id}")
+async def get_team(team_id: int):
+    cache_key = f"team:{team_id}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        return cached
+    provider = get_provider()
+    raw = await provider.get_stats(stats_type="season", id=team_id)
+    if not raw or not raw.get("data"):
+        raise HTTPException(404, detail="Team not found")
+    payload = raw["data"]
+    _cache.set(cache_key, payload, ttl_seconds=21_600)
+    return payload
+
+
+@router.get("/leagues/{league_id}/standings")
+async def get_standings(league_id: int):
+    raise HTTPException(status_code=501, detail="Standings synthesis not yet implemented")

@@ -105,3 +105,17 @@ def test_dropping_odds_endpoint(client):
         r = client.get("/api/odds/dropping?window=1h")
     assert r.status_code == 200
     assert r.json() == fake["data"]
+
+
+def test_team_endpoint_returns_stats(client):
+    fake = {"data": {"id": 99, "name": "A", "matches_played": 10}}
+    with patch("provider.oddalerts.client.OddAlertsProvider.get_stats",
+               AsyncMock(return_value=fake)):
+        r = client.get("/api/teams/99")
+    assert r.status_code == 200
+    assert r.json()["id"] == 99
+
+
+def test_standings_endpoint_not_implemented(client):
+    r = client.get("/api/leagues/8/standings")
+    assert r.status_code == 501
