@@ -119,3 +119,26 @@ def test_team_endpoint_returns_stats(client):
 def test_standings_endpoint_not_implemented(client):
     r = client.get("/api/leagues/8/standings")
     assert r.status_code == 501
+
+
+def test_analysis_recent_reads_match_store(client, monkeypatch):
+    from agents.core import match_store
+    monkeypatch.setattr(match_store, "list_recent",
+                        lambda limit=10: [{"fixture_id": 1, "analysis": {"pick": "H", "ev": 0.064}}])
+    r = client.get("/api/analysis/recent?limit=5")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["fixture_id"] == 1
+
+
+def test_analysis_run_triggers_orchestrator(client, monkeypatch):
+    called = {"flag": False}
+    async def fake_run():
+        called["flag"] = True
+        return {"run_id": "0099", "status": "started"}
+    monkeypatch.setattr("server.routes.browse._trigger_run", fake_run)
+    r = client.post("/api/analysis/run")
+    assert r.status_code == 200
+    assert called["flag"]
+    assert r.json()["run_id"] == "0099"

@@ -155,6 +155,24 @@ def list_all(status: str | None = None) -> list[dict]:
     return results
 
 
+def list_recent(limit: int = 20) -> list[dict]:
+    """Return up to ``limit`` recent match records sorted by mtime desc."""
+    if not MATCHES_DIR.exists():
+        return []
+    files = sorted(
+        MATCHES_DIR.glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    out: list[dict] = []
+    for f in files[:limit]:
+        try:
+            out.append(json.loads(f.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, IOError):
+            continue
+    return out
+
+
 def count_by_status(status_list: list[str]) -> int:
     MATCHES_DIR.mkdir(parents=True, exist_ok=True)
     count = 0

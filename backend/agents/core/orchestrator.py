@@ -457,6 +457,16 @@ class Orchestrator:
                 logger.error("[Orchestrator] Reporter 异常: %s", exc)
             await self._sleep(IDLE_SLEEP_SECONDS)
 
+    async def run_once(self) -> dict:
+        """Manual single-run trigger. Returns {run_id, status}.
+
+        TODO Task 19/20: wire to real orchestrator execution. Currently returns a
+        stub run_id without starting the long-running run() loop.
+        """
+        import secrets
+        run_id = secrets.token_hex(4)
+        return {"run_id": run_id, "status": "started"}
+
     async def _sleep(self, seconds: float):
         try:
             await asyncio.wait_for(

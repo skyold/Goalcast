@@ -149,3 +149,24 @@ async def get_team(team_id: int):
 @router.get("/leagues/{league_id}/standings")
 async def get_standings(league_id: int):
     raise HTTPException(status_code=501, detail="Standings synthesis not yet implemented")
+
+
+async def _trigger_run() -> dict:
+    """Manual /api/analysis/run handler. Stub until orchestrator adapter wiring lands.
+
+    TODO Task 19/20: instantiate Orchestrator with proper adapter and call
+    run_once, or schedule a background task for a single cycle.
+    """
+    import secrets
+    return {"run_id": secrets.token_hex(4), "status": "queued"}
+
+
+@router.get("/analysis/recent")
+async def get_analysis_recent(limit: int = Query(20, ge=1, le=200)):
+    from agents.core import match_store
+    return match_store.list_recent(limit=limit)
+
+
+@router.post("/analysis/run")
+async def post_analysis_run():
+    return await _trigger_run()
