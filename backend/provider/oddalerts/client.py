@@ -55,6 +55,7 @@ import httpx
 
 from provider.base import BaseProvider
 from utils.logger import logger
+from utils.rate_limit import TokenBucket
 from config.settings import settings
 
 if TYPE_CHECKING:
@@ -83,10 +84,17 @@ class OddAlertsProvider(BaseProvider):
     BASE_URL = "https://data.oddalerts.com/api"
     DEFAULT_TIMEOUT = 30.0
 
-    def __init__(self, api_key: str = "", timeout: float = DEFAULT_TIMEOUT):
+    def __init__(
+        self,
+        api_key: str = "",
+        timeout: float = DEFAULT_TIMEOUT,
+        rate_capacity: int = 280,
+        rate_refill_per_sec: float = 280 / 60,
+    ):
         super().__init__(api_key or settings.ODDALERTS_API_KEY, timeout)
         if not self.api_key:
             logger.warning("OddAlerts API key not configured")
+        self._bucket = TokenBucket(capacity=rate_capacity, refill_per_sec=rate_refill_per_sec)
 
     async def _get_client(self) -> httpx.AsyncClient:
         # OddAlerts 服务器对所有端点先 302 再返回数据，必须开启重定向跟随
@@ -109,6 +117,9 @@ class OddAlertsProvider(BaseProvider):
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
+        if not self._bucket.try_acquire():
+            raise RuntimeError("OddAlerts rate limit exceeded; try again shortly")
+
         if not self.api_key:
             logger.error("OddAlerts API key is not set")
             return None
