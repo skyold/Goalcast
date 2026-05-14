@@ -1,79 +1,61 @@
+"""SQLite-backed key/value cache with TTL."""
+from __future__ import annotations
 import json
+import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
-from config.settings import BASE_DIR
+from threading import RLock
+from typing import Any, Optional
 
-CACHE_DIR = BASE_DIR / "data" / "cache"
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+"""
 
 
 class Cache:
-    def __init__(self, cache_dir: Path = CACHE_DIR):
-        self.cache_dir = cache_dir
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: Path):
+        db_path = Path(db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._path = str(db_path)
+        self._lock = RLock()
+        with self._conn() as conn:
+            conn.executescript(_SCHEMA)
 
-    def _get_path(self, source: str, key: str) -> Path:
-        source_dir = self.cache_dir / source
-        source_dir.mkdir(parents=True, exist_ok=True)
-        safe_key = key.replace("/", "_").replace(":", "_")
-        return source_dir / f"{safe_key}.json"
+    def _conn(self) -> sqlite3.Connection:
+        return sqlite3.connect(self._path, timeout=5.0)
 
-    def get(self, source: str, key: str) -> Optional[Dict[str, Any]]:
-        path = self._get_path(source, key)
-        if not path.exists():
+    def get(self, key: str) -> Optional[Any]:
+        with self._lock, self._conn() as conn:
+            row = conn.execute(
+                "SELECT value, expires_at FROM cache WHERE key = ?", (key,)
+            ).fetchone()
+        if row is None:
             return None
-
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-
-            if "expires_at" in data and data["expires_at"] < time.time():
-                path.unlink()
-                return None
-
-            return data.get("value")
-        except (json.JSONDecodeError, IOError):
+        value, expires_at = row
+        if expires_at != 0 and expires_at <= int(time.time()):
+            self.delete(key)
             return None
+        return json.loads(value)
 
-    def set(self, source: str, key: str, value: Dict[str, Any], ttl_hours: float = 1.0):
-        path = self._get_path(source, key)
-        expires_at = time.time() + (ttl_hours * 3600)
+    def set(self, key: str, value: Any, ttl_seconds: int) -> None:
+        now = int(time.time())
+        expires_at = 0 if ttl_seconds == 0 else now + ttl_seconds
+        payload = json.dumps(value)
+        with self._lock, self._conn() as conn:
+            conn.execute(
+                "INSERT INTO cache(key,value,expires_at,created_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value, expires_at=excluded.expires_at",
+                (key, payload, expires_at, now),
+            )
+            conn.commit()
 
-        data = {"value": value, "expires_at": expires_at}
-
-        try:
-            with open(path, "w") as f:
-                json.dump(data, f)
-        except IOError:
-            pass
-
-    def delete(self, source: str, key: str):
-        path = self._get_path(source, key)
-        if path.exists():
-            path.unlink()
-
-    def clear_source(self, source: str):
-        source_dir = self.cache_dir / source
-        if source_dir.exists():
-            for path in source_dir.iterdir():
-                if path.is_file():
-                    path.unlink()
-
-
-_cache = Cache()
-
-
-def cache_get(source: str, key: str) -> Optional[Dict[str, Any]]:
-    return _cache.get(source, key)
-
-
-def cache_set(source: str, key: str, value: Dict[str, Any], ttl_hours: float = 1.0):
-    _cache.set(source, key, value, ttl_hours)
-
-
-def cache_delete(source: str, key: str):
-    _cache.delete(source, key)
-
-
-def cache_clear_source(source: str):
-    _cache.clear_source(source)
+    def delete(self, key: str) -> None:
+        with self._lock, self._conn() as conn:
+            conn.execute("DELETE FROM cache WHERE key = ?", (key,))
+            conn.commit()
