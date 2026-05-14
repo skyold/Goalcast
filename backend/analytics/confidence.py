@@ -172,3 +172,41 @@ def confidence_breakdown(
         "deductions": deductions,
         "final": final,
     }
+
+
+def confidence_from_oddalerts(
+    model_probs: dict,
+    trends: dict,
+    odds_history_present: bool = True,
+) -> dict:
+    """High-level wrapper: compute confidence using OddAlerts trends as the
+    market-agreement signal.
+
+    ``model_probs`` and the priors derived from ``trends`` are compared on
+    the model's top pick. If they agree to within 10 percentage points,
+    the underlying :func:`calculate_confidence` is given ``market_agrees=True``.
+
+    Returns::
+
+        {
+          "score": int,       # raw confidence 30-90 from calculate_confidence
+          "stars": int,       # 0-5 derived from score / 18
+          "agreement": bool,  # whether model agreed with OddAlerts priors
+        }
+    """
+    from provider.oddalerts.feature_extractor import extract_trend_priors
+    priors = extract_trend_priors(trends)
+    pick = max(model_probs, key=lambda k: model_probs[k])
+    gap = abs(model_probs[pick] - priors[pick])
+    agreement = gap < 0.10  # within 10 percentage points
+
+    score = calculate_confidence(
+        base_score=70,
+        market_agrees=agreement,
+        data_complete=True,
+        understat_available=False,
+        odds_available=odds_history_present,
+        lineup_unavailable=True,
+    )
+    stars = min(5, max(0, round(score / 20)))
+    return {"score": int(score), "stars": int(stars), "agreement": bool(agreement)}
