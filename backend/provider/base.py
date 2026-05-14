@@ -138,3 +138,29 @@ class BaseProvider(ABC):
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} name={self.name}>"
+
+
+# ─── Single-source factory ───────────────────────────────────────────────────
+# After the 2026-05-14 pivot to OddAlerts-only, there is exactly one concrete
+# provider. A small singleton helper keeps call sites short and lets tests
+# inject a fresh instance with reset_provider().
+
+_singleton: Optional["BaseProvider"] = None
+
+
+def get_provider() -> "BaseProvider":
+    """Return the singleton OddAlerts provider instance."""
+    global _singleton
+    if _singleton is None:
+        from provider.oddalerts.client import OddAlertsProvider
+        from config.settings import settings
+        _singleton = OddAlertsProvider(
+            api_key=settings.ODDALERTS_API_KEY,
+        )
+    return _singleton
+
+
+def reset_provider() -> None:
+    """Test hook: drop the singleton so the next get_provider() rebuilds it."""
+    global _singleton
+    _singleton = None
