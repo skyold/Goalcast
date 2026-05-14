@@ -15,6 +15,44 @@ export interface PipelineState {
   status: "running" | "idle" | "stopped" | "error";
   current_step: string;
   round: number;
+}
+
+export type MatchStatus = "pending" | "collected" | "analyzed" | "error" | "aborted";
+
+export interface MatchMetadata {
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  league: string;
+  kickoff_time: string;
+  provider_ids: Record<string, number>;
+  collected_at?: string;
+}
+
+export interface MatchAnalysis {
+  home_xg?: number | null;
+  away_xg?: number | null;
+  ah_recommendation?: string | null;
+  confidence?: number | null;
+  kelly_fraction?: number | null;
+}
+
+// ─── Match Raw Data ───────────────────────────────────────────────────────────
+
+export interface MatchRawData {
+  [provider: string]: unknown;
+}
+
+export interface Match {
+  match_id: string;
+  status: MatchStatus;
+  metadata: MatchMetadata;
+  raw_data: Record<string, unknown>;
+  analysis: MatchAnalysis;
+}
+
+export interface MatchListResponse {
+  items: Match[];
   total: number;
 }
 
