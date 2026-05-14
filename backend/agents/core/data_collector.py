@@ -44,13 +44,66 @@ _BUNDLE_PASSTHROUGH_KEYS = (
 )
 
 
+def _compute_analysis(bundle: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Run poisson → EV → confidence on the OddAlerts bundle.
+
+    Returns ``None`` if any stage produces no usable signal (e.g. missing
+    team stats or odds). All wrappers handle their own degenerate inputs.
+    """
+    try:
+        from analytics.poisson import poisson_from_oddalerts
+        from analytics.ev_calculator import ev_from_oddalerts
+        from analytics.confidence import confidence_from_oddalerts
+    except Exception:  # pragma: no cover - import safety
+        logger.exception("analytics import failed")
+        return None
+
+    stats_home = bundle.get("stats_home") or {}
+    stats_away = bundle.get("stats_away") or {}
+    odds_history = bundle.get("odds_history") or {}
+    trends = bundle.get("trends") or {}
+
+    poisson = poisson_from_oddalerts(stats_home, stats_away)
+    if poisson is None:
+        return None
+
+    model_prob = {
+        "H": poisson["home_win_pct"] / 100.0,
+        "D": poisson["draw_pct"] / 100.0,
+        "A": poisson["away_win_pct"] / 100.0,
+    }
+
+    ev_dict = ev_from_oddalerts(model_prob, odds_history)
+    if ev_dict is None:
+        return None
+
+    conf = confidence_from_oddalerts(
+        model_prob,
+        trends,
+        odds_history_present=bool(odds_history),
+    )
+
+    return {
+        "model_prob": model_prob,
+        "poisson": poisson,
+        "ev": {k: ev_dict[k]["ev"] for k in ("H", "D", "A")},
+        "kelly": {k: ev_dict[k]["kelly"] for k in ("H", "D", "A")},
+        "ev_detail": ev_dict,
+        "confidence_score": conf["score"],
+        "confidence_stars": conf["stars"],
+        "confidence_agreement": conf["agreement"],
+    }
+
+
 async def collect_all(oa_fixture_id: int) -> Optional[dict[str, Any]]:
     """Collect OddAlerts data for a single fixture.
 
     Returns ``None`` if the provider yields no usable fixture record.
     On success, returns a dict tagged with ``source="oddalerts"`` and a
     ``collected_at`` ISO timestamp, plus passthrough of any plan-spec
-    bundle keys the provider produced.
+    bundle keys the provider produced, plus an ``analysis`` block from
+    the deterministic poisson/EV/confidence pipeline (``None`` when the
+    bundle is too sparse to analyze).
     """
     bundle = await collect_oddalerts(oa_fixture_id)
     if not bundle or "fixture" not in bundle:
@@ -63,4 +116,6 @@ async def collect_all(oa_fixture_id: int) -> Optional[dict[str, Any]]:
     for key in _BUNDLE_PASSTHROUGH_KEYS:
         if key in bundle:
             out[key] = bundle[key]
+
+    out["analysis"] = _compute_analysis(bundle)
     return out
