@@ -54,3 +54,30 @@ def test_fixtures_endpoint_filters_by_date(client):
     items = r.json()
     assert len(items) == 1
     assert items[0]["fixture_id"] == 1
+
+
+def test_fixture_detail_aggregates(client):
+    bundle = {
+        "fixture": {
+            "id": 123,
+            "name": "A vs B",
+            "starting_at": "2026-05-14T20:00:00Z",
+            "league": {"id": 8, "name": "PL", "country": "ENG"},
+            "participants": [
+                {"id": 10, "name": "A", "meta": {"location": "home"}},
+                {"id": 11, "name": "B", "meta": {"location": "away"}},
+            ],
+        },
+        "h2h": {"data": []},
+        "stats_home": {"data": {}},
+        "stats_away": {"data": {}},
+    }
+    with patch("provider.oddalerts.client.OddAlertsProvider.collect_fixture_data",
+               AsyncMock(return_value=bundle)):
+        r = client.get("/api/fixtures/123")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["fixture_id"] == 123
+    assert body["home_team"]["id"] == 10
+    assert body["away_team"]["id"] == 11
+    assert "raw_bundle" in body

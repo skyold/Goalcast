@@ -73,3 +73,24 @@ async def get_fixtures(
         out.append(_normalize_fixture_item(item))
     _cache.set(cache_key, out, ttl_seconds=300)
     return out
+
+
+@router.get("/fixtures/{fixture_id}")
+async def get_fixture_detail(fixture_id: int):
+    from agents.core.fixture_merger import normalize_oddalerts_fixture
+
+    cache_key = f"fixture:{fixture_id}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        return cached
+    provider = get_provider()
+    bundle = await provider.collect_fixture_data(fixture_id)
+    if not bundle or not bundle.get("fixture"):
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    canonical = normalize_oddalerts_fixture(bundle["fixture"])
+    if canonical is None:
+        raise HTTPException(status_code=422, detail="Unusable fixture payload")
+    result = dict(canonical)
+    result["raw_bundle"] = bundle
+    _cache.set(cache_key, result, ttl_seconds=300)
+    return result
