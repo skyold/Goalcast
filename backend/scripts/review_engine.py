@@ -14,7 +14,8 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from provider.footystats.client import FootyStatsProvider
+# 2026-05-14 pivot: FootyStatsProvider removed. Script needs rewrite for OddAlerts.
+# from provider.footystats.client import FootyStatsProvider  # REMOVED
 
 # --- Configuration ---
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -41,7 +42,9 @@ def brier_score_component(probabilities: Dict[str, float], actual_result: str) -
     return sum((pred[k] - outcome[k]) ** 2 for k in pred)
 
 async def review_matches():
-    provider = FootyStatsProvider()
+    # 2026-05-14 pivot: FootyStatsProvider removed — see 2026-05-14 pivot
+    raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
+    provider = None  # FootyStatsProvider() — REMOVED
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     DIARY_DIR.mkdir(parents=True, exist_ok=True)
     

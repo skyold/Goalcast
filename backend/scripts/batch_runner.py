@@ -45,12 +45,9 @@ async def _load_watchlist(provider: str, league_filter: str | None) -> list[str]
 
 
 async def run_prefetch(date: str, league_filter: str | None) -> dict:
-    from provider.footystats.client import FootyStatsProvider
-    from provider.understat.client import UnderstatProvider
-    from datasource.datafusion.fusion import DataFusion
-
-    fs = FootyStatsProvider()
-    us = UnderstatProvider(use_library=True)
+    # 2026-05-14 pivot: footystats/understat/datafusion providers removed.
+    # This script must be rewritten to use OddAlerts exclusively (Task 9+).
+    raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
     leagues = await _load_watchlist("footystats", league_filter)
     logger.info(f"Prefetching FootyStats data for {date} | leagues: {leagues}")

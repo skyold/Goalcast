@@ -165,7 +165,8 @@ class Orchestrator:
         from agents.core.blackboard import merge_update
         from agents.core import match_store
         from agents.core.fixture_merger import merge_fixtures
-        from provider.sportmonks.client import SportmonksProvider
+        # 2026-05-14 pivot: SportmonksProvider removed; OddAlerts-only path below.
+        # from provider.sportmonks.client import SportmonksProvider  # REMOVED
         from provider.oddalerts.client import OddAlertsProvider
 
         if models is None:
@@ -174,42 +175,37 @@ class Orchestrator:
         executor = ToolExecutor()
 
         # ── 联赛 ID 解析 ──────────────────────────────────────────────────────
-        sm_league_ids: list[int] = []
+        oa_league_ids: list[int] = []
         if leagues:
-            resolved = await self._resolve_league_ids(leagues)
+            resolved = self._resolve_oa_league_ids_from_names(leagues)
             if not resolved:
                 print(f"[Orchestrator] 联赛字典中未找到: {leagues}")
                 logger.warning("[Orchestrator] 联赛字典中未找到: %s", leagues)
                 return 0
-            sm_league_ids = resolved
-            print(f"[Orchestrator] 联赛映射: {leagues} → sm_league_ids={sm_league_ids}")
-
-        oa_league_ids = self._resolve_oa_league_ids(sm_league_ids)
+            oa_league_ids = resolved
+            print(f"[Orchestrator] 联赛映射: {leagues} → oa_league_ids={oa_league_ids}")
 
         dates = self._resolve_date_range(date)
         print(f"[Orchestrator] 日期范围: {dates}")
 
-        # ── 并行从两个 provider 发现赛程 ────────────────────────────────────
-        sm_provider = SportmonksProvider()
+        # ── OddAlerts-only fixture discovery ────────────────────────────────
+        # NOTE: 2026-05-14 pivot — SportmonksProvider removed (see Task 2).
+        # sm_fixtures stub: raises NotImplementedError if called directly.
+        raise NotImplementedError("Provider removed — see 2026-05-14 pivot: orchestrator._fetch_and_prepare needs Task 9 rewrite")
         oa_provider = OddAlertsProvider()
         try:
-            sm_task = asyncio.create_task(sm_provider.discover_fixtures(sm_league_ids, dates))
-            oa_task = asyncio.create_task(oa_provider.discover_fixtures(oa_league_ids, dates))
-            sm_fixtures, oa_fixtures = await asyncio.gather(sm_task, oa_task, return_exceptions=True)
+            oa_fixtures = await oa_provider.discover_fixtures(oa_league_ids, dates)
         finally:
-            await asyncio.gather(sm_provider.close(), oa_provider.close(), return_exceptions=True)
+            await oa_provider.close()
 
-        if isinstance(sm_fixtures, Exception):
-            logger.error("[Orchestrator] Sportmonks discover_fixtures 失败: %s", sm_fixtures)
-            sm_fixtures = []
+        sm_fixtures = []  # Sportmonks removed
         if isinstance(oa_fixtures, Exception):
             logger.error("[Orchestrator] OddAlerts discover_fixtures 失败: %s", oa_fixtures)
             oa_fixtures = []
 
-        print(f"[Orchestrator] 发现: SM={len(sm_fixtures)} OA={len(oa_fixtures)} 场")
+        print(f"[Orchestrator] 发现: OA={len(oa_fixtures)} 场")
 
         unified = merge_fixtures([
-            ("sportmonks", sm_fixtures),
             ("oddalerts", oa_fixtures),
         ])
         print(f"[Orchestrator] 合并后: {len(unified)} 场 UnifiedFixture")
@@ -343,6 +339,13 @@ class Orchestrator:
             if isinstance(oa_id, int):
                 result.append(oa_id)
         return result
+
+    def _resolve_oa_league_ids_from_names(self, leagues: list[str]) -> list[int]:
+        """2026-05-14 pivot stub: resolve league names to OddAlerts IDs.
+
+        TODO Task 9: implement proper name→OA-ID resolution.
+        """
+        raise NotImplementedError("Provider removed — see 2026-05-14 pivot: _resolve_oa_league_ids_from_names needs Task 9 implementation")
 
     async def _fetch_raw_data_for_models(
         self,

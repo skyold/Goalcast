@@ -197,27 +197,16 @@ def _serialize(value):
     return value
 
 def _create_sportmonks_data_service():
-    from datasource.sportmonks.service import SportmonksDataService
-    from provider.sportmonks.client import SportmonksProvider
-
-    return SportmonksDataService(provider=SportmonksProvider())
-
-_footystats = None
-_understat = None
+    # 2026-05-14 pivot: SportmonksDataService + SportmonksProvider removed.
+    raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
 def get_footystats():
-    global _footystats
-    if _footystats is None:
-        from provider.footystats.client import FootyStatsProvider
-        _footystats = FootyStatsProvider()
-    return _footystats
+    # 2026-05-14 pivot: FootyStatsProvider removed.
+    raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
 def get_understat():
-    global _understat
-    if _understat is None:
-        from provider.understat.client import UnderstatProvider
-        _understat = UnderstatProvider(use_library=True)
-    return _understat
+    # 2026-05-14 pivot: UnderstatProvider removed.
+    raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
 async def handle_api_call(provider_name, coro):
     from utils.logger import logger
@@ -284,56 +273,31 @@ class ToolExecutor:
             logger.error("[ToolExecutor] 工具执行异常 %s: %s", tool_name, exc)
             return {"error": str(exc), "tool": tool_name}
 
-    # ── Sportmonks 工具 ──────────────────────────────────────────────
+    # ── Sportmonks 工具 (REMOVED 2026-05-14) ────────────────────────
 
     async def _tool_goalcast_sportmonks_get_matches(
         self, date: str | None = None, league_ids: list[int] | None = None
     ) -> dict:
-        service = _create_sportmonks_data_service()
-        fixtures = await service.get_matches(date=date, league_ids=league_ids)
-        data = _serialize(fixtures)
-        return {"ok": True, "count": len(data), "data": data}
+        # 2026-05-14 pivot: SportmonksDataService removed — see 2026-05-14 pivot
+        raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
     async def _tool_goalcast_sportmonks_get_match(
         self, fixture_id: int, match_date: str | None = None
     ) -> dict:
-        service = _create_sportmonks_data_service()
-        payload = await service.get_match_for_analysis(
-            fixture_id=fixture_id, match_date=match_date
-        )
-        return {"ok": True, "data": _serialize(payload)}
+        # 2026-05-14 pivot: SportmonksDataService removed — see 2026-05-14 pivot
+        raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
-    # ── FootyStats 工具 ─────────────────────────────────────────────
+    # ── FootyStats 工具 (REMOVED 2026-05-14) ────────────────────────
 
     async def _tool_goalcast_footystats_resolve_match(self, **params) -> dict:
-        from datasource.datafusion.fusion import DataFusion
-
-        fusion = DataFusion(footystats=get_footystats(), understat=get_understat())
-        context = await fusion.build(
-            fixture_id=params.get("match_id", ""),
-            match_id=params.get("match_id", ""),
-            home_team=params.get("home_team", ""),
-            home_team_id=str(params.get("home_team_id", "")),
-            away_team=params.get("away_team", ""),
-            away_team_id=str(params.get("away_team_id", "")),
-            season_id=str(params.get("season_id", "")),
-            league=params.get("league", ""),
-            match_date=params.get("match_date"),
-            season=params.get("season"),
-        )
-        return context.to_dict()
+        # 2026-05-14 pivot: DataFusion + FootyStats removed — see 2026-05-14 pivot
+        raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
     async def _tool_goalcast_footystats_get_todays_matches(
         self, date: str | None = None, league_filter: str | None = None
     ) -> list:
-        import datetime as dt
-
-        target_date = date or dt.date.today().isoformat()
-        raw = await handle_api_call(
-            "FootyStats",
-            get_footystats().get_todays_matches(target_date, timezone=None),
-        )
-        return _normalize_footystats_fixtures(raw, league_filter)
+        # 2026-05-14 pivot: FootyStatsProvider removed — see 2026-05-14 pivot
+        raise NotImplementedError("Provider removed — see 2026-05-14 pivot")
 
     # ── Quant 工具 ──────────────────────────────────────────────────
 
