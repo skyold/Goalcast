@@ -27,7 +27,13 @@ export default function MatchCard({ fixture: f }: { fixture: FixtureSummary }) {
   const statusLabel = isLive ? '● 进行中' : isFT ? '已结束' : '未开赛'
 
   return (
-    <div className={`mcard${isLive ? ' live' : ''}`} onClick={() => navigate(`/matches/${f.id}`)}>
+    <div
+      className={`mcard${isLive ? ' live' : ''}`}
+      onClick={() => navigate(`/matches/${f.id}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/matches/${f.id}`) }}
+    >
       <div className="mc-hdr">
         <span className="mc-hdr-lname">{f.competition_name}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -126,7 +132,7 @@ export default function MatchCard({ fixture: f }: { fixture: FixtureSummary }) {
         </div>
         <div className="ftr-sep" />
         <div className="drop-col">
-          <div className="drop-val">{f.drop_pct !== null ? `↓${Math.abs(f.drop_pct).toFixed(0)}%` : '—'}</div>
+          <div className="drop-val">{f.drop_pct !== null ? `${f.drop_pct < 0 ? '↓' : '↑'}${Math.abs(f.drop_pct).toFixed(0)}%` : '—'}</div>
           <div className="drop-mkt">{f.drop_market ?? ''}</div>
         </div>
         <div className="badges">
