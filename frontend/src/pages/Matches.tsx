@@ -21,7 +21,9 @@ function getContinent(name: string): string {
 }
 
 function offsetDay(n: number): string {
-  const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]
+  const d = new Date()
+  d.setDate(d.getDate() + n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 const DATE_PRESETS = [
   { label: '今天', fn: () => offsetDay(0) },
@@ -33,8 +35,8 @@ type SortKey = 'time' | 'drop' | 'prob'
 
 function sortFixtures(fixtures: FixtureSummary[], key: SortKey): FixtureSummary[] {
   return [...fixtures].sort((a, b) => {
-    if (key === 'drop') return (a.drop_pct ?? 0) - (b.drop_pct ?? 0)
-    if (key === 'prob') return (b.prob_home_win ?? 0) - (a.prob_home_win ?? 0)
+    if (key === 'drop') return (a.drop_pct ?? Infinity) - (b.drop_pct ?? Infinity)
+    if (key === 'prob') return (b.prob_home_win ?? -Infinity) - (a.prob_home_win ?? -Infinity)
     return new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
   })
 }
