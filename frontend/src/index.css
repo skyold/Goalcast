@@ -183,3 +183,22 @@ html, body, #root {
   .goalcast-content { padding-bottom:72px; }
   .fdp-hero { flex-direction:column; }
 }
+
+/* ── Goalcast Header (added back in AppLayout reattach) ─────────────── */
+.goalcast-logo { padding:16px 18px; font-size:14px; font-weight:700; letter-spacing:1px; color:#00FF9D; }
+.goalcast-header {
+  display:flex; justify-content:space-between; align-items:center;
+  background:#0b0d17 !important; border-bottom:1px solid rgba(255,255,255,0.07);
+  padding:0 22px !important; height:48px !important; line-height:48px !important;
+}
+.goalcast-header-title { font-size:13px; font-weight:600; color:#e8eaf0; }
+.goalcast-header-meta { display:flex; align-items:center; gap:10px; font-size:11px; color:#9ba3b8; }
+.goalcast-header-date { font-family:"JetBrains Mono", monospace; }
+.goalcast-ws-dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
+.goalcast-ws-dot.on  { background:#00FF9D; box-shadow:0 0 6px rgba(0,255,157,0.7); }
+.goalcast-ws-dot.off { background:#555d72; }
+.goalcast-ws-label { font-size:11px; }
+@media (max-width: 768px) {
+  .goalcast-header { padding:0 14px !important; }
+  .goalcast-header-date { display:none; }
+}
