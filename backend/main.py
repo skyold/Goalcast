@@ -14,3 +14,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 from routers import fixtures
 app.include_router(fixtures.router, prefix="/api")
+
+from routers import odds, history
+app.include_router(odds.router, prefix="/api")
+app.include_router(history.router, prefix="/api")
