@@ -58,11 +58,14 @@ export default function DroppingOdds() {
         ? <div style={{ textAlign: 'center', color: '#475569', padding: 60 }}>暂无跌水数据</div>
         : (
           <div className="do-list">
-            {items.map((item, i) => {
-              const currentOdds = item.odds_home ?? item.odds_away ?? item.odds_draw
+            {items.map(item => {
+              const mktKey = (item.drop_market ?? item.market ?? '').toLowerCase()
+              const currentOdds = mktKey.includes('away') || mktKey.includes('客') ? item.odds_away
+                : mktKey.includes('draw') || mktKey.includes('平') ? item.odds_draw
+                : item.odds_home ?? item.odds_away ?? item.odds_draw
               const mktLabel = item.drop_market ?? item.market ?? '赔率'
               return (
-                <div key={i} className="do-card" onClick={() => navigate(`/matches/${item.fixture_id}`)}>
+                <div key={`${item.fixture_id}-${item.market}`} className="do-card" onClick={() => navigate(`/matches/${item.fixture_id}`)}>
                   <div className="do-hdr">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11, color: '#64748b' }}>{item.competition_name}</span>
