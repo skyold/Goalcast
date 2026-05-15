@@ -41,7 +41,7 @@ export default function AnalysisReportsPage() {
         size="small" rowKey="fixture_id" dataSource={rows}
         onRow={(r) => ({ onClick: () => navigate(`/fixture/${r.fixture_id}`), style: { cursor: "pointer" } })}
         columns={[
-          { title: "比赛", dataIndex: "name", render: (v?: string, r) => v ?? `Fixture ${r.fixture_id}` },
+          { title: "比赛", dataIndex: "name", render: (v: string | undefined, r: Row) => v ?? `Fixture ${r.fixture_id}` },
           { title: "推荐", dataIndex: ["analysis", "pick"] },
           { title: "EV", dataIndex: ["analysis", "ev"],
             render: (v?: number) => v != null ? `${(v * 100).toFixed(1)}%` : "—" },
