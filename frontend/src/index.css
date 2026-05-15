@@ -132,3 +132,10 @@ html, body, #root {
 .fc-odd.best .val { color:#00FF9D; }
 .fc-odd.drop .val { color:#ef4444; }
 .fc-footer { display:flex; justify-content:flex-end; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.07); }
+
+.filters { display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+.league-section { margin-bottom:24px; }
+.league-title { font-size:13px; font-weight:600; margin:18px 0 10px; }
+.league-title span { color:#555d72; font-size:11px; font-weight:400; margin-left:8px; }
+.fixture-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:12px; }
+.goalcast-aside { background:#0b0d17 !important; border-right:1px solid rgba(255,255,255,0.07); }
