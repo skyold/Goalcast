@@ -66,3 +66,4 @@ debug
 .pytest_cache
 .worktrees/
 node_modules/
+.superpowers/
