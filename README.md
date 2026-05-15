@@ -1,12 +1,17 @@
 # Goalcast
 
-Football match analysis and MCP (Model Context Protocol) server — multi-provider data aggregation with LLM-powered analysis.
+Football match analysis platform — OddAlerts-powered browse experience with LLM-assisted analysis.
 
 ## 🎯 Overview
 
-Goalcast is a football data aggregation and analysis toolkit that provides:
+## Architecture (2026-05 pivot)
 
-- **Multi-provider data sources**: FootyStats, Sportmonks, and more
+- **OddAlerts data source** — single-provider design with sqlite cache + token-bucket rate limit
+- **Browse-first UI** — fixtures, dropping odds, trends, league/team pages; responsive web + mobile
+- **In-house analysis preserved** — Poisson + EV + confidence, fed by OddAlerts stats/trends; agent RD loop continues to write `match_store`
+
+Additional capabilities:
+
 - **MCP Server**: Seamless integration with AI assistants for football data queries
 - **Layered architecture**: Clean datasource abstraction with caching
 - **Async-first design**: High-performance concurrent data fetching
@@ -51,8 +56,12 @@ Edit `.env` with your API keys:
 
 ```bash
 # Data Sources
-FOOTYSTATS_API_KEY=your_footystats_api_key_here
-SPORTMONKS_API_KEY=your_sportmonks_api_key_here
+ODDALERTS_API_KEY=your_oddalerts_api_key_here
+
+# Deprecated — no longer used after the 2026-05 OddAlerts-only pivot
+# FOOTYSTATS_API_KEY=
+# SPORTMONKS_API_KEY=
+# UNDERSTAT_API_KEY=
 
 # AI Analysis (optional)
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
