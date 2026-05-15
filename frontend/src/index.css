@@ -164,3 +164,22 @@ html, body, #root {
 .trend-card .pair { font-size:13px; font-weight:600; margin-bottom:8px; }
 .trend-card .prob { font-size:24px; font-weight:700; color:#00FF9D; font-family:"JetBrains Mono",monospace; }
 .trend-card .meta { color:#9ba3b8; font-size:11px; margin-top:8px; }
+
+.mobile-tabbar { display:none; }
+@media (max-width: 768px) {
+  .goalcast-sider, .goalcast-aside { display:none; }
+  .fixture-grid { grid-template-columns:1fr; }
+  .filters { gap:6px; }
+  .mobile-tabbar {
+    display:flex; position:fixed; bottom:0; left:0; right:0;
+    background:#0b0d17; border-top:1px solid rgba(255,255,255,0.07);
+    padding:8px 0 14px; z-index:50;
+  }
+  .mobile-tabbar .tab {
+    flex:1; text-align:center; color:#555d72; font-size:10px; text-decoration:none;
+  }
+  .mobile-tabbar .tab.on { color:#00FF9D; }
+  .mobile-tabbar .tab .ico { font-size:18px; display:block; margin-bottom:2px; }
+  .goalcast-content { padding-bottom:72px; }
+  .fdp-hero { flex-direction:column; }
+}
