@@ -2,51 +2,83 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import Badge from '../components/shared/Badge'
+
+type Dir = 'all' | 'home' | 'draw' | 'away'
+const DIR_LABELS: Record<Dir, string> = { all: '全部', home: '主胜', draw: '平局', away: '客胜' }
 
 export default function ValueBets() {
   const navigate = useNavigate()
   const [minEdge, setMinEdge] = useState(5)
+  const [dir, setDir] = useState<Dir>('all')
+
   const { data, isLoading } = useQuery({
     queryKey: ['value-bets', minEdge],
     queryFn: () => api.valueBets({ min_edge: minEdge }),
   })
-  const items = data?.items ?? []
+
+  const items = (data?.items ?? [])
+    .filter(item => dir === 'all' || item.selection === dir)
+    .sort((a, b) => b.edge_pct - a.edge_pct)
 
   return (
-    <div style={{ padding:24 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-        <h1 style={{ fontSize:20, fontWeight:700, color:'#e2e8f0', margin:0 }}>Value Bets</h1>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:13, color:'#64748b' }}>最小优势:</span>
-          <select value={minEdge} onChange={e => setMinEdge(Number(e.target.value))} style={{ background:'#0d1626', border:'1px solid #1a2d47', borderRadius:6, color:'#94a3b8', padding:'4px 8px', fontSize:13 }}>
-            {[3,5,8,10,15].map(v => <option key={v} value={v}>{v}%</option>)}
-          </select>
+    <>
+      <div className="page-header">
+        <div>
+          <div className="page-title">Value Bets</div>
+          <div className="page-subtitle">边际优势 ≥ {minEdge}% 的投注机会 · 今日 {data?.items.length ?? '—'} 个</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['all', 'home', 'draw', 'away'] as Dir[]).map(d => (
+            <button key={d} className={`chip${dir === d ? ' active' : ''}`} onClick={() => setDir(d)}>{DIR_LABELS[d]}</button>
+          ))}
         </div>
       </div>
-      {isLoading ? <div style={{ color:'#64748b' }}>加载中...</div>
-        : items.length === 0 ? <div style={{ color:'#475569', fontSize:14, textAlign:'center', padding:40 }}>暂无符合条件的 Value Bets</div>
+
+      <div style={{ padding: '10px 28px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #1e293b' }}>
+        <span style={{ fontSize: 11, color: '#475569' }}>最小优势</span>
+        <select className="sort-select" value={minEdge} onChange={e => setMinEdge(Number(e.target.value))}>
+          {[3, 5, 8, 10, 15].map(v => <option key={v} value={v}>{v}%</option>)}
+        </select>
+      </div>
+
+      {isLoading
+        ? <div style={{ padding: 24, color: '#64748b' }}>加载中...</div>
+        : items.length === 0
+        ? <div style={{ textAlign: 'center', color: '#475569', padding: 60 }}>当前无符合条件的 Value Bets</div>
         : (
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {items.map((item,i) => (
-              <div key={i} onClick={() => navigate(`/matches/${item.fixture_id}`)}
-                style={{ background:'#0d1626', border:'1px solid #1a2d47', borderRadius:10, padding:'12px 16px', cursor:'pointer', display:'grid', gridTemplateColumns:'1fr auto auto auto auto', gap:12, alignItems:'center', transition:'border-color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor='#3b82f6'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor='#1a2d47'}
-              >
-                <div>
-                  <div style={{ fontSize:13, fontWeight:600, color:'#e2e8f0' }}>{item.home_team} vs {item.away_team}</div>
-                  <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{item.competition_name} · {new Date(item.kickoff_utc).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+          <div className="vb-list">
+            {items.map((item, i) => {
+              const dirLabel = item.selection === 'home' ? '主胜' : item.selection === 'away' ? '客胜' : '平局'
+              const time = new Date(item.kickoff_utc).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+              return (
+                <div key={i} className="vb-card" onClick={() => navigate(`/matches/${item.fixture_id}`)}>
+                  <div className="vb-rank">{i + 1}</div>
+                  <div className="vb-match">
+                    <div className="vb-teams">{item.home_team} vs {item.away_team}</div>
+                    <div className="vb-meta">{item.competition_name} · {time}</div>
+                  </div>
+                  <div className="vb-stat">
+                    <div className="vb-stat-val" style={{ color: '#f1f5f9' }}>{dirLabel}</div>
+                    <div className="vb-stat-lbl">投注方向</div>
+                  </div>
+                  <div className="ob hot" style={{ minWidth: 54 }}>
+                    <div className="ol">赔率</div>
+                    <div className="ov">{item.odds.toFixed(2)}</div>
+                  </div>
+                  <div className="vb-stat">
+                    <div className="vb-stat-val" style={{ color: '#a855f7' }}>{Math.round(item.prob * 100)}%</div>
+                    <div className="vb-stat-lbl">模型概率</div>
+                  </div>
+                  <div className="vb-stat">
+                    <div className="vb-stat-val" style={{ color: '#22c55e' }}>+{item.edge_pct.toFixed(1)}%</div>
+                    <div className="vb-stat-lbl">边际优势</div>
+                  </div>
                 </div>
-                <Badge variant="purple">{item.selection==='home'?'主胜':item.selection==='away'?'客胜':'平局'}</Badge>
-                <span style={{ fontSize:13, color:'#a855f7', fontWeight:700 }}>+{item.edge_pct.toFixed(1)}%</span>
-                <span style={{ fontSize:12, color:'#94a3b8' }}>概率 {Math.round(item.prob*100)}%</span>
-                <span style={{ fontSize:15, fontWeight:700, color:'#e2e8f0' }}>{item.odds.toFixed(2)}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       }
-    </div>
+    </>
   )
 }
