@@ -34,6 +34,8 @@ async def list_fixtures(
         return {"fixtures": [], "total": 0, "cached_at": None}
     target = date or str(date_type.today())
     ids = [int(x) for x in leagues.split(",") if x.strip()]
+    if not ids:
+        return {"fixtures": [], "total": 0, "cached_at": None}
     ph = ",".join("?" * len(ids))
     params: list = [target] + ids
     extra = ""
