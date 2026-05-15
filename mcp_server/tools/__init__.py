@@ -1,1 +1,0 @@
-"""Goalcast MCP 工具模块。"""

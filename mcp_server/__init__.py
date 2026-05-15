@@ -1,1 +1,0 @@
-# Goalcast MCP Server package
