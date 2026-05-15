@@ -56,7 +56,6 @@ Thumbs.db
 /.trae
 /.claude
 /.github
-/backend/data/
 .accio
 .mcp.json
 debug
@@ -67,3 +66,4 @@ debug
 .worktrees/
 node_modules/
 .superpowers/
+backend/data/*.db
