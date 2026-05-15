@@ -119,3 +119,16 @@ html, body, #root {
 .analysis-badge .star { color:#3a3f52; font-size:10px; }
 .analysis-badge .star.on { color:#facc15; }
 .analysis-badge.muted { color:#555d72; }
+
+.fixture-card { background:#0f1220; border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:12px 14px; cursor:pointer; transition:all .15s; }
+.fixture-card:hover { border-color:rgba(0,255,157,0.28); transform:translateY(-1px); }
+.fc-head { display:flex; justify-content:space-between; font-size:11px; color:#555d72; margin-bottom:8px; }
+.fc-teams { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+.fc-team { font-size:13px; color:#e8eaf0; font-weight:500; }
+.fc-odds { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px; }
+.fc-odd { background:#161a2e; border-radius:6px; padding:6px 8px; text-align:center; }
+.fc-odd .lbl { font-size:10px; color:#555d72; }
+.fc-odd .val { font-size:14px; font-weight:600; color:#e8eaf0; font-family:"JetBrains Mono",monospace; }
+.fc-odd.best .val { color:#00FF9D; }
+.fc-odd.drop .val { color:#ef4444; }
+.fc-footer { display:flex; justify-content:flex-end; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.07); }
