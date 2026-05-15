@@ -104,3 +104,11 @@ html, body, #root {
 .ant-table-wrapper .ant-table-tbody > tr:hover > td {
   background: var(--hover-bg) !important;
 }
+
+.league-tree { display:flex; flex-direction:column; gap:8px; padding:8px; }
+.league-tree-shortcut .shortcut { padding:5px 8px; border-radius:5px; cursor:pointer; color:#9ba3b8; font-size:12px; }
+.league-tree-shortcut .shortcut.on { background:rgba(0,255,157,0.10); color:#00FF9D; }
+.league-tree-country { font-size:10px; color:#555d72; text-transform:uppercase; letter-spacing:1px; padding:6px 8px 2px; }
+.league-tree-item { padding:5px 8px; border-radius:5px; cursor:pointer; color:#9ba3b8; font-size:12px; }
+.league-tree-item:hover { color:#e8eaf0; background:#0f1220; }
+.league-tree-item.on { background:rgba(0,255,157,0.10); color:#00FF9D; }
