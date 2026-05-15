@@ -460,9 +460,11 @@ class Orchestrator:
             await self._sleep(IDLE_SLEEP_SECONDS)
 
     async def run_once(self, max_matches: int = 5) -> dict:
-        """One-shot RD cycle: fetch dropping odds → collect_all per fixture → write match_store."""
+        """One-shot RD cycle: dropping odds → collect_all → analyst summary → reviewer verdict → save."""
         import secrets
         from agents.core.data_collector import collect_all
+        from analytics.analyst import generate_summary
+        from analytics.reviewer import review
         from provider.base import get_provider
 
         run_id = secrets.token_hex(4)
@@ -470,6 +472,7 @@ class Orchestrator:
         dropping = await provider.get_dropping_odds()
         fixtures = (dropping or {}).get("data") or []
         processed = 0
+        skipped = 0
         for f in fixtures[:max_matches]:
             oa_id = f.get("id")
             if oa_id is None:
@@ -477,17 +480,24 @@ class Orchestrator:
             bundle = await collect_all(oa_fixture_id=oa_id)
             if not bundle:
                 continue
+            analysis = bundle.get("analysis")
+            if isinstance(analysis, dict):
+                analysis["analyst_summary"] = generate_summary(analysis, bundle.get("fixture"))
+                analysis["reviewer_verdict"] = review(analysis)
+                analysis["run_id"] = run_id
             record = {
                 "match_id": match_store.generate_match_id(),
                 "run_id": run_id,
-                "status": "analyzed",
+                "status": "reviewed",
                 "fixture": bundle.get("fixture"),
-                "analysis": bundle.get("analysis"),
+                "analysis": analysis,
                 "collected_at": bundle.get("collected_at"),
             }
             match_store.save(record)
+            if isinstance(analysis, dict) and analysis.get("reviewer_verdict") == "skip":
+                skipped += 1
             processed += 1
-        return {"run_id": run_id, "status": "completed", "processed": processed}
+        return {"run_id": run_id, "status": "completed", "processed": processed, "skipped": skipped}
 
     async def _sleep(self, seconds: float):
         try:

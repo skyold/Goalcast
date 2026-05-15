@@ -62,3 +62,5 @@ async def test_one_rd_cycle_writes_match_store(tmp_path, monkeypatch):
     recent = match_store.list_recent(limit=10)
     assert len(recent) >= 1
     assert recent[0].get("analysis") is not None
+    assert recent[0]["analysis"].get("analyst_summary")
+    assert recent[0]["analysis"].get("reviewer_verdict") in ("pass", "fail", "skip")
