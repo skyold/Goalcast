@@ -12,10 +12,10 @@ import FavoritesPage from "./pages/FavoritesPage";
 import BetHistoryPage from "./pages/BetHistoryPage";
 import SettingsPage from "./pages/SettingsPage";
 import PipelineMonitor from "./pages/PipelineMonitor";
-import ChatPanel from "./pages/ChatPanel";
-import BoardPage from "./pages/BoardPage";
-import DashboardPage from "./pages/DashboardPage";
-import TokenStatsPage from "./pages/TokenStatsPage";
+import ChatPanel from "./pages/legacy/ChatPanel";
+import BoardPage from "./pages/legacy/BoardPage";
+import DashboardPage from "./pages/legacy/DashboardPage";
+import TokenStatsPage from "./pages/legacy/TokenStatsPage";
 import "./index.css";
 
 function App() {

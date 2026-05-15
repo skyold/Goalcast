@@ -60,7 +60,7 @@ vi.mock("../src/store/appStore", () => ({
   ),
 }));
 
-import BoardPage from "../src/pages/BoardPage";
+import BoardPage from "../src/pages/legacy/BoardPage";
 
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {

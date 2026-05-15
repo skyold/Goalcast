@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Tooltip } from "antd";
-import { useAppStore } from "../store/appStore";
-import { api } from "../services/api";
-import { useConfig } from "../config";
-import type { AgentStatus } from "../types";
-import LogViewer from "../components/LogViewer";
-import AgentDetailDrawer from "../components/AgentDetailDrawer";
-import DashboardExtras from "../extensions/DashboardExtras";
+import { useAppStore } from "../../store/appStore";
+import { api } from "../../services/api";
+import { useConfig } from "../../config";
+import type { AgentStatus } from "../../types";
+import LogViewer from "../../components/LogViewer";
+import AgentDetailDrawer from "./AgentDetailDrawer";
+import DashboardExtras from "../../extensions/DashboardExtras";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ import { ReloadOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useAppStore } from "../store/appStore";
 import { api } from "../services/api";
-import { PipelineMatchPanel } from "../components/MatchSourcePanel";
+import { PipelineMatchPanel } from "./legacy/MatchSourcePanel";
 import type { PipelineLeague, PipelineMatch } from "../types";
 
 const POLL_INTERVAL = 10000;

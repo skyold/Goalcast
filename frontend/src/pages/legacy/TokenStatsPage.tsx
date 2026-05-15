@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Card, Table, Tag, Row, Col, Statistic, Typography, DatePicker, Space, Select } from "antd";
 import { DollarOutlined, LineChartOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { api } from "../services/api";
-import type { TokenSummary, TokenRecord } from "../types";
+import { api } from "../../services/api";
+import type { TokenSummary, TokenRecord } from "../../types";
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useAppStore } from "../store/appStore";
-import { api } from "../services/api";
-import type { ChatMessage } from "../types";
+import { useAppStore } from "../../store/appStore";
+import { api } from "../../services/api";
+import type { ChatMessage } from "../../types";
 
 const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",

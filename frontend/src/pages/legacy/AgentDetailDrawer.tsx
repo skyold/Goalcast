@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Drawer, Spin, Card, Tag, Collapse, Typography, Space, Table, Statistic, Row, Col } from "antd";
-import { api } from "../services/api";
-import type { AgentDetail, AgentToolSchema, TokenRecord } from "../types";
+import { api } from "../../services/api";
+import type { AgentDetail, AgentToolSchema, TokenRecord } from "../../types";
 
 const { Text, Paragraph } = Typography;
 

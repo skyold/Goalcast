@@ -6,11 +6,11 @@ import remarkGfm from "remark-gfm";
 import Prism from "prismjs";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { useConfig } from "../config";
-import { useAppStore } from "../store/appStore";
-import { api } from "../services/api";
-import type { JsonRecord, BoardTab, BoardTabSource, DetailTab, ColumnDef } from "../types";
-import { MatchDataPanel } from "../components/MatchSourcePanel";
+import { useConfig } from "../../config";
+import { useAppStore } from "../../store/appStore";
+import { api } from "../../services/api";
+import type { JsonRecord, BoardTab, BoardTabSource, DetailTab, ColumnDef } from "../../types";
+import { MatchDataPanel } from "./MatchSourcePanel";
 
 dayjs.extend(relativeTime);
 
