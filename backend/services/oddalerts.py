@@ -19,13 +19,14 @@ class OddAlertClient:
         return [item["id"] for item in (data if isinstance(data, list) else data.get("data", []))]
 
     async def get_fixture_detail(self, fixture_id: int) -> dict:
-        r = await self._client.get(f"/fixtures/{fixture_id}", params={"include": "h2h,correctScores"})
+        r = await self._client.get(f"/fixtures/{fixture_id}")
         r.raise_for_status()
         raw = r.json()
-        return raw.get("data", raw) if isinstance(raw, dict) else raw
+        items = raw.get("data", []) if isinstance(raw, dict) else raw
+        return items[0] if items else {}
 
     async def get_stats(self, fixture_id: int) -> dict:
-        r = await self._client.get("/stats", params={"fixture_id": fixture_id})
+        r = await self._client.get("/stats", params={"fixture_id": fixture_id, "type": "fixture"})
         r.raise_for_status()
         raw = r.json()
         return raw.get("data", raw) if isinstance(raw, dict) else {}

@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 import aiosqlite
 from database import get_db
+from routers.fixtures import _norm_status, _norm_stats
 
 router = APIRouter()
 
@@ -38,11 +39,17 @@ async def list_history(
     items = []
     for row in rows:
         d = dict(row)
-        for k in ("home_stats", "away_stats", "h2h"):
+        d["status"] = _norm_status(d.get("status", "NS"))
+        for k in ("home_stats", "away_stats"):
             if d.get(k):
                 try:
-                    d[k] = json.loads(d[k])
+                    d[k] = _norm_stats(json.loads(d[k]))
                 except Exception:
                     d[k] = None
+        if d.get("h2h"):
+            try:
+                d["h2h"] = json.loads(d["h2h"])
+            except Exception:
+                d["h2h"] = []
         items.append(d)
     return {"items": items, "total": total}

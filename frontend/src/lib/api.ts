@@ -1,6 +1,7 @@
 export interface TeamStats {
-  pos: number; wins: number; draws: number; losses: number
-  gf: number; ga: number; form5: string[]
+  wins: number; draws: number; losses: number; played: number
+  gf: number; ga: number; goals_avg: number; conceded_avg: number
+  win_pct_home: number; win_pct_away: number; form5: string[]
 }
 
 export interface FixtureSummary {

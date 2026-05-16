@@ -3,6 +3,8 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    environment:
+      - GOALCAST_DB_PATH=data/goalcast.db
     volumes:
       - ./backend/.env:/app/.env:ro
       - ./backend/data:/app/data
