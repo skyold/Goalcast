@@ -56,19 +56,49 @@ export type FixtureSummary = {
     } | null
   } | null
   drop_flag: { market_key: string; drop_percentage: number } | null
-  // legacy fields kept for backward compat with existing pages until they're migrated:
+  // legacy fields kept for backward compat with History.tsx until it's migrated to the new shape:
   home_stats?: TeamStats | null
   away_stats?: TeamStats | null
+  score_home?: number | null
+  score_away?: number | null
+  drop_pct?: number | null
+  trend_home_win?: number
+  trend_away_win?: number
+  trend_btts?: number
 }
 
-export type FixtureDetail = Omit<FixtureSummary, 'odds'> & {
+// Sub-object for the `fixture` key inside /api/fixtures/{id} response.
+// Mirrors what the backend `_parse(row)` returns plus the predictability field.
+export type FixtureCore = {
+  id: number
+  home_team: string; away_team: string
+  competition_id: number; competition_name: string
+  competition_country?: string
+  kickoff_utc: string
+  status: 'pre' | 'live' | 'ft'
+  predictability: Predictability
+  // optional flags / scores when available
+  is_friendly?: boolean
+  is_cup?: boolean
+  season_progress?: number | null
+  home_team_id?: number | null
+  away_team_id?: number | null
+  season_id?: number | null
+  score_home?: number | null
+  score_away?: number | null
+}
+
+// Top-level response shape of /api/fixtures/{id}. NOT a Pick/Omit of FixtureSummary
+// because the backend wraps fixture data in a `fixture` sub-object.
+export type FixtureDetail = {
+  fixture: FixtureCore
+  home_team_obj: { id: number; name: string; stats: unknown; form: TeamForm | null }
+  away_team_obj: { id: number; name: string; stats: unknown; form: TeamForm | null }
   prediction: Prediction | null
   odds: {
     ft_result: { pinnacle: BookmakerOdds | null; bet365: BookmakerOdds | null }
     asian_handicap_lines: AsianHandicapLine[]
   } | null
-  home_team_obj: { id: number; name: string; stats: unknown; form: TeamForm | null }
-  away_team_obj: { id: number; name: string; stats: unknown; form: TeamForm | null }
   dropping_records: Array<{
     market_key: string; drop_pct: number; bookmaker: string; recorded_at: string
   }>
@@ -111,8 +141,7 @@ async function get<T>(path: string, params?: P): Promise<T> {
 export const api = {
   fixtures: (p: { date?: string; leagues?: string; limit?: number; status?: string; predictability?: string; min_drop?: number; has_ai?: boolean }) =>
     get<{ fixtures: FixtureSummary[]; total: number; cached_at: string | null }>('/fixtures', p),
-  fixture: (id: number) =>
-    get<{ fixture: FixtureDetail; odds_history: OddsSnapshot[]; h2h: H2HRecord[]; stats: { home: TeamStats | null; away: TeamStats | null } }>(`/fixtures/${id}`),
+  fixture: (id: number) => get<FixtureDetail>(`/fixtures/${id}`),
   competitions: () =>
     get<{ competitions: Array<{ id: number; name: string }> }>('/competitions'),
   droppingOdds: (p?: { min_drop?: number; market?: string }) =>

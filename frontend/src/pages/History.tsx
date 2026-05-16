@@ -88,7 +88,7 @@ export default function History() {
                           {!!f.trend_btts && <span className="badge bb">BTTS</span>}
                         </div>
                       </td>
-                      <td className="td-drop">{f.drop_pct !== null ? `↓${Math.abs(f.drop_pct).toFixed(0)}%` : ''}</td>
+                      <td className="td-drop">{f.drop_pct != null ? `↓${Math.abs(f.drop_pct).toFixed(0)}%` : ''}</td>
                       <td style={{ color: '#334155', fontSize: 11 }}>→</td>
                     </tr>
                   )

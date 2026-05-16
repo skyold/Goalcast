@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import type { FixtureDetail, AsianHandicapLine, Prediction } from '../lib/api'
+import { api, type FixtureDetail } from '../lib/api'
 import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
 import { PredictionBars } from '../components/match/PredictionBars'
 import { ScorelineHeatmap } from '../components/match/ScorelineHeatmap'
@@ -8,33 +8,18 @@ import { AhLineSelector } from '../components/match/AhLineSelector'
 import { AhLineTable } from '../components/match/AhLineTable'
 import { FormStrip } from '../components/match/FormStrip'
 
-type FixtureDetailResponse = {
-  fixture: FixtureDetail
-  home_team_obj: { id: number; name: string; stats: unknown; form: { form5: string } | null }
-  away_team_obj: { id: number; name: string; stats: unknown; form: { form5: string } | null }
-  prediction: Prediction | null
-  odds: {
-    ft_result: unknown
-    asian_handicap_lines: AsianHandicapLine[]
-  } | null
-  dropping_records: Array<{
-    market_key: string; drop_pct: number; bookmaker: string; recorded_at: string
-  }>
-}
-
 export default function MatchDetail() {
   const { id } = useParams()
-  const [data, setData] = useState<FixtureDetailResponse | null>(null)
+  const [data, setData] = useState<FixtureDetail | null>(null)
   const [ahLine, setAhLine] = useState<number>(-0.5)
 
   useEffect(() => {
-    fetch(`/api/fixtures/${id}`)
-      .then(r => r.json())
-      .then((d: FixtureDetailResponse) => {
-        setData(d)
-        const lines = d.odds?.asian_handicap_lines ?? []
-        if (lines.length) setAhLine(lines[0].line)
-      })
+    if (!id) return
+    api.fixture(Number(id)).then((d) => {
+      setData(d)
+      const lines = d.odds?.asian_handicap_lines ?? []
+      if (lines.length) setAhLine(lines[0].line)
+    })
   }, [id])
 
   if (!data) return <div className="loading">加载中…</div>
