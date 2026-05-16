@@ -260,6 +260,49 @@ async def sync_ah_odds_seed(fixture_ids: list[int] | None = None) -> None:
             await db.commit()
 
 
+async def sync_ah_odds_latest(max_pages: int = 20) -> None:
+    started = _now()
+    async with aiosqlite.connect(_db_path()) as db:
+        try:
+            now = _now()
+            count = 0
+            for page in range(1, max_pages + 1):
+                items = await oddalerts_client.get_odds_latest(
+                    bookmakers="1,2", markets="6,51", per_page=500, page=page
+                )
+                if not items:
+                    break
+                for r in items:
+                    bk = r.get("bookmaker_id"); mk = r.get("market_id")
+                    if bk not in TARGET_BOOKMAKERS or mk not in TARGET_MARKETS:
+                        continue
+                    fid = r.get("fixture_id"); odds = r.get("odds")
+                    if not fid or odds is None:
+                        continue
+                    o = float(odds)
+                    await db.execute(
+                        """INSERT INTO bookmaker_odds
+                           (fixture_id,bookmaker_id,market_id,outcome,
+                            opening,current,peak,opening_at,current_at)
+                           VALUES(?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(fixture_id,bookmaker_id,market_id,outcome) DO UPDATE SET
+                             current=excluded.current,
+                             peak=MAX(IFNULL(bookmaker_odds.peak,0), excluded.current),
+                             current_at=excluded.current_at""",
+                        (fid, bk, mk, r.get("outcome", ""),
+                         o, o, o, now, now),
+                    )
+                    count += 1
+                if len(items) < 500:
+                    break
+            await db.commit()
+            await _log(db, "ah_odds_latest", "ok", count, started_at=started)
+            await db.commit()
+        except Exception as exc:
+            await _log(db, "ah_odds_latest", "error", error_msg=str(exc), started_at=started)
+            await db.commit()
+
+
 async def full_sync() -> None:
     await sync_from_trends()
     await sync_dropping_odds()

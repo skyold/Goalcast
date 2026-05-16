@@ -109,3 +109,40 @@ async def test_sync_ah_odds_seed_filters_bookmakers(tmp_path, monkeypatch):
     assert len(rows) == 2   # Betano dropped
     assert (rows[0][0], rows[0][1], rows[0][2]) == (1, 51, "home_m05")
     assert rows[0][3] == 1.92 and rows[0][4] == 1.85
+
+@pytest.mark.asyncio
+async def test_sync_ah_odds_latest_preserves_opening(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+    now = "2026-05-16T00:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO fixtures
+               (id,competition_id,competition_name,home_team,away_team,
+                kickoff_utc,status,fetched_at,updated_at)
+               VALUES(300,1,'L','A','B','2026-05-20T00:00:00','NS',?,?)""",
+            (now, now),
+        )
+        await db.execute(
+            """INSERT INTO bookmaker_odds
+               (fixture_id,bookmaker_id,market_id,outcome,opening,current,peak,opening_at,current_at)
+               VALUES(300,1,6,'home',2.10,2.10,2.10,?,?)""",
+            (now, now),
+        )
+        await db.commit()
+
+    latest = [{"fixture_id": 300, "market_id": 6, "outcome": "home", "odds": 1.95,
+               "unix": 1779000000, "bookmaker_id": 1, "bookmaker_name": "Pinnacle"}]
+    with patch.object(oa.oddalerts_client, "get_odds_latest",
+                       new=AsyncMock(side_effect=[latest, []])):
+        await sync.sync_ah_odds_latest()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute(
+            "SELECT current, opening FROM bookmaker_odds WHERE fixture_id=300 AND bookmaker_id=1 AND market_id=6 AND outcome='home'"
+        )
+        rows = await cur.fetchall()
+    assert rows[0] == (1.95, 2.10)   # current updated, opening preserved
