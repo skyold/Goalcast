@@ -143,7 +143,7 @@ async def list_fixtures(
     db: aiosqlite.Connection = Depends(get_db),
 ):
     target = date or str(date_type.today())
-    sql = (
+    select_cols = (
         "SELECT f.*, "
         "  hf.form5_str AS h_form5, hf.won AS h_won, hf.drawn AS h_drawn, hf.lost AS h_lost,"
         "  hf.goals_for AS h_gf, hf.goals_against AS h_ga,"
@@ -151,6 +151,8 @@ async def list_fixtures(
         "  af.goals_for AS a_gf, af.goals_against AS a_ga,"
         "  p.simulations, p.home_win, p.draw, p.away_win, p.btts, p.o25_goals,"
         "  ds.drop_pct AS d_drop_pct, ds.drop_market AS d_drop_market"
+    )
+    from_clause = (
         " FROM fixtures f"
         " LEFT JOIN team_form hf ON hf.team_id=f.home_team_id AND hf.season_id=f.season_id"
         " LEFT JOIN team_form af ON af.team_id=f.away_team_id AND af.season_id=f.season_id"
@@ -163,27 +165,35 @@ async def list_fixtures(
         " WHERE date(f.kickoff_utc)=?"
     )
     params: list = [target]
+    where_extra = ""
     if leagues:
         ids = [int(x) for x in leagues.split(",") if x.strip()]
         if ids:
-            sql += f" AND f.competition_id IN ({','.join('?'*len(ids))})"
+            where_extra += f" AND f.competition_id IN ({','.join('?'*len(ids))})"
             params.extend(ids)
     if predictability:
         levels = [s.strip() for s in predictability.split(",") if s.strip()]
         if levels:
-            sql += f" AND f.predictability IN ({','.join('?'*len(levels))})"
+            where_extra += f" AND f.predictability IN ({','.join('?'*len(levels))})"
             params.extend(levels)
     if has_ai:
-        sql += " AND p.simulations IS NOT NULL AND p.simulations > 0"
+        where_extra += " AND p.simulations IS NOT NULL AND p.simulations > 0"
     if min_drop is not None:
-        sql += " AND ds.drop_pct <= ?"
+        where_extra += " AND ds.drop_pct <= ?"
         params.append(-abs(min_drop))
     if status:
-        sql += " AND f.status=?"
+        where_extra += " AND f.status=?"
         params.append(status)
-    sql += f" ORDER BY f.kickoff_utc LIMIT {int(limit)}"
 
-    async with db.execute(sql, params) as cur:
+    base_query = select_cols + from_clause + where_extra
+    paged_query = base_query + f" ORDER BY f.kickoff_utc LIMIT {int(limit)}"
+    count_query = (
+        "SELECT COUNT(*) FROM fixtures f"
+        + from_clause.split("FROM fixtures f", 1)[1]
+        + where_extra
+    )
+
+    async with db.execute(paged_query, params) as cur:
         rows = await cur.fetchall()
 
     fixtures = []
@@ -213,7 +223,12 @@ async def list_fixtures(
                            if row["d_drop_pct"] is not None else None),
         })
         fixtures.append(d)
-    return {"fixtures": fixtures, "total": len(fixtures), "cached_at": None}
+
+    async with db.execute(count_query, params) as ccur:
+        total_row = await ccur.fetchone()
+    total = total_row[0] if total_row else len(fixtures)
+
+    return {"fixtures": fixtures, "total": total, "cached_at": None}
 
 @router.get("/competitions")
 async def list_competitions(db: aiosqlite.Connection = Depends(get_db)):
