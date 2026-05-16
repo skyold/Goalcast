@@ -172,7 +172,7 @@ async def sync_team_form(season_ids: list[int] | None = None) -> None:
             if season_ids is None:
                 cur = await db.execute(
                     """SELECT DISTINCT season_id FROM fixtures
-                       WHERE kickoff_utc >= datetime('now') AND season_id IS NOT NULL"""
+                       WHERE kickoff_utc >= strftime('%Y-%m-%dT%H:%M:%S', 'now') AND season_id IS NOT NULL"""
                 )
                 season_ids = [int(r[0]) for r in await cur.fetchall()]
             now = _now()
