@@ -80,11 +80,24 @@ class OddAlertClient:
         return raw.get("data", []) if isinstance(raw, dict) else []
 
     async def get_predictions_multiple(self, fixture_ids: list[int]) -> list[dict]:
+        if not fixture_ids:
+            return []
         ids = ",".join(str(i) for i in fixture_ids)
         r = await self._client.get("/predictions/generate/multiple", params={"ids": ids})
         r.raise_for_status()
         raw = r.json()
         return raw.get("data", []) if isinstance(raw, dict) else []
+
+    async def get_predictions_single(self, fixture_id: int) -> dict | None:
+        """Single-fixture prediction; returns None on 4xx (model unavailable for this fixture)
+        instead of raising, so per-fixture loops can skip and continue."""
+        r = await self._client.get(f"/predictions/generate/{fixture_id}")
+        if 400 <= r.status_code < 500:
+            return None
+        r.raise_for_status()
+        raw = r.json()
+        data = raw.get("data", []) if isinstance(raw, dict) else []
+        return data[0] if data else None
 
     async def aclose(self) -> None:
         await self._client.aclose()

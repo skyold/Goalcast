@@ -189,8 +189,13 @@ async def sync_team_form(season_ids: list[int] | None = None) -> None:
                 season_ids = [int(r[0]) for r in await cur.fetchall()]
             now = _now()
             count = 0
+            failed_seasons = 0
             for sid in season_ids:
-                rows = await oddalerts_client.get_season_stats_last_x(sid, n=5)
+                try:
+                    rows = await oddalerts_client.get_season_stats_last_x(sid, n=5)
+                except Exception:
+                    failed_seasons += 1
+                    continue
                 for r in rows:
                     tid = r.get("team_id")
                     if not tid:
@@ -240,8 +245,13 @@ async def sync_ah_odds_seed(fixture_ids: list[int] | None = None) -> None:
                 fixture_ids = [int(r[0]) for r in await cur.fetchall()]
             now = _now()
             count = 0
+            failed_fixtures = 0
             for fid in fixture_ids:
-                rows = await oddalerts_client.get_odds_history_by_path(fid)
+                try:
+                    rows = await oddalerts_client.get_odds_history_by_path(fid)
+                except Exception:
+                    failed_fixtures += 1
+                    continue
                 for r in rows:
                     bk = r.get("bookmaker_id"); mk = r.get("market_id")
                     if bk not in TARGET_BOOKMAKERS or mk not in TARGET_MARKETS:
@@ -315,9 +325,11 @@ async def sync_ah_odds_latest(max_pages: int = 20) -> None:
             await db.commit()
 
 
-BATCH_SIZE = 25   # safe default; raise after empirical validation
-
 async def sync_predictions() -> None:
+    """Per-fixture call to /predictions/generate/:ID. The /multiple endpoint returns 400
+    for any batch containing a fixture without an active prediction model, killing the
+    whole batch. Per-fixture is slower but resilient: each unsupported fixture is just
+    skipped via the 4xx handler in get_predictions_single."""
     started = _now()
     async with aiosqlite.connect(_db_path()) as db:
         try:
@@ -329,36 +341,37 @@ async def sync_predictions() -> None:
             fids = [int(r[0]) for r in await cur.fetchall()]
             now = _now()
             count = 0
-            for i in range(0, len(fids), BATCH_SIZE):
-                batch = fids[i:i+BATCH_SIZE]
-                if not batch:
+            skipped = 0
+            for fid in fids:
+                try:
+                    r = await oddalerts_client.get_predictions_single(fid)
+                except Exception:
+                    skipped += 1
                     continue
-                items = await oddalerts_client.get_predictions_multiple(batch)
-                for r in items:
-                    fid = r.get("fixture_id")
-                    if not fid:
-                        continue
-                    await db.execute(
-                        """INSERT INTO predictions
-                           (fixture_id,simulations,home_win,draw,away_win,btts,
-                            o15_goals,o25_goals,o35_goals,o45_goals,
-                            scorelines,updated_at)
-                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-                           ON CONFLICT(fixture_id) DO UPDATE SET
-                             simulations=excluded.simulations,
-                             home_win=excluded.home_win, draw=excluded.draw,
-                             away_win=excluded.away_win, btts=excluded.btts,
-                             o15_goals=excluded.o15_goals, o25_goals=excluded.o25_goals,
-                             o35_goals=excluded.o35_goals, o45_goals=excluded.o45_goals,
-                             scorelines=excluded.scorelines, updated_at=excluded.updated_at""",
-                        (fid, r.get("simulations", 0),
-                         r.get("home_win"), r.get("draw"), r.get("away_win"),
-                         r.get("btts"),
-                         r.get("o15_goals"), r.get("o25_goals"),
-                         r.get("o35_goals"), r.get("o45_goals"),
-                         json.dumps(r.get("scorelines") or {}), now),
-                    )
-                    count += 1
+                if r is None:
+                    skipped += 1
+                    continue
+                await db.execute(
+                    """INSERT INTO predictions
+                       (fixture_id,simulations,home_win,draw,away_win,btts,
+                        o15_goals,o25_goals,o35_goals,o45_goals,
+                        scorelines,updated_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                       ON CONFLICT(fixture_id) DO UPDATE SET
+                         simulations=excluded.simulations,
+                         home_win=excluded.home_win, draw=excluded.draw,
+                         away_win=excluded.away_win, btts=excluded.btts,
+                         o15_goals=excluded.o15_goals, o25_goals=excluded.o25_goals,
+                         o35_goals=excluded.o35_goals, o45_goals=excluded.o45_goals,
+                         scorelines=excluded.scorelines, updated_at=excluded.updated_at""",
+                    (fid, r.get("simulations", 0),
+                     r.get("home_win"), r.get("draw"), r.get("away_win"),
+                     r.get("btts"),
+                     r.get("o15_goals"), r.get("o25_goals"),
+                     r.get("o35_goals"), r.get("o45_goals"),
+                     json.dumps(r.get("scorelines") or {}), now),
+                )
+                count += 1
             await db.commit()
             await _log(db, "predictions", "ok", count, started_at=started)
             await db.commit()

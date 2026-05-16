@@ -166,13 +166,17 @@ async def test_sync_predictions_filters_poor(tmp_path, monkeypatch):
             )
         await db.commit()
 
-    fake = [{"fixture_id": 402, "simulations": 50000,
-             "home_win": 28000, "draw": 12000, "away_win": 10000,
-             "btts": 22000, "o15_goals": 35000, "o25_goals": 22000,
-             "o35_goals": 11000, "o45_goals": 5000,
-             "scorelines": {"1-0": 13.44, "2-0": 11.87}}]
-    with patch.object(oa.oddalerts_client, "get_predictions_multiple",
-                       new=AsyncMock(return_value=fake)):
+    # sync_predictions now uses per-fixture get_predictions_single; mock it accordingly.
+    # 402 (medium) -> data; 401 (poor) is filtered out before the call.
+    fake_402 = {"fixture_id": 402, "simulations": 50000,
+                "home_win": 28000, "draw": 12000, "away_win": 10000,
+                "btts": 22000, "o15_goals": 35000, "o25_goals": 22000,
+                "o35_goals": 11000, "o45_goals": 5000,
+                "scorelines": {"1-0": 13.44, "2-0": 11.87}}
+    async def _fake_single(fid):
+        return fake_402 if fid == 402 else None
+    with patch.object(oa.oddalerts_client, "get_predictions_single",
+                       new=AsyncMock(side_effect=_fake_single)):
         await sync.sync_predictions()
 
     async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
