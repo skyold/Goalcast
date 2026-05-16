@@ -196,13 +196,24 @@ async def list_fixtures(
     async with db.execute(paged_query, params) as cur:
         rows = await cur.fetchall()
 
+    # Batch-fetch bookmaker_odds for all returned fixtures in ONE query, then group in Python.
+    # Replaces previous per-row subquery (N+1) with one IN-list query.
+    fixture_ids = [row["id"] for row in rows]
+    odds_by_fixture: dict[int, list[dict]] = {}
+    if fixture_ids:
+        ph = ",".join("?" * len(fixture_ids))
+        async with db.execute(
+            f"SELECT * FROM bookmaker_odds WHERE fixture_id IN ({ph})",
+            fixture_ids,
+        ) as ocur:
+            for r in await ocur.fetchall():
+                d = dict(r)
+                odds_by_fixture.setdefault(d["fixture_id"], []).append(d)
+
     fixtures = []
     for row in rows:
         d = _parse(row)
-        async with db.execute(
-            "SELECT * FROM bookmaker_odds WHERE fixture_id=?", (row["id"],)
-        ) as ocur:
-            odds_rows = [dict(r) for r in await ocur.fetchall()]
+        odds_rows = odds_by_fixture.get(row["id"], [])
         home_form = _build_form({"form5_str": row["h_form5"], "won": row["h_won"],
                                    "drawn": row["h_drawn"], "lost": row["h_lost"],
                                    "goals_for": row["h_gf"], "goals_against": row["h_ga"]})
