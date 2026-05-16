@@ -107,6 +107,7 @@ async def sync_from_trends() -> None:
 
 async def sync_fixtures_upcoming() -> None:
     started = _now()
+    new_fids: list[int] = []
     async with aiosqlite.connect(_db_path()) as db:
         try:
             page = 1
@@ -153,9 +154,20 @@ async def sync_fixtures_upcoming() -> None:
             await db.commit()
             await _log(db, "fixtures_upcoming", "ok", upserted, started_at=started)
             await db.commit()
+            # chain: collect new fixture IDs that have no bookmaker_odds yet
+            cur = await db.execute(
+                """SELECT f.id FROM fixtures f
+                   LEFT JOIN bookmaker_odds bo ON bo.fixture_id=f.id
+                   WHERE f.kickoff_utc >= strftime('%Y-%m-%dT%H:%M:%S','now') AND bo.fixture_id IS NULL
+                   LIMIT 200"""
+            )
+            new_fids = [int(r[0]) for r in await cur.fetchall()]
         except Exception as exc:
             await _log(db, "fixtures_upcoming", "error", error_msg=str(exc), started_at=started)
             await db.commit()
+    # outside the `with` block — fresh connection used by sync_ah_odds_seed
+    if new_fids:
+        await sync_ah_odds_seed(fixture_ids=new_fids)
 
 
 def _build_form5(raw: dict) -> str:
@@ -309,3 +321,7 @@ async def full_sync() -> None:
 
 scheduler.add_job(sync_dropping_odds, "interval", minutes=5, id="dropping")
 scheduler.add_job(sync_from_trends, "interval", hours=1, id="fixture_trends")
+scheduler.add_job(sync_fixtures_upcoming, "interval", hours=1, id="fixtures_upcoming")
+scheduler.add_job(sync_ah_odds_latest, "interval", minutes=5, id="ah_odds_latest")
+scheduler.add_job(sync_team_form, "interval", hours=6, id="team_form")
+scheduler.add_job(sync_ah_odds_seed, "interval", hours=12, id="ah_odds_seed")
