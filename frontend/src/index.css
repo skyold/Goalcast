@@ -312,3 +312,19 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
 /* ── AhLineSelector ── */
 .ah-line-select { padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd;
                    font-size: 14px; background: #fff; }
+
+/* ── ScorelineHeatmap ── */
+.hm-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.hm { border-collapse: collapse; font-size: 11px; }
+.hm th, .hm td { width: var(--cell); height: var(--cell); text-align: center; vertical-align: middle; }
+.hm th { color: #888; font-weight: 500; }
+.hm-cell { position: relative; cursor: default; border: 1px solid #fff; }
+.hm-cell::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.hm-win::after  { box-shadow: inset 0 0 0 2px rgba(34, 168, 93, 0.4); }
+.hm-push::after { box-shadow: inset 0 0 0 2px rgba(212, 160, 23, 0.4); }
+.hm-lose::after { box-shadow: inset 0 0 0 2px rgba(210, 74, 74, 0.4); }
+.hm-summary { display: flex; gap: 16px; }
+.hm-stat { padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+.hm-win { background: #defae9; color: #075c2b; }
+.hm-push { background: #fff2cc; color: #8a6d10; }
+.hm-lose { background: #f7d8d8; color: #8c1f1f; }
