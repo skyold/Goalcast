@@ -298,3 +298,13 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
 .chip-reset { color: #888; }
 .load-more { margin: 16px auto; padding: 8px 20px; display: block; cursor: pointer;
               border: 1px solid #ddd; background: #fff; border-radius: 6px; }
+
+/* ── PredictionBars ── */
+.pbar { display: flex; flex-direction: column; gap: 6px; }
+.pbar-empty { color: #888; padding: 16px; text-align: center; background: #f9f9f9; border-radius: 6px; }
+.pbar-row { display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: center; font-size: 13px; }
+.pbar-label { color: #555; }
+.pbar-track { position: relative; height: 22px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+.pbar-fill { height: 100%; transition: width 0.3s; }
+.pbar-val { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+             font-size: 11px; color: #333; font-weight: 600; }
