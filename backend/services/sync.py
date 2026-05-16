@@ -158,6 +158,60 @@ async def sync_fixtures_upcoming() -> None:
             await db.commit()
 
 
+def _build_form5(raw: dict) -> str:
+    """Prefer API-provided form string; fallback to empty."""
+    s = raw.get("form_overall") or raw.get("form") or ""
+    if isinstance(s, str) and s:
+        return s[:5].upper()
+    return ""
+
+async def sync_team_form(season_ids: list[int] | None = None) -> None:
+    started = _now()
+    async with aiosqlite.connect(_db_path()) as db:
+        try:
+            if season_ids is None:
+                cur = await db.execute(
+                    """SELECT DISTINCT season_id FROM fixtures
+                       WHERE kickoff_utc >= datetime('now') AND season_id IS NOT NULL"""
+                )
+                season_ids = [int(r[0]) for r in await cur.fetchall()]
+            now = _now()
+            count = 0
+            for sid in season_ids:
+                rows = await oddalerts_client.get_season_stats_last_x(sid, n=5)
+                for r in rows:
+                    tid = r.get("team_id")
+                    if not tid:
+                        continue
+                    played = (r.get("played") or {}).get("total")
+                    won = (r.get("won") or {}).get("total")
+                    drawn = (r.get("drawn") or {}).get("total")
+                    lost = (r.get("lost") or {}).get("total")
+                    gf = (r.get("goals_for") or {}).get("total")
+                    ga = (r.get("goals_against") or {}).get("total")
+                    g_avg = (r.get("goals_total") or {}).get("total_avg")
+                    await db.execute(
+                        """INSERT INTO team_form
+                           (team_id,season_id,form5_str,played,won,drawn,lost,
+                            goals_for,goals_against,goals_avg,updated_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(team_id, season_id) DO UPDATE SET
+                             form5_str=excluded.form5_str, played=excluded.played,
+                             won=excluded.won, drawn=excluded.drawn, lost=excluded.lost,
+                             goals_for=excluded.goals_for, goals_against=excluded.goals_against,
+                             goals_avg=excluded.goals_avg, updated_at=excluded.updated_at""",
+                        (tid, sid, _build_form5(r), played, won, drawn, lost,
+                         gf, ga, g_avg, now),
+                    )
+                    count += 1
+            await db.commit()
+            await _log(db, "team_form", "ok", count, started_at=started)
+            await db.commit()
+        except Exception as exc:
+            await _log(db, "team_form", "error", error_msg=str(exc), started_at=started)
+            await db.commit()
+
+
 async def full_sync() -> None:
     await sync_from_trends()
     await sync_dropping_odds()
