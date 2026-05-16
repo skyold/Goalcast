@@ -113,6 +113,39 @@ backend/.venv/bin/pytest tests/ -q
 5. **`bookmaker_odds.current` 列收 `closing` 命名变量**（sync_ah_odds_seed 中），后续重命名 `current_price` 更清晰。
 6. **`/predictions/generate/multiple` 空列表保护**：客户端方法对 `fixture_ids=[]` 会发空请求；改为 early return `[]` 更安全（在调用方 sync_predictions 已隐式保护）。
 7. **`per_page=250` 魔数**：sync_fixtures_upcoming 调用与终止条件两处出现；提取常量。
+8. **`api.fixture()` TypeScript 签名与后端响应错位**（来自 final review HIGH-risk）：lib/api.ts 中 `api.fixture()` 泛型返回 `{fixture, odds_history, h2h, stats}`，但后端实际返回 `{fixture, home_team_obj, away_team_obj, prediction, odds, dropping_records}`。MatchDetail.tsx 绕过它用裸 fetch 工作正常，但任何新代码调用 `api.fixture()` 会拿到 undefined。需在下一 sprint 更新签名或废弃方法。
+9. **`full_sync()` 未包含 5 个新 sync job**（来自 final review）：`services/sync.py` 的 `full_sync()` 函数仅调用 `sync_from_trends + sync_dropping_odds`。任何使用 `full_sync` 触发的代码路径不会跑新 job。
+
+## Final review 发现的生产风险（HIGH/MEDIUM）
+
+> 来自完整 27-commit 评审，在 backfill 前需评估：
+
+### HIGH
+
+1. **`GET /fixtures` 列表 N+1 查询** (`backend/routers/fixtures.py:200-205`)
+   主查询返回 N=200 行后，**每行**单独 `SELECT * FROM bookmaker_odds WHERE fixture_id=?` → 单次 API 调用最多 201 条 SQL。数据多 + 并发起来即是瓶颈。**建议**：在 backfill 前把 default `limit` 临时降到 50，或用 `json_group_array` 聚合到主查询。
+
+2. **`api.fixture()` 类型错位**（同技术债 #8）
+
+### MEDIUM
+
+3. **链式 seed 错误吞噬**：`sync_fixtures_upcoming` 末尾的 `await sync_ah_odds_seed(...)` 若抛出未被自身 catch 的异常，会向上传到 APScheduler，但 sync_log 已记 `ok` —— "上游成功下游没数据" 隐蔽状态。
+4. **backfill 双重 seed**：Step 1 `sync_fixtures_upcoming` 链式 seed（限 200 条），Step 3 又跑无参 `sync_ah_odds_seed()` 扫全量。结果正确但对 `/odds/history/:ID` 重复调用——需 confirm OddAlerts quota 后再决定是否优化。
+5. **OddAlerts client 无重试/限流保护**：429/503 直接 raise → job error。建议加指数退避。
+
+## 未覆盖测试场景（final review 发现）
+
+1. `sync_fixtures_upcoming` 链式调用 `sync_ah_odds_seed` 的连接（mock 只覆盖到 upcoming 数据写入）
+2. `sync_team_form` 的 `season_ids=None` 自动发现路径
+3. `_format_ah_outcome` ↔ `parse_ah_outcome_line` round-trip 一致性
+4. `/fixtures` `count_query` 在多过滤组合下的参数顺序
+
+## Backfill 前操作员 checklist
+
+1. 确认 OddAlerts API quota（尤其 `/odds/history/:ID` 和 `/predictions/generate/multiple`）与预期调用量
+2. **降低 `limit` 默认值或修 N+1**（HIGH 1）
+3. 修 `api.fixture()` 签名 或 删除该方法（HIGH 2）
+4. backfill 跑完抽查 `sync_log` 表，验证所有 sync_type 均为 `ok` 且 records > 0
 
 ## 总结
 
