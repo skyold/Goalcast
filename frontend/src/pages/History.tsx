@@ -1,111 +1,106 @@
+// History page. OddAlerts doesn't expose ROI / per-bet outcome directly — backend needs
+// a bet_outcomes table (see docs/frontend-data-gaps.md #9). This component is wired to
+// api.history() returning legacy fields; if your backend evolves, update the column reads.
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
-
-type DropFilter = 'all' | 'drop'
+import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
 
 export default function History() {
-  const navigate = useNavigate()
-  const [offset, setOffset] = useState(0)
-  const [dropFilter, setDropFilter] = useState<DropFilter>('all')
-  const [leagueFilter, setLeagueFilter] = useState<number | null>(null)
-  const limit = 50
-
-  const { data: compData } = useQuery({ queryKey: ['competitions'], queryFn: api.competitions, staleTime: 5 * 60_000 })
-  const topLeagues = (compData?.competitions ?? []).slice(0, 8)
+  const nav = useNavigate()
+  const [strategy, setStrategy] = useState('all')
 
   const { data, isLoading } = useQuery({
-    queryKey: ['history', offset, leagueFilter],
-    queryFn: () => api.history({ limit, offset, league: leagueFilter ?? undefined }),
+    queryKey: ['history'],
+    queryFn: () => api.history({ limit: 200 }),
   })
+  const items = data?.items ?? []
 
-  const rawItems = data?.items ?? []
-  const items = dropFilter === 'drop' ? rawItems.filter(f => f.drop_pct !== null) : rawItems
-  const total = data?.total ?? 0
-
-  function resultClass(f: typeof items[0]): string {
-    if (f.status !== 'ft' || f.score_home == null || f.score_away == null) return ''
-    if (f.score_home > f.score_away) return 'rw'
-    if (f.score_home === f.score_away) return 'rd'
-    return 'rl'
-  }
+  const wins = items.filter((h: any) => h.result === 'W').length
+  const draws = items.filter((h: any) => h.result === 'D').length
+  const losses = items.filter((h: any) => h.result === 'L').length
+  const winRate = items.length ? wins / items.length * 100 : 0
 
   return (
     <>
-      <div className="page-header">
+      <div className="ph">
         <div>
-          <div className="page-title">历史记录</div>
-          <div className="page-subtitle">已存储比赛数据 · 共 {total} 场</div>
+          <div className="ph-title">历史回测</div>
+          <div className="ph-sub">策略表现 · {items.length} 个样本</div>
+        </div>
+        <div className="ph-actions">
+          <button className="btn">导出 CSV</button>
+          <button className="btn btn-primary">新建策略</button>
         </div>
       </div>
 
-      <div className="hist-table">
-        <div className="hist-filters">
-          <button className={`chip${dropFilter === 'all' ? ' active' : ''}`} onClick={() => setDropFilter('all')}>全部</button>
-          <button className={`chip${dropFilter === 'drop' ? ' active' : ''}`} onClick={() => setDropFilter('drop')}>有跌水</button>
-          <span style={{ width: 1, alignSelf: 'stretch', background: '#1e293b', margin: '0 4px' }} />
-          <button className={`chip${leagueFilter === null ? ' active' : ''}`} onClick={() => { setLeagueFilter(null); setOffset(0) }}>所有联赛</button>
-          {topLeagues.map(l => (
-            <button key={l.id} className={`chip${leagueFilter === l.id ? ' active' : ''}`} onClick={() => { setLeagueFilter(l.id); setOffset(0) }}>
-              {l.name}
-            </button>
-          ))}
+      <div className="page">
+        <div className="kpi-grid">
+          <Kpi label="总样本" value={items.length} sub={`${wins}胜 ${draws}平 ${losses}负`} />
+          <Kpi label="胜率" value={`${winRate.toFixed(0)}%`} sub="vs 上周期" />
+          <Kpi label="ROI" value="—" sub="待后端 bet_outcomes 表" />
+          <Kpi label="平均 Edge" value="—" sub="待后端聚合" />
         </div>
 
-        {isLoading
-          ? <div style={{ color: '#64748b', padding: 20 }}>加载中...</div>
-          : items.length === 0
-          ? <div style={{ textAlign: 'center', color: '#475569', padding: 60 }}>暂无已完成比赛记录</div>
-          : (
-            <table>
+        <div className="filters" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', marginBottom: 'var(--gap-grid)' }}>
+          <div className="filter-grp">
+            <span className="filter-lbl">策略</span>
+            {[['all','全部'], ['drop','高跌幅'], ['value','高 Edge'], ['high','高可预测']].map(([k, l]) => (
+              <button key={k} className={`chip${strategy === k ? ' active' : ''}`} onClick={() => setStrategy(k)}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {isLoading && <div className="empty">加载中…</div>}
+          {!isLoading && items.length === 0 && <div className="empty">无历史数据</div>}
+          {items.length > 0 && (
+            <table className="ht">
               <thead>
                 <tr>
                   <th>日期</th>
-                  <th>比赛</th>
                   <th>联赛</th>
-                  <th>比分</th>
-                  <th>趋势</th>
-                  <th>跌水</th>
-                  <th></th>
+                  <th>比赛</th>
+                  <th style={{ textAlign: 'center' }}>比分</th>
+                  <th style={{ textAlign: 'center' }}>跌幅</th>
+                  <th style={{ textAlign: 'center' }}>预测度</th>
+                  <th style={{ textAlign: 'center' }}>结果</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map(f => {
-                  const res = resultClass(f)
-                  return (
-                    <tr key={f.id} onClick={() => navigate(`/matches/${f.id}`)}>
-                      <td>{new Date(f.kickoff_utc).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}</td>
-                      <td className="td-match">{f.home_team} vs {f.away_team}</td>
-                      <td style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.competition_name}</td>
-                      <td className={`td-score${res ? ' ' + res : ''}`}>
-                        {f.status === 'ft' && f.score_home != null ? `${f.score_home}–${f.score_away}` : '—'}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 3 }}>
-                          {!!f.trend_home_win && <span className="badge bg">主胜↑</span>}
-                          {!!f.trend_away_win && <span className="badge ba">客胜↑</span>}
-                          {!!f.trend_btts && <span className="badge bb">BTTS</span>}
-                        </div>
-                      </td>
-                      <td className="td-drop">{f.drop_pct != null ? `↓${Math.abs(f.drop_pct).toFixed(0)}%` : ''}</td>
-                      <td style={{ color: '#334155', fontSize: 11 }}>→</td>
-                    </tr>
-                  )
-                })}
+                {items.map((h: any) => (
+                  <tr key={h.id} onClick={() => nav(`/matches/${h.id}`)}>
+                    <td className="num">{h.kickoff_utc?.slice(5, 10) ?? ''}</td>
+                    <td>{h.competition_name}</td>
+                    <td className="match">{h.home_team} vs {h.away_team}</td>
+                    <td className="score" style={{ textAlign: 'center' }}>
+                      {h.score_home ?? '-'}-{h.score_away ?? '-'}
+                    </td>
+                    <td className="num" style={{ textAlign: 'center', color: 'var(--acc)', fontWeight: 700 }}>
+                      {h.drop_pct != null ? `${Math.round(h.drop_pct)}%` : '—'}
+                    </td>
+                    <td style={{ textAlign: 'center' }}><PredictabilityBadge level={h.predictability} /></td>
+                    <td className={`r${h.result ?? ''}`} style={{ textAlign: 'center' }}>
+                      {h.result === 'W' ? '✓ 赢' : h.result === 'L' ? '✗ 输' : h.result === 'D' ? '◯ 走' : '—'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-          )
-        }
-
-        {total > limit && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16 }}>
-            <button disabled={offset === 0} className="btn btn-secondary" onClick={() => setOffset(Math.max(0, offset - limit))}>上一页</button>
-            <span style={{ padding: '6px 12px', color: '#64748b', fontSize: 13 }}>{Math.floor(offset / limit) + 1} / {Math.ceil(total / limit)}</span>
-            <button disabled={offset + limit >= total} className="btn btn-secondary" onClick={() => setOffset(offset + limit)}>下一页</button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
+  )
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string | number; sub: string }) {
+  return (
+    <div className="kpi">
+      <span className="kpi-lbl">{label}</span>
+      <span className="kpi-val">{value}</span>
+      <span className="kpi-delta">{sub}</span>
+    </div>
   )
 }

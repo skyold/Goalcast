@@ -1,0 +1,12 @@
+{
+  "name": "goalcast",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Goalcast monorepo test entrypoint. Delegates to backend pytest and frontend typecheck.",
+  "scripts": {
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && python3 -m pytest -q",
+    "test:frontend": "cd frontend && npm run typecheck",
+    "test:backend:install": "cd backend && python3 -m pip install -e '.[dev]'"
+  }
+}

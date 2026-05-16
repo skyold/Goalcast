@@ -1,7 +1,7 @@
 import type { Predictability } from '../../lib/api'
 
 const LABELS: Record<NonNullable<Predictability>, string> = {
-  high: '高可预测', good: '良好', medium: '一般', poor: '低可信'
+  high: '高', good: '良', medium: '中', poor: '差',
 }
 
 export function PredictabilityBadge({ level }: { level: Predictability }) {

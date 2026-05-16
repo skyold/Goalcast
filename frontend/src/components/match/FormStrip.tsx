@@ -1,11 +1,11 @@
-const CLS: Record<string, string> = { W: 'form-w', D: 'form-d', L: 'form-l' }
+const CLS: Record<string, string> = { W: 'fs-W', D: 'fs-D', L: 'fs-L' }
 
-export function FormStrip({ form5 }: { form5: string }) {
-  if (!form5) return <span className="form-empty">—</span>
+export function FormStrip({ form5 }: { form5?: string | null }) {
+  if (!form5) return <span className="muted">—</span>
   return (
-    <span className="form-strip">
+    <span className="fs">
       {form5.split('').slice(0, 5).map((c, i) => (
-        <span key={i} className={`form-letter ${CLS[c] ?? ''}`}>{c}</span>
+        <span key={i} className={`fs-l ${CLS[c] ?? ''}`}>{c}</span>
       ))}
     </span>
   )

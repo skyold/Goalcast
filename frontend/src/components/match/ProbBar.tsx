@@ -1,20 +1,20 @@
-export default function ProbBar({ home, draw, away }: { home: number | null; draw: number | null; away: number | null }) {
-  if (home == null) return null
-  const h = Math.round((home ?? 0) * 100)
-  const d = Math.round((draw ?? 0) * 100)
-  const a = Math.round((away ?? 0) * 100)
+interface Props { h: number; d: number; a: number; showLabels?: boolean }
+
+export function ProbBar({ h, d, a, showLabels = true }: Props) {
   return (
-    <div className="mc-probbar">
-      <div className="pb-wrap">
-        <div className="pb-home" style={{ flex: h }} />
-        <div className="pb-draw" style={{ flex: d }} />
-        <div className="pb-away" style={{ flex: a }} />
+    <>
+      <div className="pbar">
+        <div className="ph" style={{ width: `${h}%` }} />
+        <div className="pd" style={{ width: `${d}%` }} />
+        <div className="pa" style={{ width: `${a}%` }} />
       </div>
-      <div className="pb-labels">
-        <span className="pbl"><span className="h">{h}%</span> 主</span>
-        <span className="pbl">{d}% 平</span>
-        <span className="pbl">客 <span className="a">{a}%</span></span>
-      </div>
-    </div>
+      {showLabels && (
+        <div className="pbar-labels">
+          <span className="h">主 {h.toFixed(0)}%</span>
+          <span className="d">平 {d.toFixed(0)}%</span>
+          <span className="a">客 {a.toFixed(0)}%</span>
+        </div>
+      )}
+    </>
   )
 }

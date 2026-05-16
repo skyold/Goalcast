@@ -1,30 +1,12 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import Layout from './components/layout/Layout'
-import Dashboard from './pages/Dashboard'
-import Matches from './pages/Matches'
-import MatchDetail from './pages/MatchDetail'
-import ValueBets from './pages/ValueBets'
-import DroppingOdds from './pages/DroppingOdds'
-import History from './pages/History'
-
-const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
+import React from 'react'
+import { useStore } from './lib/store'
+import AppRoutes from './routes'
 
 export default function App() {
-  return (
-    <QueryClientProvider client={qc}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="matches" element={<Matches />} />
-            <Route path="matches/:id" element={<MatchDetail />} />
-            <Route path="value-bets" element={<ValueBets />} />
-            <Route path="dropping" element={<DroppingOdds />} />
-            <Route path="history" element={<History />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
-  )
+  const { theme, density } = useStore()
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.setAttribute('data-density', density)
+  }, [theme, density])
+  return <AppRoutes />
 }

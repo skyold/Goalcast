@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+// MatchDetail. H2H section removed (no OddAlerts endpoint — see docs/frontend-data-gaps.md).
+// "Two-team comparison" uses only fields available from /stats/fixture (no possession).
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { api, type FixtureDetail } from '../lib/api'
+import { fmtKickoff } from '../lib/format'
 import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
-import { PredictionBars } from '../components/match/PredictionBars'
-import { ScorelineHeatmap } from '../components/match/ScorelineHeatmap'
-import { AhLineSelector } from '../components/match/AhLineSelector'
-import { AhLineTable } from '../components/match/AhLineTable'
 import { FormStrip } from '../components/match/FormStrip'
+import { TeamAbbr } from '../components/match/TeamAbbr'
+import { BigBar } from '../components/match/BigBar'
+import { ScorelineHeatmap } from '../components/match/ScorelineHeatmap'   // your existing comp
+import { AhLineSelector } from '../components/match/AhLineSelector'     // your existing comp
+import { AhLineTable } from '../components/match/AhLineTable'           // your existing comp
 
 export default function MatchDetail() {
   const { id } = useParams()
+  const nav = useNavigate()
   const [data, setData] = useState<FixtureDetail | null>(null)
   const [ahLine, setAhLine] = useState<number>(-0.5)
 
@@ -22,80 +27,150 @@ export default function MatchDetail() {
     })
   }, [id])
 
-  if (!data) return <div className="loading">加载中…</div>
+  if (!data) return <div className="empty">加载中…</div>
 
   const f = data.fixture
+  const p = data.prediction
   const ah_lines = data.odds?.asian_handicap_lines ?? []
+  const ko = fmtKickoff(f.kickoff_utc)
+  const homeForm = data.home_team_obj?.form
+  const awayForm = data.away_team_obj?.form
 
   return (
-    <div className="md">
-      <section className="md-hero">
-        <div className="md-hero-top">
+    <>
+      <div className="ph">
+        <div>
+          <a href="#" onClick={(e) => { e.preventDefault(); nav('/matches') }} className="card-sub" style={{ display: 'block', marginBottom: 4 }}>← 比赛列表</a>
+          <div className="ph-title">{f.home_team} vs {f.away_team}</div>
+          <div className="ph-sub">
+            {f.competition_name}{f.competition_country ? ` · ${f.competition_country}` : ''} · {ko.date} {ko.day} {ko.time}
+          </div>
+        </div>
+        <div className="ph-actions">
           <PredictabilityBadge level={f.predictability} />
-          <h1>{f.home_team} vs {f.away_team}</h1>
+          <button className="btn">⭐ 收藏</button>
+          <button className="btn btn-primary">下注计算器</button>
         </div>
-        <div className="md-hero-meta">
-          {f.competition_name} · {new Date(f.kickoff_utc).toLocaleString('zh-CN')}
-        </div>
-      </section>
+      </div>
 
-      <section className="md-section">
-        <h2>模型概率</h2>
-        <PredictionBars prediction={data.prediction} />
-      </section>
-
-      <section className="md-section">
-        <div className="md-section-head">
-          <h2>比分概率 × 亚盘切片</h2>
-          {ah_lines.length > 0 && (
-            <AhLineSelector
-              value={ahLine}
-              options={ah_lines.map(l => l.line)}
-              onChange={setAhLine}
-            />
-          )}
-        </div>
-        {data.prediction
-          ? <ScorelineHeatmap scorelines={data.prediction.scorelines} ahLine={ahLine} />
-          : <div className="md-empty">无模型数据</div>}
-      </section>
-
-      <section className="md-section">
-        <h2>赔率全表</h2>
-        <AhLineTable lines={ah_lines} />
-      </section>
-
-      <section className="md-section">
-        <h2>两队状态</h2>
-        <div className="md-stats">
-          <div className="md-stat-col">
-            <h3>{f.home_team}</h3>
-            <FormStrip form5={data.home_team_obj?.form?.form5 ?? ''} />
+      <div className="page">
+        <div className="md-hero">
+          <div className="md-team home">
+            <div className="md-team-row">
+              <TeamAbbr name={f.home_team} teamId={f.home_team_id} size={56} />
+              <div>
+                <div className="tname">{f.home_team}</div>
+                {homeForm && (
+                  <div className="meta">
+                    进 {homeForm.gf} 失 {homeForm.ga} · {homeForm.won}-{homeForm.drawn}-{homeForm.lost}
+                  </div>
+                )}
+              </div>
+            </div>
+            <FormStrip form5={homeForm?.form5} />
           </div>
-          <div className="md-stat-col">
-            <h3>{f.away_team}</h3>
-            <FormStrip form5={data.away_team_obj?.form?.form5 ?? ''} />
+          <div className="md-vs">
+            <div className="ko-time">{ko.time}</div>
+            <div className="ko-date">{ko.day} · {ko.date}</div>
+            <div className="ko-vs">— VS —</div>
+          </div>
+          <div className="md-team away">
+            <div className="md-team-row">
+              <div style={{ textAlign: 'left' }}>
+                <div className="tname">{f.away_team}</div>
+                {awayForm && (
+                  <div className="meta">
+                    进 {awayForm.gf} 失 {awayForm.ga} · {awayForm.won}-{awayForm.drawn}-{awayForm.lost}
+                  </div>
+                )}
+              </div>
+              <TeamAbbr name={f.away_team} teamId={f.away_team_id} size={56} />
+            </div>
+            <FormStrip form5={awayForm?.form5} />
           </div>
         </div>
-      </section>
 
-      <section className="md-section">
-        <h2>跌赔记录</h2>
-        {data.dropping_records.length === 0 ? (
-          <div className="md-empty">无跌赔</div>
-        ) : (
-          <ul className="md-drops">
-            {data.dropping_records.slice(0, 20).map((d, i) => (
-              <li key={i}>
-                <span className="md-drop-mkt">{d.market_key}</span>
-                <span className="md-drop-pct">{Math.round(d.drop_pct)}%</span>
-                <span className="md-drop-bm">{d.bookmaker}</span>
-                <span className="md-drop-at">{new Date(d.recorded_at).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+        <div className="md-grid">
+          <div className="md-col">
+            <div className="card">
+              <div className="card-hdr">
+                <div className="card-title">模型概率</div>
+                <span className="card-sub">{p?.simulations ? `${p.simulations.toLocaleString()} 次模拟` : '无模型'}</span>
+              </div>
+              {p ? (
+                <>
+                  <BigBar label="主胜"     value={p.home_win_pct} kind="h" />
+                  <BigBar label="平局"     value={p.draw_pct}     kind="d" />
+                  <BigBar label="客胜"     value={p.away_win_pct} kind="a" />
+                  <div className="divider" />
+                  <BigBar label="大 2.5"   value={p.o25_pct} kind="o" />
+                  <BigBar label="两队进球" value={p.btts_pct} kind="o" />
+                </>
+              ) : <div className="empty">暂无模型数据</div>}
+            </div>
+
+            <div className="card">
+              <div className="card-hdr">
+                <div className="card-title">比分概率热图</div>
+                {ah_lines.length > 0 && (
+                  <AhLineSelector
+                    value={ahLine}
+                    options={ah_lines.map(l => l.line)}
+                    onChange={setAhLine}
+                  />
+                )}
+              </div>
+              {p
+                ? <ScorelineHeatmap scorelines={p.scorelines} ahLine={ahLine} />
+                : <div className="empty">无模型数据</div>}
+            </div>
+
+            <div className="card">
+              <div className="card-hdr">
+                <div className="card-title">亚盘全表</div>
+                <span className="card-sub">{ah_lines.length} 条线</span>
+              </div>
+              <AhLineTable lines={ah_lines} />
+            </div>
+          </div>
+
+          <div className="md-col">
+            <div className="card">
+              <div className="card-hdr">
+                <div className="card-title">跌赔记录</div>
+                <span className="card-sub">最近 24h</span>
+              </div>
+              {data.dropping_records.length === 0 ? (
+                <div className="empty">无跌赔</div>
+              ) : (
+                data.dropping_records.slice(0, 20).map((d, i) => (
+                  <div key={i} className="drop-row">
+                    <span className="time">{new Date(d.recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="mkt"><span className="tag-mkt">{d.market_key}</span></span>
+                    <span className="pct">{Math.round(d.drop_pct)}%</span>
+                    <span className="bm">{d.bookmaker}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="card">
+              <div className="card-hdr">
+                <div className="card-title">两队状态对比</div>
+                <span className="card-sub">赛季累计</span>
+              </div>
+              {homeForm && awayForm ? (
+                <>
+                  <BigBar label="主进球" value={homeForm.gf} suffix="" kind="h" />
+                  <BigBar label="客进球" value={awayForm.gf} suffix="" kind="a" />
+                  <BigBar label="主失球" value={homeForm.ga} suffix="" kind="h" />
+                  <BigBar label="客失球" value={awayForm.ga} suffix="" kind="a" />
+                </>
+              ) : <div className="empty">暂无状态数据</div>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
