@@ -67,3 +67,45 @@ async def test_sync_team_form_inserts(tmp_path, monkeypatch):
         )
         rows = await cur.fetchall()
     assert rows[0] == (11, 5, "WDWLW", 5, 3, 8)
+
+@pytest.mark.asyncio
+async def test_sync_ah_odds_seed_filters_bookmakers(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+    now = "2026-05-16T00:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO fixtures
+               (id,competition_id,competition_name,home_team,away_team,home_team_id,away_team_id,
+                kickoff_utc,status,fetched_at,updated_at)
+               VALUES(200,1,'L','A','B',11,22,'2026-05-20T00:00:00','NS',?,?)""",
+            (now, now),
+        )
+        await db.commit()
+
+    history = [
+        {"fixture_id": 200, "market_id": 51, "outcome": "home_m05",
+         "opening": "1.92", "closing": "1.85", "peak": "1.95",
+         "bookmaker_id": 1, "bookmaker_name": "Pinnacle"},
+        {"fixture_id": 200, "market_id": 6, "outcome": "home",
+         "opening": "2.05", "closing": "1.95", "peak": "2.10",
+         "bookmaker_id": 2, "bookmaker_name": "Bet365"},
+        {"fixture_id": 200, "market_id": 6, "outcome": "home",
+         "opening": "2.00", "closing": "1.92", "peak": "2.00",
+         "bookmaker_id": 7, "bookmaker_name": "Betano"},
+    ]
+    with patch.object(oa.oddalerts_client, "get_odds_history_by_path",
+                       new=AsyncMock(return_value=history)):
+        await sync.sync_ah_odds_seed(fixture_ids=[200])
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute(
+            "SELECT bookmaker_id, market_id, outcome, opening, current FROM bookmaker_odds ORDER BY bookmaker_id"
+        )
+        rows = await cur.fetchall()
+    assert len(rows) == 2   # Betano dropped
+    assert (rows[0][0], rows[0][1], rows[0][2]) == (1, 51, "home_m05")
+    assert rows[0][3] == 1.92 and rows[0][4] == 1.85

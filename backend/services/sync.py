@@ -212,6 +212,54 @@ async def sync_team_form(season_ids: list[int] | None = None) -> None:
             await db.commit()
 
 
+TARGET_BOOKMAKERS = {1, 2}    # Pinnacle, Bet365
+TARGET_MARKETS = {6, 51}      # ft_result, asian_handicap
+
+async def sync_ah_odds_seed(fixture_ids: list[int] | None = None) -> None:
+    started = _now()
+    async with aiosqlite.connect(_db_path()) as db:
+        try:
+            if fixture_ids is None:
+                cur = await db.execute(
+                    """SELECT f.id FROM fixtures f
+                       LEFT JOIN bookmaker_odds bo ON bo.fixture_id=f.id
+                       WHERE f.kickoff_utc >= strftime('%Y-%m-%dT%H:%M:%S','now') AND bo.fixture_id IS NULL"""
+                )
+                fixture_ids = [int(r[0]) for r in await cur.fetchall()]
+            now = _now()
+            count = 0
+            for fid in fixture_ids:
+                rows = await oddalerts_client.get_odds_history_by_path(fid)
+                for r in rows:
+                    bk = r.get("bookmaker_id"); mk = r.get("market_id")
+                    if bk not in TARGET_BOOKMAKERS or mk not in TARGET_MARKETS:
+                        continue
+                    opening = float(r["opening"]) if r.get("opening") else None
+                    closing = float(r["closing"]) if r.get("closing") else None
+                    peak = float(r["peak"]) if r.get("peak") else None
+                    await db.execute(
+                        """INSERT INTO bookmaker_odds
+                           (fixture_id,bookmaker_id,market_id,outcome,
+                            opening,current,peak,opening_at,current_at)
+                           VALUES(?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(fixture_id,bookmaker_id,market_id,outcome) DO UPDATE SET
+                             opening=COALESCE(bookmaker_odds.opening, excluded.opening),
+                             current=excluded.current,
+                             peak=MAX(IFNULL(bookmaker_odds.peak,0), IFNULL(excluded.peak,0)),
+                             opening_at=COALESCE(bookmaker_odds.opening_at, excluded.opening_at),
+                             current_at=excluded.current_at""",
+                        (fid, bk, mk, r.get("outcome", ""),
+                         opening, closing, peak, now, now),
+                    )
+                    count += 1
+            await db.commit()
+            await _log(db, "ah_odds_seed", "ok", count, started_at=started)
+            await db.commit()
+        except Exception as exc:
+            await _log(db, "ah_odds_seed", "error", error_msg=str(exc), started_at=started)
+            await db.commit()
+
+
 async def full_sync() -> None:
     await sync_from_trends()
     await sync_dropping_odds()
