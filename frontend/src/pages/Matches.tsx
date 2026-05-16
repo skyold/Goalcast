@@ -35,8 +35,8 @@ type SortKey = 'time' | 'drop' | 'prob'
 
 function sortFixtures(fixtures: FixtureSummary[], key: SortKey): FixtureSummary[] {
   return [...fixtures].sort((a, b) => {
-    if (key === 'drop') return (a.drop_pct ?? Infinity) - (b.drop_pct ?? Infinity)
-    if (key === 'prob') return (b.prob_home_win ?? -Infinity) - (a.prob_home_win ?? -Infinity)
+    if (key === 'drop') return (a.drop_flag?.drop_percentage ?? Infinity) - (b.drop_flag?.drop_percentage ?? Infinity)
+    if (key === 'prob') return (b.prediction_summary?.home_win_pct ?? -Infinity) - (a.prediction_summary?.home_win_pct ?? -Infinity)
     return new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime()
   })
 }
@@ -44,6 +44,10 @@ function sortFixtures(fixtures: FixtureSummary[], key: SortKey): FixtureSummary[
 export default function Matches() {
   const { selectedLeagues, toggleLeague, selectedDate, setDate } = useStore()
   const [sort, setSort] = useState<SortKey>('time')
+  const [predictability, setPredictability] = useState<string[]>([])
+  const [minDrop, setMinDrop] = useState<number | null>(null)
+  const [hasAi, setHasAi] = useState(false)
+  const [limit, setLimit] = useState(200)
   const presetValues = DATE_PRESETS.map(p => p.fn())
   const isPreset = presetValues.includes(selectedDate)
 
@@ -51,8 +55,15 @@ export default function Matches() {
   const competitions = compData?.competitions ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['fixtures', selectedDate, selectedLeagues.join(',')],
-    queryFn: () => api.fixtures({ date: selectedDate, leagues: selectedLeagues.join(',') }),
+    queryKey: ['fixtures', selectedDate, selectedLeagues.join(','), predictability.join(','), minDrop, hasAi, limit],
+    queryFn: () => api.fixtures({
+      date: selectedDate,
+      leagues: selectedLeagues.join(',') || undefined,
+      limit,
+      ...(predictability.length ? { predictability: predictability.join(',') } : {}),
+      ...(minDrop !== null ? { min_drop: minDrop } : {}),
+      ...(hasAi ? { has_ai: true } : {}),
+    }),
     enabled: selectedLeagues.length > 0,
   })
 
@@ -117,6 +128,36 @@ export default function Matches() {
           </div>
         </div>
 
+        <div className="filter-chips">
+          <button
+            className={`chip ${!predictability.includes('poor') ? 'chip-active' : ''}`}
+            onClick={() => setPredictability(p =>
+              p.includes('poor') ? p.filter(x => x !== 'poor') : [...p, 'poor'])}>
+            排除 poor
+          </button>
+          <button
+            className={`chip ${predictability.length === 2
+                                && predictability.includes('high')
+                                && predictability.includes('good') ? 'chip-active' : ''}`}
+            onClick={() => setPredictability(['high', 'good'])}>
+            只看 high + good
+          </button>
+          <button
+            className={`chip ${minDrop !== null ? 'chip-active' : ''}`}
+            onClick={() => setMinDrop(d => d === null ? 50 : null)}>
+            跌幅 ≥ 50%
+          </button>
+          <button
+            className={`chip ${hasAi ? 'chip-active' : ''}`}
+            onClick={() => setHasAi(v => !v)}>
+            只看 有 AI
+          </button>
+          <button className="chip chip-reset"
+            onClick={() => { setPredictability([]); setMinDrop(null); setHasAi(false) }}>
+            清空
+          </button>
+        </div>
+
         <div className="sort-row">
           <span style={{ fontSize: 11, color: '#475569' }}>排序</span>
           <select className="sort-select" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
@@ -152,6 +193,11 @@ export default function Matches() {
             </div>
           </div>
         ))}
+        {fixtures.length >= limit && (
+          <button className="load-more" onClick={() => setLimit(l => l + 200)}>
+            加载更多
+          </button>
+        )}
       </div>
     </>
   )

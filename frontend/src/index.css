@@ -291,3 +291,10 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
 .mc-ai-extra { color: #888; margin-left: auto; }
 .mc-odds { display: flex; gap: 16px; flex-wrap: wrap; }
 .mc-no-ah { color: #aaa; font-size: 12px; align-self: center; }
+
+/* ── Matches Filter Chips + Load More ── */
+.filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.chip-active { background: #007aff; color: #fff; border-color: #007aff; }
+.chip-reset { color: #888; }
+.load-more { margin: 16px auto; padding: 8px 20px; display: block; cursor: pointer;
+              border: 1px solid #ddd; background: #fff; border-radius: 6px; }

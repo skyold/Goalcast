@@ -109,7 +109,7 @@ async function get<T>(path: string, params?: P): Promise<T> {
 }
 
 export const api = {
-  fixtures: (p: { date?: string; leagues?: string; limit?: number; status?: string }) =>
+  fixtures: (p: { date?: string; leagues?: string; limit?: number; status?: string; predictability?: string; min_drop?: number; has_ai?: boolean }) =>
     get<{ fixtures: FixtureSummary[]; total: number; cached_at: string | null }>('/fixtures', p),
   fixture: (id: number) =>
     get<{ fixture: FixtureDetail; odds_history: OddsSnapshot[]; h2h: H2HRecord[]; stats: { home: TeamStats | null; away: TeamStats | null } }>(`/fixtures/${id}`),
