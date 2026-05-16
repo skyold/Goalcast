@@ -262,3 +262,13 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
 .form-d { background: #d4a017; }
 .form-l { background: #d24a4a; }
 .form-empty { color: #888; }
+
+/* ── OddsPair ── */
+.odds-pair { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.odds-label { font-weight: 600; color: #666; }
+.odds-row { display: flex; gap: 6px; align-items: center; }
+.odds-book { width: 56px; font-weight: 500; color: #888; font-size: 11px; }
+.odds-cell { padding: 2px 6px; border-radius: 4px; background: #f5f5f5;
+              min-width: 44px; text-align: center; }
+.odds-better { background: #defae9; }
+.odds-worse  { background: #f7d8d8; }
