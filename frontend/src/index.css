@@ -328,3 +328,10 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
 .hm-win { background: #defae9; color: #075c2b; }
 .hm-push { background: #fff2cc; color: #8a6d10; }
 .hm-lose { background: #f7d8d8; color: #8c1f1f; }
+
+/* ── AhLineTable ── */
+.aht { width: 100%; font-size: 13px; border-collapse: collapse; }
+.aht th, .aht td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #eee; }
+.aht th { background: #f9f9f9; font-weight: 600; }
+.aht-line { font-weight: 700; }
+.aht-empty { padding: 16px; text-align: center; color: #888; }
