@@ -244,3 +244,11 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: #070e1c; }
 ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+
+/* ── Predictability Badge ── */
+.pb { display: inline-block; padding: 2px 8px; border-radius: 9999px;
+      font-size: 11px; font-weight: 600; line-height: 1; }
+.pb-high   { background: #c7f0d2; color: #075c2b; }
+.pb-good   { background: #defae9; color: #1a7a3f; }
+.pb-medium { background: #fff2cc; color: #8a6d10; }
+.pb-poor   { background: #f4d6d6; color: #8c1f1f; }
