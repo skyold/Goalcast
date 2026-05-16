@@ -101,8 +101,36 @@ CREATE TABLE IF NOT EXISTS bookmaker_odds (
 CREATE_BO_IDX1 = "CREATE INDEX IF NOT EXISTS idx_bo_fix ON bookmaker_odds(fixture_id)"
 CREATE_BO_IDX2 = "CREATE INDEX IF NOT EXISTS idx_bo_fix_market ON bookmaker_odds(fixture_id, market_id)"
 
-ALTER_FIXTURES_PRED = "ALTER TABLE fixtures ADD COLUMN predictability TEXT"
-ALTER_FIXTURES_SEASON = "ALTER TABLE fixtures ADD COLUMN season_id INTEGER"
+CREATE_COMPETITIONS = """
+CREATE TABLE IF NOT EXISTS competitions (
+    id              INTEGER PRIMARY KEY,
+    name_en         TEXT NOT NULL,
+    name_zh         TEXT,
+    country         TEXT,
+    last_synced_at  DATETIME
+)
+"""
+
+CREATE_TEAMS = """
+CREATE TABLE IF NOT EXISTS teams (
+    id              INTEGER PRIMARY KEY,
+    name            TEXT NOT NULL,
+    name_zh         TEXT,
+    short_code      TEXT,
+    country         TEXT,
+    last_synced_at  DATETIME
+)
+"""
+
+# Speeds up local form5 derivation (scan fixtures by team_id, status='FT', ORDER BY kickoff DESC).
+CREATE_FIXTURES_IDX_HTEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_home_team ON fixtures(home_team_id, kickoff_utc)"
+CREATE_FIXTURES_IDX_ATEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_away_team ON fixtures(away_team_id, kickoff_utc)"
+
+ALTER_FIXTURES_PRED     = "ALTER TABLE fixtures ADD COLUMN predictability TEXT"
+ALTER_FIXTURES_SEASON   = "ALTER TABLE fixtures ADD COLUMN season_id INTEGER"
+ALTER_FIXTURES_HOME_POS = "ALTER TABLE fixtures ADD COLUMN home_position INTEGER"
+ALTER_FIXTURES_AWAY_POS = "ALTER TABLE fixtures ADD COLUMN away_position INTEGER"
+ALTER_FIXTURES_WINNING  = "ALTER TABLE fixtures ADD COLUMN winning_team INTEGER"
 
 async def init_db() -> None:
     async with aiosqlite.connect(_db_path()) as db:
@@ -117,6 +145,8 @@ async def init_db() -> None:
             CREATE_PREDICTIONS,
             CREATE_TEAM_FORM,
             CREATE_BOOKMAKER_ODDS, CREATE_BO_IDX1, CREATE_BO_IDX2,
+            CREATE_COMPETITIONS,
+            CREATE_TEAMS,
         ):
             await db.execute(ddl)
         cur = await db.execute("PRAGMA table_info(fixtures)")
@@ -125,6 +155,16 @@ async def init_db() -> None:
             await db.execute(ALTER_FIXTURES_PRED)
         if "season_id" not in existing:
             await db.execute(ALTER_FIXTURES_SEASON)
+        if "home_position" not in existing:
+            await db.execute(ALTER_FIXTURES_HOME_POS)
+        if "away_position" not in existing:
+            await db.execute(ALTER_FIXTURES_AWAY_POS)
+        if "winning_team" not in existing:
+            await db.execute(ALTER_FIXTURES_WINNING)
+        # Indexes that reference fixtures.home_team_id / away_team_id must be created
+        # AFTER ALTERs (in case those columns were added by an older migration path).
+        for ddl in (CREATE_FIXTURES_IDX_HTEAM, CREATE_FIXTURES_IDX_ATEAM):
+            await db.execute(ddl)
         await db.commit()
 
 async def get_db():

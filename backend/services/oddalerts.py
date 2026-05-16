@@ -8,7 +8,9 @@ class OddAlertClient:
         self._client = httpx.AsyncClient(
             base_url=BASE_URL,
             params={"api_token": settings.oddalerts_api_key},
-            timeout=10.0,
+            # 30s read timeout — /fixtures/between on wide windows + /odds/history on
+            # busy fixtures occasionally take 15-20s. Was 10s and caused ReadTimeouts.
+            timeout=30.0,
             follow_redirects=True,
         )
 
@@ -98,6 +100,35 @@ class OddAlertClient:
         raw = r.json()
         data = raw.get("data", []) if isinstance(raw, dict) else []
         return data[0] if data else None
+
+    async def get_competitions(self, page: int = 1, per_page: int = 250) -> list[dict]:
+        r = await self._client.get("/competitions", params={"page": page, "per_page": per_page})
+        r.raise_for_status()
+        raw = r.json()
+        return raw.get("data", []) if isinstance(raw, dict) else []
+
+    async def get_team_find(self, team_id: int) -> dict | None:
+        """Lookup team metadata (short_code, country, slug). Returns None on 4xx."""
+        r = await self._client.get(f"/teams/find/{team_id}")
+        if 400 <= r.status_code < 500:
+            return None
+        r.raise_for_status()
+        raw = r.json()
+        data = raw.get("data", []) if isinstance(raw, dict) else []
+        if isinstance(data, list):
+            return data[0] if data else None
+        return data if isinstance(data, dict) else None
+
+    async def get_fixtures_between(self, ts_from: int, ts_to: int,
+                                   page: int = 1, per_page: int = 250) -> list[dict]:
+        """Historical / time-windowed fixtures. Returns FT rows with home_goals/away_goals/winning_team."""
+        r = await self._client.get(
+            "/fixtures/between",
+            params={"from": ts_from, "to": ts_to, "page": page, "per_page": per_page},
+        )
+        r.raise_for_status()
+        raw = r.json()
+        return raw.get("data", []) if isinstance(raw, dict) else []
 
     async def aclose(self) -> None:
         await self._client.aclose()

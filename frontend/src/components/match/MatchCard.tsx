@@ -19,6 +19,12 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
   const dropPct = fixture.drop_flag?.drop_percentage ?? null
   const hf = fixture.home_form
   const af = fixture.away_form
+  // Prefer API-provided zh names (seeded for top leagues); fall back to upstream English.
+  const homeName = fixture.home_team_zh ?? fixture.home_team
+  const awayName = fixture.away_team_zh ?? fixture.away_team
+  const compName = fixture.competition_name_zh ?? fixture.competition_name
+  const homeRank = fixture.home_rank ?? null
+  const awayRank = fixture.away_rank ?? null
 
   return (
     <div
@@ -31,7 +37,7 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
       <div className="mc-hdr">
         <div className="mc-league">
           <PredictabilityBadge level={fixture.predictability} />
-          <span>{fixture.competition_name}</span>
+          <span>{compName}</span>
         </div>
         <div className="mc-time">
           <span className="day">{ko.day}</span>
@@ -42,12 +48,13 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
       <div className="mc-body">
         <div className="mc-team home">
           <div className="mc-namerow">
-            <TeamAbbr name={fixture.home_team} teamId={homeTeamId} />
-            <span className="mc-tname">{fixture.home_team}</span>
+            <TeamAbbr name={homeName} teamId={homeTeamId} />
+            <span className="mc-tname">{homeName}</span>
           </div>
-          {hf && (
+          {(hf || homeRank != null) && (
             <span className="mc-rank">
-              进 {hf.gf} 失 {hf.ga} · {hf.won}胜{hf.drawn}平{hf.lost}负
+              {homeRank != null && <>排名 #{homeRank}{hf && ' · '}</>}
+              {hf && <>进 {hf.gf} 失 {hf.ga}</>}
             </span>
           )}
           <FormStrip form5={hf?.form5} />
@@ -61,12 +68,13 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
 
         <div className="mc-team away">
           <div className="mc-namerow">
-            <TeamAbbr name={fixture.away_team} teamId={awayTeamId} />
-            <span className="mc-tname">{fixture.away_team}</span>
+            <TeamAbbr name={awayName} teamId={awayTeamId} />
+            <span className="mc-tname">{awayName}</span>
           </div>
-          {af && (
+          {(af || awayRank != null) && (
             <span className="mc-rank">
-              进 {af.gf} 失 {af.ga} · {af.won}胜{af.drawn}平{af.lost}负
+              {awayRank != null && <>排名 #{awayRank}{af && ' · '}</>}
+              {af && <>进 {af.gf} 失 {af.ga}</>}
             </span>
           )}
           <FormStrip form5={af?.form5} />

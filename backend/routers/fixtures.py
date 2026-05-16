@@ -38,6 +38,11 @@ def _norm_stats(raw: dict | None) -> dict | None:
 def _parse(row: aiosqlite.Row, with_h2h: bool = False) -> dict:
     d = dict(row)
     d["status"] = _norm_status(d.get("status", "NS"))
+    # Rename internal column home_position/away_position → home_rank/away_rank per the API contract.
+    if "home_position" in d:
+        d["home_rank"] = d.pop("home_position")
+    if "away_position" in d:
+        d["away_rank"] = d.pop("away_position")
     for key in ("home_stats", "away_stats"):
         if d.get(key):
             try:
@@ -150,13 +155,19 @@ async def list_fixtures(
         "  af.form5_str AS a_form5, af.won AS a_won, af.drawn AS a_drawn, af.lost AS a_lost,"
         "  af.goals_for AS a_gf, af.goals_against AS a_ga,"
         "  p.simulations, p.home_win, p.draw, p.away_win, p.btts, p.o25_goals,"
-        "  ds.drop_pct AS d_drop_pct, ds.drop_market AS d_drop_market"
+        "  ds.drop_pct AS d_drop_pct, ds.drop_market AS d_drop_market,"
+        "  th.short_code AS home_abbr, ta.short_code AS away_abbr,"
+        "  th.name_zh AS home_team_zh, ta.name_zh AS away_team_zh,"
+        "  c.name_zh AS competition_name_zh"
     )
     from_clause = (
         " FROM fixtures f"
         " LEFT JOIN team_form hf ON hf.team_id=f.home_team_id AND hf.season_id=f.season_id"
         " LEFT JOIN team_form af ON af.team_id=f.away_team_id AND af.season_id=f.season_id"
         " LEFT JOIN predictions p ON p.fixture_id=f.id"
+        " LEFT JOIN teams th ON th.id=f.home_team_id"
+        " LEFT JOIN teams ta ON ta.id=f.away_team_id"
+        " LEFT JOIN competitions c ON c.id=f.competition_id"
         " LEFT JOIN ("
         "   SELECT fixture_id, drop_pct, drop_market FROM odds_snapshots"
         "   WHERE (fixture_id, recorded_at) IN ("
@@ -243,8 +254,16 @@ async def list_fixtures(
 
 @router.get("/competitions")
 async def list_competitions(db: aiosqlite.Connection = Depends(get_db)):
+    # Pull every competition referenced by fixtures and join with the curated
+    # `competitions` table so the response carries `name_zh` for top leagues.
     async with db.execute(
-        "SELECT DISTINCT competition_id as id, competition_name as name FROM fixtures ORDER BY competition_name"
+        """SELECT f.competition_id AS id,
+                  f.competition_name AS name,
+                  c.name_zh AS name_zh
+           FROM fixtures f
+           LEFT JOIN competitions c ON c.id = f.competition_id
+           GROUP BY f.competition_id, f.competition_name, c.name_zh
+           ORDER BY COALESCE(c.name_zh, f.competition_name)"""
     ) as cur:
         rows = await cur.fetchall()
     return {"competitions": [dict(r) for r in rows]}

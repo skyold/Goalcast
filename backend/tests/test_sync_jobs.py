@@ -33,7 +33,10 @@ async def test_sync_fixtures_upcoming_inserts(tmp_path, monkeypatch):
     assert rows[1] == (101, "C", "high", 33, 5)
 
 @pytest.mark.asyncio
-async def test_sync_team_form_inserts(tmp_path, monkeypatch):
+async def test_sync_team_form_derives_form5_from_local_history(tmp_path, monkeypatch):
+    """Phase 1: form5 is no longer read from upstream `form_overall`; it's derived
+    from local fixtures table (status='FT'). Seeds 5 finished matches and asserts
+    the derived string plus persisted aggregates."""
     monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv("ODDALERTS_API_KEY", "K")
     import importlib, config, database, services.oddalerts as oa, services.sync as sync
@@ -41,13 +44,33 @@ async def test_sync_team_form_inserts(tmp_path, monkeypatch):
     await database.init_db()
     now = "2026-05-16T00:00:00"
     async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        # upcoming fixture so sync_team_form can discover season_id=5
         await db.execute(
             """INSERT INTO fixtures
                (id,competition_id,competition_name,home_team,away_team,home_team_id,away_team_id,
                 season_id,kickoff_utc,status,fetched_at,updated_at)
-               VALUES(100,1,'L1','A','B',11,22,5,'2026-05-20T00:00:00','NS',?,?)""",
+               VALUES(100,1,'L1','A','B',11,22,5,'2099-05-20T00:00:00','NS',?,?)""",
             (now, now),
         )
+        # 5 finished matches for team 11. Oldest → newest, outcomes from team 11's
+        # perspective: W, D, L, W, W. With 末尾=最近 convention the derived string
+        # should be "WDLWW".
+        history = [
+            (201, "2025-04-01", 11, 22, 11,   2, 1),  # W home
+            (202, "2025-04-08", 33, 11, None, 1, 1),  # D draw
+            (203, "2025-04-15", 11, 44, 44,   0, 1),  # L home
+            (204, "2025-04-22", 55, 11, 11,   0, 2),  # W away
+            (205, "2025-04-29", 11, 66, 11,   3, 0),  # W home
+        ]
+        for fid, ko, h, a, win, sh, sa in history:
+            await db.execute(
+                """INSERT INTO fixtures
+                   (id,competition_id,competition_name,home_team,away_team,
+                    home_team_id,away_team_id,kickoff_utc,status,
+                    score_home,score_away,winning_team,fetched_at,updated_at)
+                   VALUES(?,1,'L1','H','A',?,?,?,?, ?,?,?,?,?)""",
+                (fid, h, a, ko, "FT", sh, sa, win, now, now),
+            )
         await db.commit()
 
     fake_rows = [{
@@ -55,7 +78,6 @@ async def test_sync_team_form_inserts(tmp_path, monkeypatch):
         "played": {"total": 5}, "won": {"total": 3}, "drawn": {"total": 1}, "lost": {"total": 1},
         "goals_for": {"total": 8}, "goals_against": {"total": 4},
         "goals_total": {"total_avg": 2.4},
-        "form_overall": "WDWLW"
     }]
     with patch.object(oa.oddalerts_client, "get_season_stats_last_x",
                        new=AsyncMock(return_value=fake_rows)):
@@ -66,7 +88,133 @@ async def test_sync_team_form_inserts(tmp_path, monkeypatch):
             "SELECT team_id, season_id, form5_str, played, won, goals_for FROM team_form"
         )
         rows = await cur.fetchall()
-    assert rows[0] == (11, 5, "WDWLW", 5, 3, 8)
+    assert rows[0] == (11, 5, "WDLWW", 5, 3, 8)
+
+
+@pytest.mark.asyncio
+async def test_sync_fixtures_upcoming_persists_positions(tmp_path, monkeypatch):
+    """Phase 1: home_position/away_position must be written through from upstream."""
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+
+    fake = [
+        {"id": 700, "home_name": "A", "away_name": "B", "home_id": 11, "away_id": 22,
+         "competition_id": 1, "competition_name": "L1",
+         "season_id": 5, "unix": 1779000000, "status": "NS",
+         "home_position": 4, "away_position": 11},
+    ]
+    with patch.object(oa.oddalerts_client, "get_upcoming_fixtures",
+                       new=AsyncMock(side_effect=[fake, []])):
+        await sync.sync_fixtures_upcoming()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute("SELECT home_position, away_position FROM fixtures WHERE id=700")
+        rows = await cur.fetchall()
+    assert rows[0] == (4, 11)
+
+
+@pytest.mark.asyncio
+async def test_sync_historical_fixtures_persists_ft_only(tmp_path, monkeypatch):
+    """Phase 1: only status=FT rows are persisted with score/winning_team."""
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+
+    items = [
+        {"id": 801, "status": "FT", "home_name": "A", "away_name": "B",
+         "home_id": 11, "away_id": 22, "competition_id": 1, "competition_name": "L1",
+         "season_id": 5, "unix": 1778000000, "home_goals": 2, "away_goals": 1,
+         "winning_team": 11, "home_position": 1, "away_position": 12},
+        {"id": 802, "status": "NS",
+         "home_name": "C", "away_name": "D",
+         "competition_id": 1, "competition_name": "L1"},
+    ]
+    with patch.object(oa.oddalerts_client, "get_fixtures_between",
+                       new=AsyncMock(side_effect=[items, []])):
+        await sync.sync_historical_fixtures(days=30)
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute(
+            "SELECT id, status, score_home, score_away, winning_team FROM fixtures ORDER BY id"
+        )
+        rows = await cur.fetchall()
+    assert rows == [(801, "FT", 2, 1, 11)]
+
+
+@pytest.mark.asyncio
+async def test_sync_competitions_preserves_name_zh(tmp_path, monkeypatch):
+    """Phase 1: re-syncing competitions must NOT clobber curated name_zh."""
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO competitions (id, name_en, name_zh, country, last_synced_at)
+               VALUES(419, 'La Liga', '西甲', 'Spain', '2026-01-01T00:00:00')"""
+        )
+        await db.commit()
+
+    upstream = [
+        {"id": 419, "name": "La Liga", "country": "Spain"},
+        {"id": 999, "name": "Unknown League", "country": "Nowhere"},
+    ]
+    with patch.object(oa.oddalerts_client, "get_competitions",
+                       new=AsyncMock(side_effect=[upstream, []])):
+        await sync.sync_competitions()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute("SELECT id, name_en, name_zh FROM competitions ORDER BY id")
+        rows = await cur.fetchall()
+    assert (419, "La Liga", "西甲") in rows
+    assert (999, "Unknown League", None) in rows
+
+
+@pytest.mark.asyncio
+async def test_sync_teams_meta_writes_short_code(tmp_path, monkeypatch):
+    """Phase 1: sync_teams_meta upserts teams from /teams/find/:ID and
+    preserves curated name_zh on already-seeded rows."""
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+
+    now = "2026-05-16T00:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO fixtures
+               (id,competition_id,competition_name,home_team,away_team,
+                home_team_id,away_team_id,kickoff_utc,status,fetched_at,updated_at)
+               VALUES(900,1,'L1','A','B',11,22,'2099-01-01T00:00:00','NS',?,?)""",
+            (now, now),
+        )
+        await db.execute(
+            """INSERT INTO teams (id, name, name_zh, last_synced_at)
+               VALUES(11, 'OldName', '马德里竞技', NULL)"""
+        )
+        await db.commit()
+
+    async def _fake_team(tid):
+        return {"id": tid, "name": f"T{tid}", "short_code": f"S{tid}", "country": "X"}
+    with patch.object(oa.oddalerts_client, "get_team_find",
+                       new=AsyncMock(side_effect=_fake_team)):
+        await sync.sync_teams_meta()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute(
+            "SELECT id, name, name_zh, short_code, country FROM teams ORDER BY id"
+        )
+        rows = await cur.fetchall()
+    by_id = {r[0]: r for r in rows}
+    assert by_id[11] == (11, "T11", "马德里竞技", "S11", "X")  # zh preserved, code added
+    assert by_id[22] == (22, "T22", None, "S22", "X")
 
 @pytest.mark.asyncio
 async def test_sync_ah_odds_seed_filters_bookmakers(tmp_path, monkeypatch):

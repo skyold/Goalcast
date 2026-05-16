@@ -4,10 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
 from routers import fixtures, odds, history, sync as sync_router
 from services.sync import scheduler
+from services.seed import load_seeds
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await load_seeds()
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)

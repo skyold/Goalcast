@@ -124,7 +124,7 @@ export default function Matches() {
                     key={c.id}
                     className={`chip chip-mute${selectedLeagues.includes(c.id) ? ' active' : ''}`}
                     onClick={() => toggleLeague(c.id)}
-                  >{c.name}</button>
+                  >{c.name_zh ?? c.name}</button>
                 ))}
                 {others.length > 0 && (
                   <button

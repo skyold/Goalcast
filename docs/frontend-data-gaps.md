@@ -2,6 +2,9 @@
 
 > 基于 `Goalcast Prototype.html` 设计原型对照 `docs/oddalerts-api.md` 整理。
 > 用于驱动后端补字段、决定原型模块去留。
+>
+> **配套文档**：[`api-contract.md`](./api-contract.md) —— 按端点列出**目标响应 schema**，是后端开发的直接依据。
+> 本文是 UI 视角的缺口清单，按 gap 编号；后端开发请优先看 `api-contract.md`。
 
 ---
 

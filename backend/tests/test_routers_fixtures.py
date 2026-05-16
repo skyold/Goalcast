@@ -101,6 +101,50 @@ async def test_list_fixtures_returns_predictability_form_odds(tmp_path, monkeypa
     assert f["odds"]["asian_handicap"]["pinnacle"]["home_odds"] == 1.85
 
 @pytest.mark.asyncio
+async def test_list_fixtures_exposes_rank_abbr_zh(tmp_path, monkeypatch):
+    """Phase 1: /api/fixtures must surface home_rank/away_rank, home_abbr/away_abbr,
+    home_team_zh/away_team_zh, and competition_name_zh when teams/competitions rows exist."""
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    import importlib, database, main
+    importlib.reload(database); await database.init_db()
+    now = "2026-05-15T15:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO fixtures
+               (id,competition_id,competition_name,home_team,away_team,
+                home_team_id,away_team_id,season_id,kickoff_utc,status,
+                predictability,home_position,away_position,fetched_at,updated_at)
+               VALUES(7,419,'La Liga','Atlético Madrid','Sevilla',11509,11575,762170,
+                      '2026-05-15T15:00:00','pre','high',4,11,?,?)""",
+            (now, now),
+        )
+        await db.execute(
+            """INSERT INTO competitions (id, name_en, name_zh, country, last_synced_at)
+               VALUES(419, 'La Liga', '西甲', 'Spain', ?)""",
+            (now,),
+        )
+        await db.execute(
+            """INSERT INTO teams (id, name, name_zh, short_code, country, last_synced_at)
+               VALUES(11509, 'Atlético Madrid', '马德里竞技', 'ATM', 'Spain', ?),
+                     (11575, 'Sevilla',         '塞维利亚',   'SEV', 'Spain', ?)""",
+            (now, now),
+        )
+        await db.commit()
+    importlib.reload(main)
+    async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as c:
+        r = await c.get("/api/fixtures", params={"date": "2026-05-15", "leagues": "419"})
+    assert r.status_code == 200
+    f = r.json()["fixtures"][0]
+    assert f["home_rank"] == 4
+    assert f["away_rank"] == 11
+    assert f["home_abbr"] == "ATM"
+    assert f["away_abbr"] == "SEV"
+    assert f["home_team_zh"] == "马德里竞技"
+    assert f["away_team_zh"] == "塞维利亚"
+    assert f["competition_name_zh"] == "西甲"
+
+
+@pytest.mark.asyncio
 async def test_get_fixture_detail_returns_prediction_and_ah_lines(tmp_path, monkeypatch):
     monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
     import importlib, database, main, json

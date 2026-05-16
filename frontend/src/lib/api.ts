@@ -36,7 +36,14 @@ export type Prediction = {
 export type FixtureSummary = {
   id: number
   home_team: string; away_team: string
+  home_team_zh?: string | null
+  away_team_zh?: string | null
+  home_abbr?: string | null
+  away_abbr?: string | null
+  home_rank?: number | null
+  away_rank?: number | null
   competition_name: string
+  competition_name_zh?: string | null
   competition_country?: string
   kickoff_utc: string
   status: 'pre' | 'live' | 'ft'
@@ -143,7 +150,7 @@ export const api = {
     get<{ fixtures: FixtureSummary[]; total: number; cached_at: string | null }>('/fixtures', p),
   fixture: (id: number) => get<FixtureDetail>(`/fixtures/${id}`),
   competitions: () =>
-    get<{ competitions: Array<{ id: number; name: string }> }>('/competitions'),
+    get<{ competitions: Array<{ id: number; name: string; name_zh?: string | null }> }>('/competitions'),
   droppingOdds: (p?: { min_drop?: number; market?: string }) =>
     get<{ items: DroppingOddsItem[]; synced_at: string }>('/dropping-odds', p),
   valueBets: (p?: { min_edge?: number }) =>
