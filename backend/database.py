@@ -106,6 +106,10 @@ ALTER_FIXTURES_SEASON = "ALTER TABLE fixtures ADD COLUMN season_id INTEGER"
 
 async def init_db() -> None:
     async with aiosqlite.connect(_db_path()) as db:
+        # WAL mode allows concurrent readers + one writer without disk-image
+        # corruption that can occur with the default rollback journal under
+        # interrupted long writes. Persistent once set; safe to re-issue.
+        await db.execute("PRAGMA journal_mode=WAL")
         for ddl in (
             CREATE_FIXTURES, CREATE_FIXTURES_IDX1, CREATE_FIXTURES_IDX2,
             CREATE_ODDS, CREATE_ODDS_IDX1, CREATE_ODDS_IDX2,
