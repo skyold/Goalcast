@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime, timezone
 import aiosqlite
@@ -6,6 +7,22 @@ from database import _db_path
 from services.oddalerts import oddalerts_client
 
 scheduler = AsyncIOScheduler()
+
+# Concurrency cap for OddAlerts HTTP calls inside sync jobs.
+# OddAlerts publishes no rate limit; 5 is a conservative starting value that
+# yielded no 429s in local backfill testing. Raise if quota allows.
+OA_CONCURRENCY = 5
+
+async def _gather_throttled(coros: list, concurrency: int = OA_CONCURRENCY) -> list:
+    """Run awaitables concurrently capped by a semaphore. Returns results in input order,
+    with exceptions returned in place (callers MUST inspect for Exception instances)."""
+    if not coros:
+        return []
+    sem = asyncio.Semaphore(concurrency)
+    async def _bound(c):
+        async with sem:
+            return await c
+    return await asyncio.gather(*[_bound(c) for c in coros], return_exceptions=True)
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -190,10 +207,12 @@ async def sync_team_form(season_ids: list[int] | None = None) -> None:
             now = _now()
             count = 0
             failed_seasons = 0
-            for sid in season_ids:
-                try:
-                    rows = await oddalerts_client.get_season_stats_last_x(sid, n=5)
-                except Exception:
+            # Fan out all season fetches concurrently (capped by OA_CONCURRENCY).
+            results = await _gather_throttled(
+                [oddalerts_client.get_season_stats_last_x(sid, n=5) for sid in season_ids]
+            )
+            for sid, rows in zip(season_ids, results):
+                if isinstance(rows, Exception):
                     failed_seasons += 1
                     continue
                 for r in rows:
@@ -246,10 +265,12 @@ async def sync_ah_odds_seed(fixture_ids: list[int] | None = None) -> None:
             now = _now()
             count = 0
             failed_fixtures = 0
-            for fid in fixture_ids:
-                try:
-                    rows = await oddalerts_client.get_odds_history_by_path(fid)
-                except Exception:
+            # Fan out per-fixture odds-history fetches concurrently.
+            results = await _gather_throttled(
+                [oddalerts_client.get_odds_history_by_path(fid) for fid in fixture_ids]
+            )
+            for fid, rows in zip(fixture_ids, results):
+                if isinstance(rows, Exception):
                     failed_fixtures += 1
                     continue
                 for r in rows:
@@ -342,10 +363,12 @@ async def sync_predictions() -> None:
             now = _now()
             count = 0
             skipped = 0
-            for fid in fids:
-                try:
-                    r = await oddalerts_client.get_predictions_single(fid)
-                except Exception:
+            # Fan out per-fixture prediction fetches concurrently.
+            results = await _gather_throttled(
+                [oddalerts_client.get_predictions_single(fid) for fid in fids]
+            )
+            for fid, r in zip(fids, results):
+                if isinstance(r, Exception):
                     skipped += 1
                     continue
                 if r is None:
