@@ -272,3 +272,22 @@ body { background: #060d1a; color: #e2e8f0; font-family: -apple-system, 'Inter',
               min-width: 44px; text-align: center; }
 .odds-better { background: #defae9; }
 .odds-worse  { background: #f7d8d8; }
+
+/* ── MatchCard ── */
+.mc { padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer;
+       display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.mc:hover { background: #fafafa; }
+.mc-head { display: flex; gap: 8px; align-items: center; }
+.mc-teams { flex: 1; font-size: 15px; }
+.mc-drop { font-size: 11px; padding: 2px 6px; border-radius: 4px;
+            background: #ffe9e9; color: #8c1f1f; }
+.mc-drop-alert { background: #ff6b6b; color: #fff; }
+.mc-meta { color: #888; font-size: 12px; }
+.mc-form { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.mc-form-label { color: #888; font-weight: 600; }
+.mc-form-sep { color: #ccc; }
+.mc-ai { display: flex; gap: 12px; font-size: 12px; align-items: center; }
+.mc-ai-label { color: #888; font-weight: 600; }
+.mc-ai-extra { color: #888; margin-left: auto; }
+.mc-odds { display: flex; gap: 16px; flex-wrap: wrap; }
+.mc-no-ah { color: #aaa; font-size: 12px; align-self: center; }
