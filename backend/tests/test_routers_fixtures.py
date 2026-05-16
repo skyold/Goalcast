@@ -42,3 +42,60 @@ async def test_get_fixture_not_found(app_with_db):
     async with AsyncClient(transport=ASGITransport(app=app_with_db), base_url="http://test") as client:
         r = await client.get("/api/fixtures/999")
     assert r.status_code == 404
+
+@pytest.mark.asyncio
+async def test_list_fixtures_returns_predictability_form_odds(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    import importlib, database, main
+    importlib.reload(database)
+    await database.init_db()
+    now = "2026-05-15T15:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO fixtures
+               (id,competition_id,competition_name,home_team,away_team,
+                home_team_id,away_team_id,season_id,kickoff_utc,status,predictability,
+                fetched_at,updated_at)
+               VALUES(1,101,'Premier League','Arsenal','Chelsea',11,22,55,
+                      '2026-05-15T15:00:00','pre','high',?,?)""",
+            (now, now),
+        )
+        await db.execute(
+            """INSERT INTO team_form
+               (team_id,season_id,form5_str,played,won,drawn,lost,
+                goals_for,goals_against,goals_avg,updated_at)
+               VALUES(11,55,'WWLDW',5,3,1,1,8,4,2.4,?)""",
+            (now,),
+        )
+        await db.execute(
+            """INSERT INTO predictions
+               (fixture_id,simulations,home_win,draw,away_win,btts,o25_goals,updated_at)
+               VALUES(1,50000,28000,12000,10000,22000,22000,?)""",
+            (now,),
+        )
+        await db.execute(
+            """INSERT INTO bookmaker_odds
+               (fixture_id,bookmaker_id,market_id,outcome,opening,current,peak,opening_at,current_at)
+               VALUES(1,1,6,'home',2.05,1.95,2.10,?,?),
+                     (1,1,6,'draw',3.40,3.40,3.40,?,?),
+                     (1,1,6,'away',4.20,4.20,4.20,?,?),
+                     (1,2,6,'home',2.00,1.91,2.00,?,?),
+                     (1,2,6,'draw',3.50,3.50,3.50,?,?),
+                     (1,2,6,'away',4.00,4.00,4.00,?,?),
+                     (1,1,51,'home_m05',1.85,1.85,1.95,?,?),
+                     (1,1,51,'away_p05',1.95,1.95,1.95,?,?)""",
+            tuple([now] * 16),
+        )
+        await db.commit()
+    importlib.reload(main)
+    async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as c:
+        r = await c.get("/api/fixtures", params={"date": "2026-05-15", "leagues": "101"})
+    assert r.status_code == 200
+    f = r.json()["fixtures"][0]
+    assert f["predictability"] == "high"
+    assert f["home_form"]["form5"] == "WWLDW"
+    assert f["prediction_summary"]["home_win_pct"] == pytest.approx(56.0, abs=0.1)
+    assert f["odds"]["ft_result"]["pinnacle"]["home"] == 1.95
+    assert f["odds"]["ft_result"]["bet365"]["home"] == 1.91
+    assert f["odds"]["asian_handicap"]["line"] == -0.5
+    assert f["odds"]["asian_handicap"]["pinnacle"]["home_odds"] == 1.85
