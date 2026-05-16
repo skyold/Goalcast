@@ -223,17 +223,117 @@ async def list_competitions(db: aiosqlite.Connection = Depends(get_db)):
         rows = await cur.fetchall()
     return {"competitions": [dict(r) for r in rows]}
 
+def _bookmaker_1x2_detail(rows: list[dict], bk: int) -> dict | None:
+    pick = {r["outcome"]: r for r in rows if r["market_id"] == 6 and r["bookmaker_id"] == bk}
+    if not pick:
+        return None
+    def _entry(o):
+        r = pick.get(o)
+        if not r:
+            return None
+        return {
+            "current": float(r["current"]) if r["current"] is not None else None,
+            "opening": float(r["opening"]) if r["opening"] is not None else None,
+            "current_at": r["current_at"],
+        }
+    return {"home": _entry("home"), "draw": _entry("draw"), "away": _entry("away")}
+
+def _all_ah_lines(rows: list[dict]) -> list[dict]:
+    from services.ah import parse_ah_outcome_line
+    by_bm: dict[int, dict[float, dict[str, dict]]] = {}
+    for r in rows:
+        if r["market_id"] != 51:
+            continue
+        parsed = parse_ah_outcome_line(r["outcome"])
+        if not parsed:
+            continue
+        side, line = parsed
+        home_line = line if side == "home" else -line
+        b = by_bm.setdefault(r["bookmaker_id"], {}).setdefault(home_line, {})
+        b[side] = {
+            "current": float(r["current"]) if r["current"] is not None else None,
+            "opening": float(r["opening"]) if r["opening"] is not None else None,
+        }
+    all_lines = sorted(set().union(*(b.keys() for b in by_bm.values())) if by_bm else [])
+    out = []
+    for ln in all_lines:
+        item = {"line": ln}
+        for bk_name, bk_id in (("pinnacle", 1), ("bet365", 2)):
+            d = by_bm.get(bk_id, {}).get(ln, {})
+            home, away = d.get("home", {}), d.get("away", {})
+            if home or away:
+                item[bk_name] = {
+                    "home": home.get("current"), "away": away.get("current"),
+                    "opening_home": home.get("opening"), "opening_away": away.get("opening"),
+                }
+            else:
+                item[bk_name] = None
+        out.append(item)
+    return out
+
+def _build_detail_odds(rows: list[dict]) -> dict | None:
+    if not rows:
+        return None
+    ft = {"pinnacle": _bookmaker_1x2_detail(rows, 1), "bet365": _bookmaker_1x2_detail(rows, 2)}
+    return {"ft_result": ft, "asian_handicap_lines": _all_ah_lines(rows)}
+
 @router.get("/fixtures/{fixture_id}")
 async def get_fixture(fixture_id: int, db: aiosqlite.Connection = Depends(get_db)):
     async with db.execute("SELECT * FROM fixtures WHERE id=?", (fixture_id,)) as cur:
         row = await cur.fetchone()
     if not row:
         raise HTTPException(404, "Fixture not found")
-    fixture = _parse(row, with_h2h=True)
-    h2h = fixture.pop("h2h", [])
-    stats = {"home": fixture.get("home_stats"), "away": fixture.get("away_stats")}
+    fixture = _parse(row, with_h2h=False)
+    fixture["predictability"] = row["predictability"]
+
+    async with db.execute("SELECT * FROM predictions WHERE fixture_id=?", (fixture_id,)) as cur:
+        p = await cur.fetchone()
+    prediction = None
+    if p and p["simulations"]:
+        s = p["simulations"]
+        prediction = {
+            "simulations": s,
+            "home_win_pct": _pct(p["home_win"], s),
+            "draw_pct":     _pct(p["draw"], s),
+            "away_win_pct": _pct(p["away_win"], s),
+            "btts_pct":     _pct(p["btts"], s),
+            "o25_pct":      _pct(p["o25_goals"], s),
+            "o35_pct":      _pct(p["o35_goals"], s),
+            "scorelines":   json.loads(p["scorelines"] or "{}"),
+            "updated_at":   p["updated_at"],
+        }
+
+    async with db.execute("SELECT * FROM bookmaker_odds WHERE fixture_id=?", (fixture_id,)) as cur:
+        odds_rows = [dict(r) for r in await cur.fetchall()]
+    odds = _build_detail_odds(odds_rows)
+
     async with db.execute(
-        "SELECT * FROM odds_snapshots WHERE fixture_id=? ORDER BY recorded_at", (fixture_id,)
-    ) as cur:
-        odds_history = [dict(r) for r in await cur.fetchall()]
-    return {"fixture": fixture, "odds_history": odds_history, "h2h": h2h, "stats": stats}
+        """SELECT tf.* FROM fixtures f
+           LEFT JOIN team_form tf ON tf.team_id=f.home_team_id AND tf.season_id=f.season_id
+           WHERE f.id=?""", (fixture_id,)) as cur:
+        hf_row = await cur.fetchone()
+    async with db.execute(
+        """SELECT tf.* FROM fixtures f
+           LEFT JOIN team_form tf ON tf.team_id=f.away_team_id AND tf.season_id=f.season_id
+           WHERE f.id=?""", (fixture_id,)) as cur:
+        af_row = await cur.fetchone()
+    home_form = _build_form(dict(hf_row) if hf_row else None)
+    away_form = _build_form(dict(af_row) if af_row else None)
+
+    home_team_obj = {"id": row["home_team_id"], "name": row["home_team"],
+                       "stats": fixture.get("home_stats"), "form": home_form}
+    away_team_obj = {"id": row["away_team_id"], "name": row["away_team"],
+                       "stats": fixture.get("away_stats"), "form": away_form}
+
+    async with db.execute(
+        """SELECT market AS market_key, drop_market, drop_pct,
+                  odds_home, odds_draw, odds_away, bookmaker, recorded_at
+           FROM odds_snapshots
+           WHERE fixture_id=?
+           ORDER BY recorded_at DESC LIMIT 50""",
+        (fixture_id,)) as cur:
+        drops = [dict(r) for r in await cur.fetchall()]
+
+    # 注意：键名用 *_obj 后缀以免与 fixture 内的字符串字段 home_team / away_team 冲突
+    return {"fixture": fixture, "home_team_obj": home_team_obj, "away_team_obj": away_team_obj,
+            "prediction": prediction, "odds": odds, "dropping_records": drops}

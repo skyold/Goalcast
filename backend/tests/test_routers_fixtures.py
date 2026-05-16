@@ -99,3 +99,43 @@ async def test_list_fixtures_returns_predictability_form_odds(tmp_path, monkeypa
     assert f["odds"]["ft_result"]["bet365"]["home"] == 1.91
     assert f["odds"]["asian_handicap"]["line"] == -0.5
     assert f["odds"]["asian_handicap"]["pinnacle"]["home_odds"] == 1.85
+
+@pytest.mark.asyncio
+async def test_get_fixture_detail_returns_prediction_and_ah_lines(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    import importlib, database, main, json
+    importlib.reload(database); await database.init_db()
+    now = "2026-05-15T15:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        await db.execute(
+            """INSERT INTO fixtures(id,competition_id,competition_name,home_team,away_team,
+                home_team_id,away_team_id,season_id,kickoff_utc,status,predictability,
+                fetched_at,updated_at)
+               VALUES(1,101,'PL','A','B',11,22,55,'2026-05-15T15:00:00','pre','medium',?,?)""",
+            (now, now),
+        )
+        await db.execute(
+            """INSERT INTO predictions(fixture_id,simulations,home_win,draw,away_win,btts,
+                o15_goals,o25_goals,o35_goals,o45_goals,scorelines,updated_at)
+               VALUES(1,50000,28000,12000,10000,22000,35000,22000,11000,5000,?,?)""",
+            (json.dumps({"1-0": 13.44, "2-0": 11.87, "1-1": 11.5}), now),
+        )
+        await db.execute(
+            """INSERT INTO bookmaker_odds
+               (fixture_id,bookmaker_id,market_id,outcome,opening,current,peak,opening_at,current_at)
+               VALUES(1,1,51,'home_m05',1.92,1.85,1.95,?,?),
+                     (1,1,51,'away_p05',1.95,1.95,1.95,?,?),
+                     (1,1,51,'home_m075',2.10,2.10,2.10,?,?),
+                     (1,1,51,'away_p075',1.75,1.75,1.75,?,?)""",
+            tuple([now] * 8),
+        )
+        await db.commit()
+    importlib.reload(main)
+    async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as c:
+        r = await c.get("/api/fixtures/1")
+    j = r.json()
+    assert j["prediction"]["home_win_pct"] == pytest.approx(56.0, abs=0.1)
+    assert j["prediction"]["scorelines"]["1-0"] == 13.44
+    ah_lines = j["odds"]["asian_handicap_lines"]
+    lines = sorted([l["line"] for l in ah_lines])
+    assert -0.75 in lines and -0.5 in lines
