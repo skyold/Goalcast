@@ -105,6 +105,59 @@ async def sync_from_trends() -> None:
             await _log(db, "fixture_trends", "error", error_msg=str(exc), started_at=started)
             await db.commit()
 
+async def sync_fixtures_upcoming() -> None:
+    started = _now()
+    async with aiosqlite.connect(_db_path()) as db:
+        try:
+            page = 1
+            upserted = 0
+            while True:
+                items = await oddalerts_client.get_upcoming_fixtures(page=page, per_page=250)
+                if not items:
+                    break
+                now = _now()
+                for it in items:
+                    fid = it.get("id")
+                    if not fid:
+                        continue
+                    kickoff = _from_unix(it.get("unix"))
+                    await db.execute(
+                        """INSERT INTO fixtures
+                           (id,competition_id,competition_name,home_team,away_team,
+                            home_team_id,away_team_id,season_id,kickoff_utc,status,
+                            predictability,fetched_at,updated_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(id) DO UPDATE SET
+                             kickoff_utc=excluded.kickoff_utc,
+                             status=excluded.status,
+                             predictability=excluded.predictability,
+                             home_team_id=excluded.home_team_id,
+                             away_team_id=excluded.away_team_id,
+                             season_id=excluded.season_id,
+                             updated_at=excluded.updated_at""",
+                        (fid,
+                         it.get("competition_id", 0),
+                         it.get("competition_name", ""),
+                         it.get("home_name", ""),
+                         it.get("away_name", ""),
+                         it.get("home_id"), it.get("away_id"),
+                         it.get("season_id"),
+                         kickoff, it.get("status", "NS"),
+                         it.get("competition_predictability"),
+                         now, now),
+                    )
+                    upserted += 1
+                page += 1
+                if len(items) < 250:
+                    break
+            await db.commit()
+            await _log(db, "fixtures_upcoming", "ok", upserted, started_at=started)
+            await db.commit()
+        except Exception as exc:
+            await _log(db, "fixtures_upcoming", "error", error_msg=str(exc), started_at=started)
+            await db.commit()
+
+
 async def full_sync() -> None:
     await sync_from_trends()
     await sync_dropping_odds()
