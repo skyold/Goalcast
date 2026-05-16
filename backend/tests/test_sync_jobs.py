@@ -146,3 +146,39 @@ async def test_sync_ah_odds_latest_preserves_opening(tmp_path, monkeypatch):
         )
         rows = await cur.fetchall()
     assert rows[0] == (1.95, 2.10)   # current updated, opening preserved
+
+@pytest.mark.asyncio
+async def test_sync_predictions_filters_poor(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+    now = "2026-05-16T00:00:00"
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        for fid, pred in [(401, "poor"), (402, "medium")]:
+            await db.execute(
+                """INSERT INTO fixtures
+                   (id,competition_id,competition_name,home_team,away_team,
+                    kickoff_utc,status,predictability,fetched_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                (fid, 1, "L", "A", "B", "2026-05-20T00:00:00", "NS", pred, now, now),
+            )
+        await db.commit()
+
+    fake = [{"fixture_id": 402, "simulations": 50000,
+             "home_win": 28000, "draw": 12000, "away_win": 10000,
+             "btts": 22000, "o15_goals": 35000, "o25_goals": 22000,
+             "o35_goals": 11000, "o45_goals": 5000,
+             "scorelines": {"1-0": 13.44, "2-0": 11.87}}]
+    with patch.object(oa.oddalerts_client, "get_predictions_multiple",
+                       new=AsyncMock(return_value=fake)):
+        await sync.sync_predictions()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        cur = await db.execute("SELECT fixture_id, home_win, scorelines FROM predictions")
+        rows = await cur.fetchall()
+    assert len(rows) == 1   # poor was filtered out
+    assert rows[0][0] == 402
+    assert rows[0][1] == 28000
+    assert json.loads(rows[0][2])["1-0"] == 13.44

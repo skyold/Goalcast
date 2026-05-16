@@ -315,6 +315,58 @@ async def sync_ah_odds_latest(max_pages: int = 20) -> None:
             await db.commit()
 
 
+BATCH_SIZE = 25   # safe default; raise after empirical validation
+
+async def sync_predictions() -> None:
+    started = _now()
+    async with aiosqlite.connect(_db_path()) as db:
+        try:
+            cur = await db.execute(
+                """SELECT id FROM fixtures
+                   WHERE kickoff_utc >= strftime('%Y-%m-%dT%H:%M:%S','now')
+                     AND (predictability IS NULL OR predictability != 'poor')"""
+            )
+            fids = [int(r[0]) for r in await cur.fetchall()]
+            now = _now()
+            count = 0
+            for i in range(0, len(fids), BATCH_SIZE):
+                batch = fids[i:i+BATCH_SIZE]
+                if not batch:
+                    continue
+                items = await oddalerts_client.get_predictions_multiple(batch)
+                for r in items:
+                    fid = r.get("fixture_id")
+                    if not fid:
+                        continue
+                    await db.execute(
+                        """INSERT INTO predictions
+                           (fixture_id,simulations,home_win,draw,away_win,btts,
+                            o15_goals,o25_goals,o35_goals,o45_goals,
+                            scorelines,updated_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                           ON CONFLICT(fixture_id) DO UPDATE SET
+                             simulations=excluded.simulations,
+                             home_win=excluded.home_win, draw=excluded.draw,
+                             away_win=excluded.away_win, btts=excluded.btts,
+                             o15_goals=excluded.o15_goals, o25_goals=excluded.o25_goals,
+                             o35_goals=excluded.o35_goals, o45_goals=excluded.o45_goals,
+                             scorelines=excluded.scorelines, updated_at=excluded.updated_at""",
+                        (fid, r.get("simulations", 0),
+                         r.get("home_win"), r.get("draw"), r.get("away_win"),
+                         r.get("btts"),
+                         r.get("o15_goals"), r.get("o25_goals"),
+                         r.get("o35_goals"), r.get("o45_goals"),
+                         json.dumps(r.get("scorelines") or {}), now),
+                    )
+                    count += 1
+            await db.commit()
+            await _log(db, "predictions", "ok", count, started_at=started)
+            await db.commit()
+        except Exception as exc:
+            await _log(db, "predictions", "error", error_msg=str(exc), started_at=started)
+            await db.commit()
+
+
 async def full_sync() -> None:
     await sync_from_trends()
     await sync_dropping_odds()
@@ -325,3 +377,4 @@ scheduler.add_job(sync_fixtures_upcoming, "interval", hours=1, id="fixtures_upco
 scheduler.add_job(sync_ah_odds_latest, "interval", minutes=5, id="ah_odds_latest")
 scheduler.add_job(sync_team_form, "interval", hours=6, id="team_form")
 scheduler.add_job(sync_ah_odds_seed, "interval", hours=12, id="ah_odds_seed")
+scheduler.add_job(sync_predictions, "interval", hours=6, id="predictions")
