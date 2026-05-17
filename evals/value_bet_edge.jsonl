@@ -1,0 +1,14 @@
+{"id": "home-fav-positive-edge",      "inputs": {"prob": 0.55, "odds": 2.10},  "expected": 7.38,  "note": "Realistic home-favorite with 7-8% edge — most common +EV bucket"}
+{"id": "draw-negative-edge",          "inputs": {"prob": 0.25, "odds": 3.40},  "expected": -4.41, "note": "Draw market: model under bookmaker implied — must show as negative"}
+{"id": "away-underdog-value",         "inputs": {"prob": 0.30, "odds": 4.50},  "expected": 7.78,  "note": "Underdog with genuine value — high-payout +EV case"}
+{"id": "fair-line-no-edge",           "inputs": {"prob": 0.50, "odds": 2.00},  "expected": 0.0,   "note": "Exactly fair line — must round to 0.00, not float noise"}
+{"id": "fair-line-1pct-under",        "inputs": {"prob": 0.49, "odds": 2.00},  "expected": -1.0,  "note": "Tight negative — guards against sign flips in rounding"}
+{"id": "longshot-tiny-value",         "inputs": {"prob": 0.05, "odds": 25.0},  "expected": 1.0,   "note": "Long-odds market: 1pp of value matters — must not round to 0"}
+{"id": "longshot-trap-no-value",      "inputs": {"prob": 0.04, "odds": 25.0},  "expected": 0.0,   "note": "Long-odds trap: model agrees with book — must NOT show as +EV"}
+{"id": "heavy-favorite-thin-edge",    "inputs": {"prob": 0.85, "odds": 1.20},  "expected": 1.67,  "note": "Heavy fav with small absolute edge — UI may want to surface anyway"}
+{"id": "sharp-line-slight-neg",       "inputs": {"prob": 0.60, "odds": 1.65},  "expected": -0.61, "note": "Sharp bookmaker line just inside fair — must show negative, not 0"}
+{"id": "mid-range-5pct-edge",         "inputs": {"prob": 0.45, "odds": 2.50},  "expected": 5.0,   "note": "Textbook +EV case used in UI screenshots / docs"}
+{"id": "null-prob-returns-null",      "inputs": {"prob": null, "odds": 2.00},  "expected": null,  "note": "Missing model prediction — never coerce to 0 or surface as +EV"}
+{"id": "null-odds-returns-null",      "inputs": {"prob": 0.55, "odds": null},  "expected": null,  "note": "Missing bookmaker odds — same guard as above"}
+{"id": "zero-odds-returns-null",      "inputs": {"prob": 0.55, "odds": 0.0},   "expected": null,  "note": "Division-by-zero guard — caught explicitly by `odds <= 0` check"}
+{"id": "negative-odds-returns-null",  "inputs": {"prob": 0.55, "odds": -1.5},  "expected": null,  "note": "Garbage upstream data — guard must not produce a meaningful number"}
