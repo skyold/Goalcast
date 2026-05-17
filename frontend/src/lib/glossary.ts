@@ -2,15 +2,17 @@
 // Add entries here when a new tooltip/InfoIcon point is wired up.
 
 export const glossary = {
-  // PredictabilityBadge
+  // 模型覆盖 (Model coverage) — 来自 OddAlerts 的 competition_predictability 字段，
+  // 实际描述模型对该联赛的建模行为，不是球赛"难/易"，也不等于"准/不准"。
+  // 经数据验证：'poor' 联赛 100% 不产生预测，其他等级 ~50% 有预测输出。
   'mc.predictability.high':
-    '可预测度：高。模型对该场比赛结果较有把握，建议关注。',
+    '模型覆盖：完整建模。模型对该联赛充分输出概率预测，结果可见于模型概率卡片。',
   'mc.predictability.good':
-    '可预测度：良。模型有较稳健的判断，比一般场次更可信。',
+    '模型覆盖：已建模。模型可为该联赛输出预测，覆盖度次于"完整建模"。',
   'mc.predictability.medium':
-    '可预测度：中。常见水平，仅作参考。',
+    '模型覆盖：弱建模。模型可输出预测，但置信度边际较低；只作辅助参考。',
   'mc.predictability.poor':
-    '可预测度：差。比赛走势难判，建议谨慎或跳过。',
+    '模型覆盖：未建模。OddAlerts 模型不对该联赛产生预测（实测 0% 覆盖率），详情页将看不到模型概率。注意：这不代表比赛本身难预测。',
 
   // Phase 3 占位（接线时随写文案，先放 placeholder）
   'mc.rank': '当前联赛积分榜排名。',
@@ -33,7 +35,7 @@ export const glossary = {
   'dash.drop_high':
     '高跌幅：24h 内主胜赔率跌幅 ≥50% 的比赛数（强信号）。',
   'dash.predictability':
-    '可预测度 ≥ 一般：模型把握度在「中」及以上的比赛数。',
+    '已建模比赛：模型覆盖等级在「弱建模」及以上的比赛数。"未建模"联赛排除在外。',
   'dash.top_drops':
     '过去 24h 主胜赔率跌幅最大的 5 场比赛，按跌幅倒序。',
   'dash.upcoming':

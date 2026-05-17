@@ -45,18 +45,25 @@ export default function LeagueStats() {
         {empty ? (
           <div className="empty">{t('insights.league.empty')}</div>
         ) : (
-          <div className="kpi-grid">
-            <Kpi label={t('insights.league.matches_played')}     value={data.matches_played} />
-            <Kpi label={t('insights.league.avg_goals')}          value={data.avg_goals.toFixed(2)} />
-            <Kpi label={t('insights.league.home_win')}           value={pct(data.home_win_pct)} />
-            <Kpi label={t('insights.league.draw')}               value={pct(data.draw_pct)} />
-            <Kpi label={t('insights.league.away_win')}           value={pct(data.away_win_pct)} />
-            <Kpi label={t('insights.league.upset')}              value={pct(data.upset_pct)}            sub={t('insights.league.upset_hint')} />
-            <Kpi label={t('insights.league.top_predictability')} value={pct(data.top_predictability_pct)} />
-            <Kpi label={t('insights.league.model_hit_rate')}
-                 value={data.model_hit_rate_pct == null ? t('insights.league.unavailable') : pct(data.model_hit_rate_pct)}
-                 sub={t('insights.league.model_hit_rate_hint')} />
-          </div>
+          <>
+            <div className="kpi-grid">
+              <Kpi label={t('insights.league.matches_played')} value={data.matches_played} />
+              <Kpi label={t('insights.league.avg_goals')}      value={data.avg_goals.toFixed(2)} />
+              <Kpi label={t('insights.league.home_win')}       value={pct(data.home_win_pct)} />
+              <Kpi label={t('insights.league.draw')}           value={pct(data.draw_pct)} />
+              <Kpi label={t('insights.league.away_win')}       value={pct(data.away_win_pct)} />
+            </div>
+            {data.predicted_count > 0 && (
+              <div className="kpi-grid" style={{ marginTop: 'var(--gap-grid)' }}>
+                <Kpi label={t('insights.league.model_hit_rate')}
+                     value={data.model_hit_rate_pct == null ? t('insights.league.unavailable') : pct(data.model_hit_rate_pct)}
+                     sub={t('insights.league.model_hit_rate_hint', { n: data.predicted_count })} />
+                <Kpi label={t('insights.league.upset')}
+                     value={data.upset_pct == null ? t('insights.league.unavailable') : pct(data.upset_pct)}
+                     sub={t('insights.league.upset_hint', { n: data.predicted_count })} />
+              </div>
+            )}
+          </>
         )}
       </div>
     </>

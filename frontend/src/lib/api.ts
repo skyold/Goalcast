@@ -273,9 +273,9 @@ export interface LeagueStats {
   home_win_pct: number
   draw_pct: number
   away_win_pct: number
-  upset_pct: number
   model_hit_rate_pct: number | null
-  top_predictability_pct: number
+  upset_pct: number | null
+  predicted_count: number
 }
 
 export interface H2HItem {

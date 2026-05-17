@@ -165,9 +165,9 @@ async def league_stats(
             "home_win_pct": 0.0,
             "draw_pct": 0.0,
             "away_win_pct": 0.0,
-            "upset_pct": 0.0,
             "model_hit_rate_pct": None,
-            "top_predictability_pct": 0.0,
+            "upset_pct": None,
+            "predicted_count": 0,
         }
 
     home_wins = sum(1 for r in rows if r["score_home"] > r["score_away"])
@@ -175,9 +175,12 @@ async def league_stats(
     away_wins = sum(1 for r in rows if r["score_home"] < r["score_away"])
     total_goals = sum((r["score_home"] or 0) + (r["score_away"] or 0) for r in rows)
 
-    upsets = sum(1 for r in rows if r["predictability"] == "poor")
-    top_pred = sum(1 for r in rows if r["predictability"] in ("high", "good"))
-
+    # model_hit_rate + upset would compare the model's pre-game top pick to the
+    # actual outcome. The data pipeline currently doesn't snapshot predictions
+    # at NS→FT transition (predictions and bookmaker_odds rows are pre-game only),
+    # so for FT rows the JOIN is always empty. The fields stay in the response
+    # contract — they'll auto-populate once a snapshot pipeline lands — but in
+    # current data they will be None / 0 for every league.
     model_total = 0
     model_hits = 0
     for r in rows:
@@ -205,7 +208,7 @@ async def league_stats(
         "home_win_pct": round(home_wins / n * 100, 1),
         "draw_pct":     round(draws    / n * 100, 1),
         "away_win_pct": round(away_wins / n * 100, 1),
-        "upset_pct":    round(upsets / n * 100, 1),
         "model_hit_rate_pct": round(model_hits / model_total * 100, 1) if model_total else None,
-        "top_predictability_pct": round(top_pred / n * 100, 1),
+        "upset_pct":          round((model_total - model_hits) / model_total * 100, 1) if model_total else None,
+        "predicted_count":    model_total,
     }

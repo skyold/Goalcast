@@ -251,9 +251,10 @@ async def test_league_stats_aggregates(app_with_ft):
     assert d["home_win_pct"] == pytest.approx(40.0)
     assert d["draw_pct"]     == pytest.approx(40.0)
     assert d["away_win_pct"] == pytest.approx(20.0)
-    assert d["upset_pct"] == pytest.approx(20.0)
-    assert d["top_predictability_pct"] == pytest.approx(60.0)
+    # 4 predictions, 3 hits → hit_rate 75%, upset 25%
     assert d["model_hit_rate_pct"] == pytest.approx(75.0)
+    assert d["upset_pct"] == pytest.approx(25.0)
+    assert d["predicted_count"] == 4
 
 
 @pytest.mark.asyncio
@@ -261,8 +262,11 @@ async def test_league_stats_empty_returns_zeros(app_with_ft):
     async with AsyncClient(transport=ASGITransport(app=app_with_ft), base_url="http://test") as c:
         r = await c.get("/api/insights/leagues/9999")
     assert r.status_code == 200
-    assert r.json()["matches_played"] == 0
-    assert r.json()["model_hit_rate_pct"] is None
+    body = r.json()
+    assert body["matches_played"] == 0
+    assert body["model_hit_rate_pct"] is None
+    assert body["upset_pct"] is None
+    assert body["predicted_count"] == 0
 
 
 # ---------- h2h ----------
