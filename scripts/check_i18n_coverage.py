@@ -45,6 +45,7 @@ ALLOWED_INLINE_MARKERS = (
 )
 
 CJK_RE = re.compile(r"[一-鿿]+")
+COMMENT_RE = re.compile(r"^\s*//")  # single-line TS/JS comments (block comments are rare here)
 
 
 def main() -> int:
@@ -79,6 +80,8 @@ def main() -> int:
             continue
         for ln, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if not CJK_RE.search(line):
+                continue
+            if COMMENT_RE.match(line):
                 continue
             if any(m in line for m in ALLOWED_INLINE_MARKERS):
                 continue

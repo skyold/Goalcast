@@ -86,6 +86,8 @@
   "matches.sort.prob": "主胜概率",
   "matches.section.matches_count": "{n} 场",
   "matches.more_n": "更多 (+{n})",
+  "matches.manage_my_leagues": "⚙ 管理",
+  "matches.my_leagues_empty": "你还没选联赛，前往 我的联赛 添加",
 
   "card.home": "主",
   "card.draw": "平",

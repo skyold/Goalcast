@@ -3,13 +3,15 @@
 //   - removed legacy CSS classnames; uses the new themes.css system (chip, filter-grp, etc)
 //   - leagues rendered as flat chips (you can re-enable the continent grouping later)
 //   - skeletons replaced by .empty placeholder for brevity (drop in <Skeleton /> if needed)
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../lib/store'
 import { api, type FixtureSummary } from '../lib/api'
 import { POPULAR_LEAGUE_IDS } from '../lib/popularLeagues'
 import { pickZh, useT } from '../lib/i18n'
+import { useAuth } from '../lib/auth'
+import { useMyLeagues } from '../lib/myLeagues'
 import MatchCard from '../components/match/MatchCard'
 
 type SortKey = 'time' | 'drop' | 'prob'
@@ -36,6 +38,9 @@ export default function Matches() {
   const nav = useNavigate()
   const t = useT()
   const { selectedLeagues, toggleLeague, selectedDate, setDate } = useStore()
+  const { user } = useAuth()
+  const { ids: myLeagueIds } = useMyLeagues()
+  const isLoggedIn = !!user
   const [sort, setSort] = useState<SortKey>('time')
   const [filter, setFilter] = useState({ excludePoor: false, onlyHigh: false, minDrop: false, hasAi: false })
   const [limit, setLimit] = useState(200)
@@ -47,6 +52,14 @@ export default function Matches() {
     staleTime: 5 * 60_000,
   })
   const competitions = compData?.competitions ?? []
+
+  // When logged in, chip selection is bound to the saved prefs. Resync the
+  // store whenever prefs change (login, switch account, or save in settings).
+  // Anonymous users keep their persisted manual selections.
+  useEffect(() => {
+    if (!isLoggedIn || myLeagueIds == null) return
+    useStore.setState({ selectedLeagues: [...myLeagueIds] })
+  }, [isLoggedIn, myLeagueIds])
 
   const { data, isLoading } = useQuery({
     queryKey: ['fixtures', selectedDate, selectedLeagues.join(','), sort, filter, limit],
@@ -108,32 +121,58 @@ export default function Matches() {
 
         <div className="filter-grp">
           <span className="filter-lbl">{t('matches.section.league')}</span>
-          {(() => {
-            const popular: typeof competitions = []
-            const others: typeof competitions = []
-            for (const c of competitions) {
-              if (POPULAR_LEAGUE_IDS.has(c.id) || selectedLeagues.includes(c.id)) popular.push(c)
-              else others.push(c)
-            }
-            const visible = showAllLeagues ? [...popular, ...others] : popular
-            return (
+          {isLoggedIn ? (
+            // Logged-in: chip list = user's saved prefs only. No "更多" tail; users
+            // add/remove leagues via /settings/leagues, not by browsing the full pool.
+            myLeagueIds && myLeagueIds.length > 0 ? (
               <>
-                {visible.map(c => (
-                  <button
-                    key={c.id}
-                    className={`chip chip-mute${selectedLeagues.includes(c.id) ? ' active' : ''}`}
-                    onClick={() => toggleLeague(c.id)}
-                  >{pickZh(c.name_zh, c.name)}</button>
-                ))}
-                {others.length > 0 && (
-                  <button
-                    className="chip chip-mute"
-                    onClick={() => setShowAllLeagues(v => !v)}
-                  >{showAllLeagues ? t('common.collapse') : t('matches.more_n', { n: others.length })}</button>
-                )}
+                {competitions
+                  .filter(c => myLeagueIds.includes(c.id))
+                  .map(c => (
+                    <button
+                      key={c.id}
+                      className={`chip chip-mute${selectedLeagues.includes(c.id) ? ' active' : ''}`}
+                      onClick={() => toggleLeague(c.id)}
+                    >{pickZh(c.name_zh, c.name)}</button>
+                  ))}
+                <Link to="/settings/leagues" className="chip chip-mute">
+                  {t('matches.manage_my_leagues')}
+                </Link>
               </>
+            ) : (
+              <Link to="/settings/leagues" className="chip chip-mute">
+                {t('matches.my_leagues_empty')}
+              </Link>
             )
-          })()}
+          ) : (
+            // Anonymous: keep existing popular-vs-others split with "更多" toggle.
+            (() => {
+              const popular: typeof competitions = []
+              const others: typeof competitions = []
+              for (const c of competitions) {
+                if (POPULAR_LEAGUE_IDS.has(c.id) || selectedLeagues.includes(c.id)) popular.push(c)
+                else others.push(c)
+              }
+              const visible = showAllLeagues ? [...popular, ...others] : popular
+              return (
+                <>
+                  {visible.map(c => (
+                    <button
+                      key={c.id}
+                      className={`chip chip-mute${selectedLeagues.includes(c.id) ? ' active' : ''}`}
+                      onClick={() => toggleLeague(c.id)}
+                    >{pickZh(c.name_zh, c.name)}</button>
+                  ))}
+                  {others.length > 0 && (
+                    <button
+                      className="chip chip-mute"
+                      onClick={() => setShowAllLeagues(v => !v)}
+                    >{showAllLeagues ? t('common.collapse') : t('matches.more_n', { n: others.length })}</button>
+                  )}
+                </>
+              )
+            })()
+          )}
         </div>
 
         <div className="filter-grp">

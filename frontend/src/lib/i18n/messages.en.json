@@ -86,6 +86,8 @@
   "matches.sort.prob": "Home win %",
   "matches.section.matches_count": "{n} matches",
   "matches.more_n": "More (+{n})",
+  "matches.manage_my_leagues": "⚙ Manage",
+  "matches.my_leagues_empty": "No leagues yet — go to My leagues to add",
 
   "card.home": "H",
   "card.draw": "D",
