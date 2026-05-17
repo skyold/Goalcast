@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { fmtKickoff } from '../lib/format'
+import { Tooltip } from '../components/shared/Tooltip'
+import { gloss } from '../lib/glossary'
 
 export default function DroppingOdds() {
   const nav = useNavigate()
@@ -47,7 +49,11 @@ export default function DroppingOdds() {
               <div>
                 <div className="do-info-title">{d.home_team} vs {d.away_team}</div>
                 <div className="do-info-meta">
-                  {d.competition_name} · {ko.day} {ko.time} · 市场 <span className="tag-mkt">{d.market}</span> ·{' '}
+                  {d.competition_name} · {ko.day} {ko.time} · 市场{' '}
+                  <Tooltip content={gloss('drop.market_tag')}>
+                    <span className="tag-mkt" tabIndex={0}>{d.market}</span>
+                  </Tooltip>
+                  {' · '}
                   {new Date(d.recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
@@ -58,10 +64,12 @@ export default function DroppingOdds() {
                   <span className="new">{close.toFixed(2)}</span>
                 </div>
               )}
-              <div className="do-pct">
-                <div className="do-pct-val">{Math.round(d.drop_pct ?? 0)}%</div>
-                <div className="do-pct-lbl">↓ DROP</div>
-              </div>
+              <Tooltip content={gloss('drop.drop_pct')}>
+                <div className="do-pct" tabIndex={0}>
+                  <div className="do-pct-val">{Math.round(d.drop_pct ?? 0)}%</div>
+                  <div className="do-pct-lbl">↓ DROP</div>
+                </div>
+              </Tooltip>
             </div>
           )
         })}

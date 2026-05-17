@@ -6,6 +6,8 @@ import { fmtKickoff } from '../lib/format'
 import MatchCard from '../components/match/MatchCard'
 import { BigBar } from '../components/match/BigBar'
 import { Spark } from '../components/shared/Spark'
+import { InfoIcon } from '../components/shared/InfoIcon'
+import type { GlossaryKey } from '../lib/glossary'
 
 export default function Dashboard() {
   const nav = useNavigate()
@@ -58,17 +60,17 @@ export default function Dashboard() {
 
       <div className="page">
         <div className="kpi-grid">
-          <Kpi label="候选比赛"   value={total}             delta="+ 3 自昨日"     spark={[8, 10, 9, 11, 13, 12, 13]} color="var(--acc)" />
-          <Kpi label="AI 已建模"  value={withAi}            delta={`${total ? Math.round(withAi/total*100) : 0}% 覆盖率`} spark={[6, 7, 8, 9, 10, 11, withAi]} color="var(--acc-3)" />
-          <Kpi label="高跌幅 ≥50%" value={drops.length}      delta={`${drops.length} 场预警`} spark={[2, 3, 4, 3, 5, 6, drops.length]} color="var(--acc-2)" />
-          <Kpi label="可预测度 ≥ 一般" value={pred}          delta="覆盖率" spark={[55, 58, 53, 60, 58, 61, pred]} color="var(--acc)" />
+          <Kpi label="候选比赛"   value={total}             delta="+ 3 自昨日"     spark={[8, 10, 9, 11, 13, 12, 13]} color="var(--acc)"   infoKey="dash.candidates" />
+          <Kpi label="AI 已建模"  value={withAi}            delta={`${total ? Math.round(withAi/total*100) : 0}% 覆盖率`} spark={[6, 7, 8, 9, 10, 11, withAi]} color="var(--acc-3)" infoKey="dash.ai_modeled" />
+          <Kpi label="高跌幅 ≥50%" value={drops.length}      delta={`${drops.length} 场预警`} spark={[2, 3, 4, 3, 5, 6, drops.length]} color="var(--acc-2)" infoKey="dash.drop_high" />
+          <Kpi label="可预测度 ≥ 一般" value={pred}          delta="覆盖率" spark={[55, 58, 53, 60, 58, 61, pred]} color="var(--acc)"   infoKey="dash.predictability" />
         </div>
 
         <div className="dash-grid">
           <div className="dash-col">
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">Top 5 跌赔</div>
+                <div className="card-title">Top 5 跌赔 <InfoIcon k="dash.top_drops" /></div>
                 <a className="card-sub" href="#" onClick={(e) => { e.preventDefault(); nav('/dropping') }}>查看全部 →</a>
               </div>
               {drops.map((d, i) => {
@@ -88,7 +90,7 @@ export default function Dashboard() {
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">即将开赛</div>
+                <div className="card-title">即将开赛 <InfoIcon k="dash.upcoming" /></div>
                 <a className="card-sub" href="#" onClick={(e) => { e.preventDefault(); nav('/matches') }}>查看全部 →</a>
               </div>
               <div className="match-grid">
@@ -102,7 +104,7 @@ export default function Dashboard() {
           <div className="dash-col">
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">高 Edge 价值投注</div>
+                <div className="card-title">高 Edge 价值投注 <InfoIcon k="dash.value_bets" /></div>
                 <a className="card-sub" href="#" onClick={(e) => { e.preventDefault(); nav('/value-bets') }}>查看全部 →</a>
               </div>
               {values.map((v, i) => {
@@ -122,7 +124,7 @@ export default function Dashboard() {
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">数据健康</div>
+                <div className="card-title">数据健康 <InfoIcon k="dash.health" /></div>
                 <span className="card-sub">实时 · 估算</span>
               </div>
               {/* TODO: hook to a real /api/health endpoint when available */}
@@ -137,12 +139,15 @@ export default function Dashboard() {
   )
 }
 
-function Kpi({ label, value, delta, spark, color }: {
-  label: string; value: number | string; delta: string; spark: number[]; color: string
+function Kpi({ label, value, delta, spark, color, infoKey }: {
+  label: string; value: number | string; delta: string; spark: number[]; color: string; infoKey?: GlossaryKey
 }) {
   return (
     <div className="kpi">
-      <span className="kpi-lbl">{label}</span>
+      <span className="kpi-lbl">
+        {label}
+        {infoKey && <InfoIcon k={infoKey} />}
+      </span>
       <span className="kpi-val">{value}</span>
       <span className="kpi-delta">{delta}</span>
       <Spark values={spark} color={color} />

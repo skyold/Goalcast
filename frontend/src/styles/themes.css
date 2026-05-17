@@ -498,3 +498,62 @@ body {
 .dot.draw { background: var(--draw); }
 .dot.acc2 { background: var(--acc-2); }
 .dot.acc3 { background: var(--acc-3); }
+
+/* ---------- Tooltip (Radix UI Tooltip) ---------- */
+.gc-tt {
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  user-select: none;
+  animation: gc-tt-in 120ms ease-out;
+}
+.gc-tt-arrow { fill: var(--surface-2); }
+@keyframes gc-tt-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ⓘ Info icon trigger (used by InfoIcon.tsx) */
+.gc-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--text-mute);
+  background: transparent;
+  cursor: help;
+  vertical-align: middle;
+  transition: color 120ms ease;
+}
+.gc-info:hover, .gc-info:focus-visible { color: var(--acc); outline: none; }
+.gc-info:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); }
+.gc-info > svg { display: block; }
+.kpi-lbl .gc-info,
+.card-title .gc-info { margin-left: 4px; position: relative; top: -1px; }
+.card-title .gc-info { color: var(--text-dim); }
+
+/* PredictabilityBadge now wrapped in Tooltip — give it cursor + focus ring */
+.pb { cursor: help; }
+.pb:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); }
+
+/* ProbBar tooltip wrapper (Phase 3) */
+.pbar-wrap { cursor: help; outline: none; }
+.pbar-wrap:focus-visible .pbar { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); }
+.fs { cursor: help; outline: none; }
+.fs:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); border-radius: 4px; }
+.ob { cursor: help; }
+.ob:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); }
+.mc-rank > .gc-seg { cursor: help; outline: none; }
+.mc-rank > .gc-seg:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); border-radius: 3px; }
+.drop-tag { cursor: help; outline: none; }
+.drop-tag:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); border-radius: 4px; }

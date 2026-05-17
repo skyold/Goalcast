@@ -6,6 +6,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
+import { InfoIcon } from '../components/shared/InfoIcon'
+import { Tooltip } from '../components/shared/Tooltip'
+import { gloss, type GlossaryKey } from '../lib/glossary'
 
 export default function History() {
   const nav = useNavigate()
@@ -37,10 +40,10 @@ export default function History() {
 
       <div className="page">
         <div className="kpi-grid">
-          <Kpi label="总样本" value={items.length} sub={`${wins}胜 ${draws}平 ${losses}负`} />
-          <Kpi label="胜率" value={`${winRate.toFixed(0)}%`} sub="vs 上周期" />
-          <Kpi label="ROI" value="—" sub="待后端 bet_outcomes 表" />
-          <Kpi label="平均 Edge" value="—" sub="待后端聚合" />
+          <Kpi label="总样本"     value={items.length}             sub={`${wins}胜 ${draws}平 ${losses}负`} infoKey="hist.samples" />
+          <Kpi label="胜率"       value={`${winRate.toFixed(0)}%`} sub="vs 上周期"                        infoKey="hist.winrate" />
+          <Kpi label="ROI"        value="—"                        sub="待后端 bet_outcomes 表"             infoKey="hist.roi" />
+          <Kpi label="平均 Edge"  value="—"                        sub="待后端聚合"                       infoKey="hist.avg_edge" />
         </div>
 
         <div className="filters" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', marginBottom: 'var(--gap-grid)' }}>
@@ -63,9 +66,21 @@ export default function History() {
                   <th>联赛</th>
                   <th>比赛</th>
                   <th style={{ textAlign: 'center' }}>比分</th>
-                  <th style={{ textAlign: 'center' }}>跌幅</th>
-                  <th style={{ textAlign: 'center' }}>预测度</th>
-                  <th style={{ textAlign: 'center' }}>结果</th>
+                  <th style={{ textAlign: 'center' }}>
+                    <Tooltip content={gloss('hist.col.drop')}>
+                      <span tabIndex={0} style={{ cursor: 'help' }}>跌幅</span>
+                    </Tooltip>
+                  </th>
+                  <th style={{ textAlign: 'center' }}>
+                    <Tooltip content={gloss('hist.col.predictability')}>
+                      <span tabIndex={0} style={{ cursor: 'help' }}>预测度</span>
+                    </Tooltip>
+                  </th>
+                  <th style={{ textAlign: 'center' }}>
+                    <Tooltip content={gloss('hist.col.result')}>
+                      <span tabIndex={0} style={{ cursor: 'help' }}>结果</span>
+                    </Tooltip>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -95,10 +110,13 @@ export default function History() {
   )
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string | number; sub: string }) {
+function Kpi({ label, value, sub, infoKey }: { label: string; value: string | number; sub: string; infoKey?: GlossaryKey }) {
   return (
     <div className="kpi">
-      <span className="kpi-lbl">{label}</span>
+      <span className="kpi-lbl">
+        {label}
+        {infoKey && <InfoIcon k={infoKey} />}
+      </span>
       <span className="kpi-val">{value}</span>
       <span className="kpi-delta">{sub}</span>
     </div>

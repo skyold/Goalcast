@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { fmtKickoff } from '../lib/format'
+import { Tooltip } from '../components/shared/Tooltip'
+import { gloss } from '../lib/glossary'
 
 export default function ValueBets() {
   const nav = useNavigate()
@@ -44,19 +46,27 @@ export default function ValueBets() {
                 <div className="vb-match-title">{v.home_team} vs {v.away_team}</div>
                 <div className="vb-match-meta">{v.competition_name} · {ko.day} {ko.time}</div>
               </div>
-              <div className="vb-cell"><span className="vb-sel">{v.selection}</span></div>
-              <div className="vb-cell">
-                <div className="vb-cell-val">{v.odds.toFixed(2)}</div>
-                <div className="vb-cell-lbl">赔率</div>
-              </div>
-              <div className="vb-cell">
-                <div className="vb-cell-val">{v.prob.toFixed(1)}%</div>
-                <div className="vb-cell-lbl">概率</div>
-              </div>
-              <div className="vb-cell">
-                <div className="vb-cell-val acc">+{v.edge_pct.toFixed(1)}%</div>
-                <div className="vb-cell-lbl">Edge</div>
-              </div>
+              <Tooltip content={gloss('vb.selection')}>
+                <div className="vb-cell" tabIndex={0}><span className="vb-sel">{v.selection}</span></div>
+              </Tooltip>
+              <Tooltip content={gloss('vb.odds')}>
+                <div className="vb-cell" tabIndex={0}>
+                  <div className="vb-cell-val">{v.odds.toFixed(2)}</div>
+                  <div className="vb-cell-lbl">赔率</div>
+                </div>
+              </Tooltip>
+              <Tooltip content={gloss('vb.prob')}>
+                <div className="vb-cell" tabIndex={0}>
+                  <div className="vb-cell-val">{v.prob.toFixed(1)}%</div>
+                  <div className="vb-cell-lbl">概率</div>
+                </div>
+              </Tooltip>
+              <Tooltip content={gloss('vb.edge')}>
+                <div className="vb-cell" tabIndex={0}>
+                  <div className="vb-cell-val acc">+{v.edge_pct.toFixed(1)}%</div>
+                  <div className="vb-cell-lbl">Edge</div>
+                </div>
+              </Tooltip>
             </div>
           )
         })}

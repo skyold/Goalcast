@@ -1,6 +1,8 @@
 import type { FixtureSummary } from '../../lib/api'
 import { fmtKickoff } from '../../lib/format'
 import { PredictabilityBadge } from '../shared/PredictabilityBadge'
+import { Tooltip } from '../shared/Tooltip'
+import { gloss } from '../../lib/glossary'
 import { FormStrip } from './FormStrip'
 import { TeamAbbr } from './TeamAbbr'
 import { ProbBar } from './ProbBar'
@@ -53,8 +55,17 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
           </div>
           {(hf || homeRank != null) && (
             <span className="mc-rank">
-              {homeRank != null && <>排名 #{homeRank}{hf && ' · '}</>}
-              {hf && <>进 {hf.gf} 失 {hf.ga}</>}
+              {homeRank != null && (
+                <Tooltip content={gloss('mc.rank')}>
+                  <span className="gc-seg" tabIndex={0}>排名 #{homeRank}</span>
+                </Tooltip>
+              )}
+              {homeRank != null && hf && ' · '}
+              {hf && (
+                <Tooltip content={gloss('mc.goals')}>
+                  <span className="gc-seg" tabIndex={0}>进 {hf.gf} 失 {hf.ga}</span>
+                </Tooltip>
+              )}
             </span>
           )}
           <FormStrip form5={hf?.form5} />
@@ -73,8 +84,17 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
           </div>
           {(af || awayRank != null) && (
             <span className="mc-rank">
-              {awayRank != null && <>排名 #{awayRank}{af && ' · '}</>}
-              {af && <>进 {af.gf} 失 {af.ga}</>}
+              {awayRank != null && (
+                <Tooltip content={gloss('mc.rank')}>
+                  <span className="gc-seg" tabIndex={0}>排名 #{awayRank}</span>
+                </Tooltip>
+              )}
+              {awayRank != null && af && ' · '}
+              {af && (
+                <Tooltip content={gloss('mc.goals')}>
+                  <span className="gc-seg" tabIndex={0}>进 {af.gf} 失 {af.ga}</span>
+                </Tooltip>
+              )}
             </span>
           )}
           <FormStrip form5={af?.form5} />
@@ -85,26 +105,34 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
 
       <div className="mc-ftr">
         <div className="odds-box">
-          <div className={`ob${ps && ps.home_win_pct > 45 ? ' hot' : ''}`}>
-            <div className="ol">主</div>
-            <div className="ov">{ft?.home?.toFixed(2) ?? '—'}</div>
-          </div>
-          <div className="ob">
-            <div className="ol">平</div>
-            <div className="ov">{ft?.draw?.toFixed(2) ?? '—'}</div>
-          </div>
-          <div className={`ob${ps && ps.away_win_pct > 45 ? ' hot' : ''}`}>
-            <div className="ol">客</div>
-            <div className="ov">{ft?.away?.toFixed(2) ?? '—'}</div>
-          </div>
+          <Tooltip content={gloss('mc.odds.home')}>
+            <div className={`ob${ps && ps.home_win_pct > 45 ? ' hot' : ''}`} tabIndex={0}>
+              <div className="ol">主</div>
+              <div className="ov">{ft?.home?.toFixed(2) ?? '—'}</div>
+            </div>
+          </Tooltip>
+          <Tooltip content={gloss('mc.odds.draw')}>
+            <div className="ob" tabIndex={0}>
+              <div className="ol">平</div>
+              <div className="ov">{ft?.draw?.toFixed(2) ?? '—'}</div>
+            </div>
+          </Tooltip>
+          <Tooltip content={gloss('mc.odds.away')}>
+            <div className={`ob${ps && ps.away_win_pct > 45 ? ' hot' : ''}`} tabIndex={0}>
+              <div className="ol">客</div>
+              <div className="ov">{ft?.away?.toFixed(2) ?? '—'}</div>
+            </div>
+          </Tooltip>
         </div>
         {dropPct != null && (
           <>
             <div className="ftr-sep" />
-            <div className={`drop-tag${dropPct >= 60 ? '' : ' warn'}`}>
-              <span className="arr">▼</span>
-              <span>{Math.round(dropPct)}%</span>
-            </div>
+            <Tooltip content={gloss('mc.drop')}>
+              <div className={`drop-tag${dropPct >= 60 ? '' : ' warn'}`} tabIndex={0}>
+                <span className="arr">▼</span>
+                <span>{Math.round(dropPct)}%</span>
+              </div>
+            </Tooltip>
           </>
         )}
       </div>

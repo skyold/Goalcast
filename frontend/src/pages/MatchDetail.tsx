@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { api, type FixtureDetail } from '../lib/api'
 import { fmtKickoff } from '../lib/format'
 import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
+import { InfoIcon } from '../components/shared/InfoIcon'
 import { FormStrip } from '../components/match/FormStrip'
 import { TeamAbbr } from '../components/match/TeamAbbr'
 import { BigBar } from '../components/match/BigBar'
@@ -94,7 +95,7 @@ export default function MatchDetail() {
           <div className="md-col">
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">模型概率</div>
+                <div className="card-title">模型概率 <InfoIcon k="md.model_prob" /></div>
                 <span className="card-sub">{p?.simulations ? `${p.simulations.toLocaleString()} 次模拟` : '无模型'}</span>
               </div>
               {p ? (
@@ -103,15 +104,15 @@ export default function MatchDetail() {
                   <BigBar label="平局"     value={p.draw_pct}     kind="d" />
                   <BigBar label="客胜"     value={p.away_win_pct} kind="a" />
                   <div className="divider" />
-                  <BigBar label="大 2.5"   value={p.o25_pct} kind="o" />
-                  <BigBar label="两队进球" value={p.btts_pct} kind="o" />
+                  <BigBar label="大 2.5"   value={p.o25_pct}  kind="o" infoKey="md.bigbar.over25" />
+                  <BigBar label="两队进球" value={p.btts_pct} kind="o" infoKey="md.bigbar.btts" />
                 </>
               ) : <div className="empty">暂无模型数据</div>}
             </div>
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">比分概率热图</div>
+                <div className="card-title">比分概率热图 <InfoIcon k="md.scoreline_heatmap" /></div>
                 {ah_lines.length > 0 && (
                   <AhLineSelector
                     value={ahLine}
@@ -127,7 +128,7 @@ export default function MatchDetail() {
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">亚盘全表</div>
+                <div className="card-title">亚盘全表 <InfoIcon k="md.ah_table" /></div>
                 <span className="card-sub">{ah_lines.length} 条线</span>
               </div>
               <AhLineTable lines={ah_lines} />
@@ -137,7 +138,7 @@ export default function MatchDetail() {
           <div className="md-col">
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">跌赔记录</div>
+                <div className="card-title">跌赔记录 <InfoIcon k="md.drop_records" /></div>
                 <span className="card-sub">最近 24h</span>
               </div>
               {data.dropping_records.length === 0 ? (
@@ -156,7 +157,7 @@ export default function MatchDetail() {
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">两队状态对比</div>
+                <div className="card-title">两队状态对比 <InfoIcon k="md.team_compare" /></div>
                 <span className="card-sub">赛季累计</span>
               </div>
               {homeForm && awayForm ? (
