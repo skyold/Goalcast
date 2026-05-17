@@ -610,7 +610,21 @@ async def full_sync() -> None:
     await sync_from_trends()
     await sync_dropping_odds()
 
+async def _alerts_scan_job():
+    """Wrap services.alerts.scan_alerts with a fresh DB connection. Errors are
+    swallowed so a transient SQLite hiccup doesn't take down the scheduler."""
+    try:
+        import aiosqlite
+        from database import _db_path
+        from services.alerts import scan_alerts
+        async with aiosqlite.connect(_db_path()) as db:
+            db.row_factory = aiosqlite.Row
+            await scan_alerts(db)
+    except Exception:
+        pass
+
 scheduler.add_job(sync_dropping_odds, "interval", minutes=5, id="dropping")
+scheduler.add_job(_alerts_scan_job, "interval", minutes=5, id="alerts_scan")
 scheduler.add_job(sync_from_trends, "interval", hours=1, id="fixture_trends")
 scheduler.add_job(sync_fixtures_upcoming, "interval", hours=1, id="fixtures_upcoming")
 scheduler.add_job(sync_ah_odds_latest, "interval", minutes=5, id="ah_odds_latest")

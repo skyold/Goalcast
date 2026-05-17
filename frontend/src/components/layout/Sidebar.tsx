@@ -14,7 +14,8 @@ const NAV = [
 ]
 
 const SETTINGS_NAV = [
-  { to: '/settings/leagues', key: 'nav.my_leagues', glyph: '★' },
+  { to: '/settings/leagues', key: 'nav.my_leagues',       glyph: '★' },
+  { to: '/settings/alerts',  key: 'nav.alerts_settings',  glyph: '🔔' },
 ]
 
 export default function Sidebar() {

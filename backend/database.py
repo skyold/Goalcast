@@ -146,6 +146,28 @@ CREATE TABLE IF NOT EXISTS user_competition_prefs (
 )
 """
 
+CREATE_ALERTS = """
+CREATE TABLE IF NOT EXISTS alerts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    fixture_id   INTEGER NOT NULL,
+    alert_type   TEXT    NOT NULL,
+    payload      TEXT    NOT NULL,
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    dismissed_at TIMESTAMP,
+    expires_at   TIMESTAMP NOT NULL
+)
+"""
+CREATE_ALERTS_IDX = "CREATE INDEX IF NOT EXISTS idx_alerts_user_active ON alerts(user_id, dismissed_at, expires_at)"
+
+CREATE_USER_ALERT_SETTINGS = """
+CREATE TABLE IF NOT EXISTS user_alert_settings (
+    user_id              INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    divergence_threshold REAL    NOT NULL DEFAULT 5.0,
+    enabled              INTEGER NOT NULL DEFAULT 1
+)
+"""
+
 # Speeds up local form5 derivation (scan fixtures by team_id, status='FT', ORDER BY kickoff DESC).
 CREATE_FIXTURES_IDX_HTEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_home_team ON fixtures(home_team_id, kickoff_utc)"
 CREATE_FIXTURES_IDX_ATEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_away_team ON fixtures(away_team_id, kickoff_utc)"
@@ -174,6 +196,9 @@ async def init_db() -> None:
             CREATE_USERS,
             CREATE_USER_SETTINGS,
             CREATE_USER_COMPETITION_PREFS,
+            CREATE_ALERTS,
+            CREATE_ALERTS_IDX,
+            CREATE_USER_ALERT_SETTINGS,
         ):
             await db.execute(ddl)
         cur = await db.execute("PRAGMA table_info(fixtures)")

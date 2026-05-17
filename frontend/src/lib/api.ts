@@ -218,6 +218,45 @@ export const api = {
     get<OddsTimeseriesResponse>(`/fixtures/${fixtureId}/odds-timeseries`, params as P),
   mispricings: (p?: { date?: string; min_abs_edge?: number; limit?: number }) =>
     get<{ items: MispricingItem[]; date: string }>('/insights/mispricings', p),
+  alerts: {
+    list:    () => get<{ items: AlertItem[]; count: number }>('/me/alerts'),
+    dismiss: (id: number) => post<void>(`/me/alerts/${id}/dismiss`),
+    scan:    () => post<{ inserted: number }>('/me/alerts/scan'),
+  },
+  alertSettings: {
+    get: () => get<AlertSettings>('/me/alert-settings'),
+    put: (s: AlertSettings) => put<AlertSettings>('/me/alert-settings', s),
+  },
+}
+
+export interface AlertSettings {
+  divergence_threshold: number
+  enabled: boolean
+}
+
+export interface DivergencePayload {
+  pinnacle_odds: { home: number; draw: number; away: number }
+  bet365_odds:   { home: number; draw: number; away: number }
+  pinnacle_implied_pct: { home: number; draw: number; away: number }
+  bet365_implied_pct:   { home: number; draw: number; away: number }
+  max_outcome: 'home' | 'draw' | 'away'
+  max_delta_pct: number
+}
+
+export interface AlertItem {
+  id: number
+  fixture_id: number
+  alert_type: string
+  payload: DivergencePayload
+  created_at: string
+  expires_at: string
+  home_team: string
+  away_team: string
+  home_team_zh: string | null
+  away_team_zh: string | null
+  competition_name: string
+  competition_name_zh: string | null
+  kickoff_utc: string
 }
 
 export interface OddsTimeseriesPoint {

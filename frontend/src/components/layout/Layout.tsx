@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TweaksPanel from './TweaksPanel'
+import { AlertsBell } from './AlertsBell'
 import { useStore } from '../../lib/store'
 import { useAuth } from '../../lib/auth'
 import { useT, useLocale } from '../../lib/i18n'
@@ -41,6 +42,7 @@ export default function Layout() {
               </button>
               {user ? (
                 <>
+                  <AlertsBell />
                   <span className="topbar-email" title={user.email}>{user.email}</span>
                   <button className="btn" onClick={async () => { await logout.mutateAsync(); nav('/') }}>{t('auth.logout')}</button>
                 </>
