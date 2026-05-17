@@ -623,6 +623,19 @@ body {
 .auth-foot a { color: var(--acc); }
 
 /* ============================================================
+   WELCOME BANNER — first-time signup landing on /settings/leagues
+   ============================================================ */
+.welcome-banner {
+  margin: 14px 16px 0;
+  padding: 14px 18px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--acc) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--acc) 40%, var(--border));
+}
+.welcome-title { font-size: var(--fs-lg); font-weight: 700; margin-bottom: 6px; }
+.welcome-sub   { font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.5; }
+
+/* ============================================================
    ALERTS BELL — topbar + dropdown inbox
    ============================================================ */
 .bell-wrap { position: relative; display: inline-block; }

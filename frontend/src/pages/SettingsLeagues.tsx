@@ -61,6 +61,13 @@ export default function SettingsLeagues() {
 
   return (
     <>
+      {savedIds != null && savedIds.length === 0 && (
+        <div className="welcome-banner">
+          <div className="welcome-title">{t('settings.leagues.welcome.title')}</div>
+          <div className="welcome-sub">{t('settings.leagues.welcome.subtitle')}</div>
+        </div>
+      )}
+
       <div className="ph">
         <div>
           <div className="ph-title">{t('settings.leagues.title')}</div>

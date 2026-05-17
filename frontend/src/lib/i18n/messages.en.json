@@ -177,6 +177,8 @@
 
   "settings.leagues.title": "My leagues",
   "settings.leagues.subtitle": "Pick the leagues you care about — unchecked leagues will not appear in matches / drops / value bets.",
+  "settings.leagues.welcome.title": "👋 Welcome to Goalcast",
+  "settings.leagues.welcome.subtitle": "Pick a few leagues you care about. Matches, drops, model picks, and mispricings will all be filtered to your selection.",
   "settings.leagues.save_n": "Save ({n})",
   "settings.leagues.popular": "Popular leagues",
   "settings.leagues.others": "Other leagues",

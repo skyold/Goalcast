@@ -177,6 +177,8 @@
 
   "settings.leagues.title": "我的联赛",
   "settings.leagues.subtitle": "勾选你关心的联赛 — 未勾选的联赛将不在比赛列表 / 跌赔 / 价值投注中出现",
+  "settings.leagues.welcome.title": "👋 欢迎使用 Goalcast",
+  "settings.leagues.welcome.subtitle": "先选几个你关注的联赛，告诉我们想看什么。后续所有数据（比赛 / 跌赔 / 模型预测 / 错定价）都会自动按你的选择过滤。",
   "settings.leagues.save_n": "保存 ({n})",
   "settings.leagues.popular": "主流联赛",
   "settings.leagues.others": "其他联赛",

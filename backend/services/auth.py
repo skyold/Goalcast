@@ -25,6 +25,15 @@ JWT_ALGORITHM = "HS256"
 JWT_TTL_DAYS = 7
 COOKIE_NAME = "gc_token"
 
+# Fail-fast in production if the secret was never set. Without this check the
+# container would silently sign tokens with a hardcoded public string from the
+# repo, letting anyone with source access forge arbitrary JWTs.
+if os.getenv("GOALCAST_ENV", "").lower() in ("production", "prod") and JWT_SECRET == _DEV_SECRET:
+    raise RuntimeError(
+        "GOALCAST_JWT_SECRET must be set when GOALCAST_ENV=production. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+    )
+
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 

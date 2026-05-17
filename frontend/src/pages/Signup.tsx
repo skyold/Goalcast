@@ -16,7 +16,9 @@ export default function Signup() {
     setErr(null)
     try {
       await signup.mutateAsync({ email, password })
-      nav('/')
+      // First-time activation: route to my-leagues so the user picks prefs before
+      // the dashboard / matches / mispricings pages have anything meaningful to show.
+      nav('/settings/leagues')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : ''
       if (msg.includes('409')) setErr(t('auth.err.duplicate_email'))

@@ -60,41 +60,64 @@ async def value_bets(
         ids = sorted(user_prefs)
         prefs_clause = f"AND f.competition_id IN ({','.join('?'*len(ids))})"
         prefs_params = ids
-    sql = """
+    # Probability source: `predictions` table (sims-based). `fixtures.prob_*`
+    # columns exist on schema but are 100% NULL in observed data.
+    # Odds source: Pinnacle (bookmaker_id=1) 1x2 (market_id=6) from
+    # `bookmaker_odds`. `odds_snapshots.odds_*` columns are also 100% NULL —
+    # the snapshot pipeline only writes drop_pct, not full odds.
+    sql = f"""
         SELECT f.id as fixture_id, f.home_team, f.away_team, f.competition_name, f.kickoff_utc,
-               f.prob_home_win, f.prob_draw, f.prob_away_win,
-               s.odds_home, s.odds_draw, s.odds_away,
                th.name_zh AS home_team_zh,
                ta.name_zh AS away_team_zh,
-               c.name_zh  AS competition_name_zh
+               c.name_zh  AS competition_name_zh,
+               p.simulations, p.home_win, p.draw, p.away_win,
+               bo_h.current AS odds_home,
+               bo_d.current AS odds_draw,
+               bo_a.current AS odds_away
         FROM fixtures f
+        JOIN predictions p ON p.fixture_id = f.id
         LEFT JOIN teams th ON th.id = f.home_team_id
         LEFT JOIN teams ta ON ta.id = f.away_team_id
         LEFT JOIN competitions c ON c.id = f.competition_id
-        LEFT JOIN (
-            SELECT fixture_id, odds_home, odds_draw, odds_away FROM odds_snapshots
-            WHERE (fixture_id, recorded_at) IN (
-                SELECT fixture_id, MAX(recorded_at) FROM odds_snapshots GROUP BY fixture_id
-            )
-        ) s ON f.id=s.fixture_id
-        WHERE f.status='NS' {prefs_clause} ORDER BY f.kickoff_utc
+        LEFT JOIN bookmaker_odds bo_h ON bo_h.fixture_id = f.id
+            AND bo_h.bookmaker_id = 1 AND bo_h.market_id = 6 AND bo_h.outcome = 'home'
+        LEFT JOIN bookmaker_odds bo_d ON bo_d.fixture_id = f.id
+            AND bo_d.bookmaker_id = 1 AND bo_d.market_id = 6 AND bo_d.outcome = 'draw'
+        LEFT JOIN bookmaker_odds bo_a ON bo_a.fixture_id = f.id
+            AND bo_a.bookmaker_id = 1 AND bo_a.market_id = 6 AND bo_a.outcome = 'away'
+        WHERE f.status='NS' AND p.simulations > 0
+              AND bo_h.current IS NOT NULL
+              AND bo_d.current IS NOT NULL
+              AND bo_a.current IS NOT NULL
+              {prefs_clause}
+        ORDER BY f.kickoff_utc
     """
-    async with db.execute(sql.format(prefs_clause=prefs_clause), prefs_params) as cur:
+    async with db.execute(sql, prefs_params) as cur:
         rows = await cur.fetchall()
     items = []
     for r in rows:
         d = dict(r)
-        for sel, prob_k, odds_k in (("home","prob_home_win","odds_home"),
-                                     ("draw","prob_draw","odds_draw"),
-                                     ("away","prob_away_win","odds_away")):
-            edge = compute_edge(d.get(prob_k), d.get(odds_k))
+        sims = d["simulations"]
+        if not sims:
+            continue
+        for sel, win_k, odds_k in (("home", "home_win", "odds_home"),
+                                    ("draw", "draw",     "odds_draw"),
+                                    ("away", "away_win", "odds_away")):
+            prob = d[win_k] / sims
+            odds = d[odds_k]
+            edge = compute_edge(prob, odds)
             if edge is not None and edge >= min_edge:
-                items.append({"fixture_id": d["fixture_id"], "home_team": d["home_team"],
-                               "away_team": d["away_team"], "competition_name": d["competition_name"],
-                               "home_team_zh": d.get("home_team_zh"),
-                               "away_team_zh": d.get("away_team_zh"),
-                               "competition_name_zh": d.get("competition_name_zh"),
-                               "kickoff_utc": d["kickoff_utc"], "selection": sel,
-                               "edge_pct": edge, "prob": d[prob_k], "odds": d[odds_k]})
+                items.append({
+                    "fixture_id": d["fixture_id"],
+                    "home_team": d["home_team"], "away_team": d["away_team"],
+                    "home_team_zh": d.get("home_team_zh"),
+                    "away_team_zh": d.get("away_team_zh"),
+                    "competition_name": d["competition_name"],
+                    "competition_name_zh": d.get("competition_name_zh"),
+                    "kickoff_utc": d["kickoff_utc"], "selection": sel,
+                    "edge_pct": edge,
+                    "prob": round(prob, 4),
+                    "odds": odds,
+                })
     items.sort(key=lambda x: x["edge_pct"], reverse=True)
     return {"items": items}
