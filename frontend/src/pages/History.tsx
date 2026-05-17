@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { useT } from '../lib/i18n'
 import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
 import { InfoIcon } from '../components/shared/InfoIcon'
 import { Tooltip } from '../components/shared/Tooltip'
@@ -12,6 +13,7 @@ import { gloss, type GlossaryKey } from '../lib/glossary'
 
 export default function History() {
   const nav = useNavigate()
+  const t = useT()
   const [strategy, setStrategy] = useState('all')
 
   const { data, isLoading } = useQuery({
@@ -29,56 +31,55 @@ export default function History() {
     <>
       <div className="ph">
         <div>
-          <div className="ph-title">历史回测</div>
-          <div className="ph-sub">策略表现 · {items.length} 个样本</div>
+          <div className="ph-title">{t('history.title')}</div>
+          <div className="ph-sub">· {items.length}</div>
         </div>
         <div className="ph-actions">
-          <button className="btn">导出 CSV</button>
-          <button className="btn btn-primary">新建策略</button>
+          <button className="btn">{t('common.export_csv')}</button>
         </div>
       </div>
 
       <div className="page">
         <div className="kpi-grid">
-          <Kpi label="总样本"     value={items.length}             sub={`${wins}胜 ${draws}平 ${losses}负`} infoKey="hist.samples" />
-          <Kpi label="胜率"       value={`${winRate.toFixed(0)}%`} sub="vs 上周期"                        infoKey="hist.winrate" />
-          <Kpi label="ROI"        value="—"                        sub="待后端 bet_outcomes 表"             infoKey="hist.roi" />
-          <Kpi label="平均 Edge"  value="—"                        sub="待后端聚合"                       infoKey="hist.avg_edge" />
+          <Kpi label={t('history.samples')}    value={items.length}             sub={t('history.samples_breakdown', { w: wins, d: draws, l: losses })} infoKey="hist.samples" />
+          <Kpi label={t('history.winrate')}    value={`${winRate.toFixed(0)}%`} sub={t('history.vs_prev')}    infoKey="hist.winrate" />
+          <Kpi label={t('history.roi')}        value="—"                        sub={t('history.roi_todo')}   infoKey="hist.roi" />
+          <Kpi label={t('history.avg_edge')}   value="—"                        sub={t('history.agg_todo')}   infoKey="hist.avg_edge" />
         </div>
 
         <div className="filters" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', marginBottom: 'var(--gap-grid)' }}>
           <div className="filter-grp">
-            <span className="filter-lbl">策略</span>
-            {[['all','全部'], ['drop','高跌幅'], ['value','高 Edge'], ['high','高可预测']].map(([k, l]) => (
-              <button key={k} className={`chip${strategy === k ? ' active' : ''}`} onClick={() => setStrategy(k)}>{l}</button>
+            <span className="filter-lbl">{t('history.strategy')}</span>
+            {[['all','history.strategy.all'], ['drop','history.strategy.drop'], ['value','history.strategy.value'], ['high','history.strategy.high']].map(([k, lk]) => (
+              <button key={k} className={`chip${strategy === k ? ' active' : ''}`} onClick={() => setStrategy(k)}>{t(lk)}</button>
             ))}
           </div>
         </div>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {isLoading && <div className="empty">加载中…</div>}
-          {!isLoading && items.length === 0 && <div className="empty">无历史数据</div>}
+          {isLoading && <div className="empty">{t('matches.empty.loading')}</div>}
+          {!isLoading && items.length === 0 && <div className="empty">—</div>}
           {items.length > 0 && (
             <table className="ht">
               <thead>
                 <tr>
-                  <th>日期</th>
-                  <th>联赛</th>
-                  <th>比赛</th>
-                  <th style={{ textAlign: 'center' }}>比分</th>
+                  <th>{t('history.col.date')}</th>
+                  <th>{t('history.col.league')}</th>
+                  <th>{t('history.col.match')}</th>
+                  <th style={{ textAlign: 'center' }}>{t('history.col.score')}</th>
                   <th style={{ textAlign: 'center' }}>
                     <Tooltip content={gloss('hist.col.drop')}>
-                      <span tabIndex={0} style={{ cursor: 'help' }}>跌幅</span>
+                      <span tabIndex={0} style={{ cursor: 'help' }}>{t('history.col.drop')}</span>
                     </Tooltip>
                   </th>
                   <th style={{ textAlign: 'center' }}>
                     <Tooltip content={gloss('hist.col.predictability')}>
-                      <span tabIndex={0} style={{ cursor: 'help' }}>预测度</span>
+                      <span tabIndex={0} style={{ cursor: 'help' }}>{t('history.col.predictability')}</span>
                     </Tooltip>
                   </th>
                   <th style={{ textAlign: 'center' }}>
                     <Tooltip content={gloss('hist.col.result')}>
-                      <span tabIndex={0} style={{ cursor: 'help' }}>结果</span>
+                      <span tabIndex={0} style={{ cursor: 'help' }}>{t('history.col.result')}</span>
                     </Tooltip>
                   </th>
                 </tr>
@@ -97,7 +98,7 @@ export default function History() {
                     </td>
                     <td style={{ textAlign: 'center' }}><PredictabilityBadge level={h.predictability} /></td>
                     <td className={`r${h.result ?? ''}`} style={{ textAlign: 'center' }}>
-                      {h.result === 'W' ? '✓ 赢' : h.result === 'L' ? '✗ 输' : h.result === 'D' ? '◯ 走' : '—'}
+                      {h.result === 'W' ? t('history.result.win') : h.result === 'L' ? t('history.result.lose') : h.result === 'D' ? t('history.result.draw') : '—'}
                     </td>
                   </tr>
                 ))}

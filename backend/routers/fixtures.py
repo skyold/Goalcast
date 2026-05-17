@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 import aiosqlite
 from database import get_db
 from services.ah import derive_main_ah_line
+from services.auth import get_current_user_optional, get_user_competition_prefs
 
 router = APIRouter()
 
@@ -146,7 +147,14 @@ async def list_fixtures(
     limit: Annotated[int, Query()] = 200,
     status: Annotated[str | None, Query()] = None,
     db: aiosqlite.Connection = Depends(get_db),
+    user: dict | None = Depends(get_current_user_optional),
 ):
+    # Phase 3: logged-in users have a competition whitelist. Empty prefs => empty
+    # results (forces the user to set prefs); non-empty => intersect with the
+    # already-requested `leagues` filter (so chip drill-down still works).
+    user_prefs = await get_user_competition_prefs(user, db)
+    if user_prefs is not None and not user_prefs:
+        return {"fixtures": [], "total": 0, "cached_at": None}
     target = date or str(date_type.today())
     select_cols = (
         "SELECT f.*, "
@@ -179,9 +187,20 @@ async def list_fixtures(
     where_extra = ""
     if leagues:
         ids = [int(x) for x in leagues.split(",") if x.strip()]
+        # Intersect with prefs whitelist (when logged in). If intersection is
+        # empty, short-circuit before running the query.
+        if user_prefs is not None:
+            ids = [i for i in ids if i in user_prefs]
+            if not ids:
+                return {"fixtures": [], "total": 0, "cached_at": None}
         if ids:
             where_extra += f" AND f.competition_id IN ({','.join('?'*len(ids))})"
             params.extend(ids)
+    elif user_prefs is not None:
+        # No `leagues` query param but user is logged in: default to their prefs.
+        pref_ids = sorted(user_prefs)
+        where_extra += f" AND f.competition_id IN ({','.join('?'*len(pref_ids))})"
+        params.extend(pref_ids)
     if predictability:
         levels = [s.strip() for s in predictability.split(",") if s.strip()]
         if levels:
@@ -263,7 +282,7 @@ async def list_competitions(db: aiosqlite.Connection = Depends(get_db)):
            FROM fixtures f
            LEFT JOIN competitions c ON c.id = f.competition_id
            GROUP BY f.competition_id, f.competition_name, c.name_zh
-           ORDER BY COALESCE(c.name_zh, f.competition_name)"""
+           ORDER BY (c.name_zh IS NULL), COALESCE(c.name_zh, f.competition_name)"""
     ) as cur:
         rows = await cur.fetchall()
     return {"competitions": [dict(r) for r in rows]}
@@ -324,7 +343,18 @@ def _build_detail_odds(rows: list[dict]) -> dict | None:
 
 @router.get("/fixtures/{fixture_id}")
 async def get_fixture(fixture_id: int, db: aiosqlite.Connection = Depends(get_db)):
-    async with db.execute("SELECT * FROM fixtures WHERE id=?", (fixture_id,)) as cur:
+    async with db.execute(
+        """SELECT f.*,
+                  th.name_zh AS home_team_zh,
+                  ta.name_zh AS away_team_zh,
+                  c.name_zh  AS competition_name_zh
+           FROM fixtures f
+           LEFT JOIN teams th ON th.id = f.home_team_id
+           LEFT JOIN teams ta ON ta.id = f.away_team_id
+           LEFT JOIN competitions c ON c.id = f.competition_id
+           WHERE f.id=?""",
+        (fixture_id,),
+    ) as cur:
         row = await cur.fetchone()
     if not row:
         raise HTTPException(404, "Fixture not found")

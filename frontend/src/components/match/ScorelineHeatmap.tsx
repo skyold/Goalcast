@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { ahProbabilities } from '../../lib/ahMath'
+import { useT } from '../../lib/i18n'
 
 type Props = {
   scorelines: Record<string, number>
@@ -28,6 +29,7 @@ function cellOverlay(h: number, a: number, line: number): 'win' | 'push' | 'lose
 }
 
 export function ScorelineHeatmap({ scorelines, ahLine, size = 36 }: Props) {
+  const t = useT()
   const cells = useMemo(() => {
     const m: number[][] = Array.from({ length: MAX_GOALS + 1 }, () => Array(MAX_GOALS + 1).fill(0))
     for (const [k, p] of Object.entries(scorelines)) {
@@ -73,9 +75,9 @@ export function ScorelineHeatmap({ scorelines, ahLine, size = 36 }: Props) {
         </tbody>
       </table>
       <div className="hm-summary">
-        <div className="hm-stat hm-win">赢: {probs.win.toFixed(1)}%</div>
-        <div className="hm-stat hm-push">和: {probs.push.toFixed(1)}%</div>
-        <div className="hm-stat hm-lose">输: {probs.lose.toFixed(1)}%</div>
+        <div className="hm-stat hm-win">{t('scoreline.win',  { n: probs.win.toFixed(1) })}</div>
+        <div className="hm-stat hm-push">{t('scoreline.push', { n: probs.push.toFixed(1) })}</div>
+        <div className="hm-stat hm-lose">{t('scoreline.lose', { n: probs.lose.toFixed(1) })}</div>
       </div>
     </div>
   )

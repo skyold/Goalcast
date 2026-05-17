@@ -3,6 +3,7 @@ import { fmtKickoff } from '../../lib/format'
 import { PredictabilityBadge } from '../shared/PredictabilityBadge'
 import { Tooltip } from '../shared/Tooltip'
 import { gloss } from '../../lib/glossary'
+import { useT } from '../../lib/i18n'
 import { FormStrip } from './FormStrip'
 import { TeamAbbr } from './TeamAbbr'
 import { ProbBar } from './ProbBar'
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
+  const t = useT()
   const ko = fmtKickoff(fixture.kickoff_utc)
   const ps = fixture.prediction_summary
   const ft = fixture.odds?.ft_result?.pinnacle ?? null
@@ -57,13 +59,13 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
             <span className="mc-rank">
               {homeRank != null && (
                 <Tooltip content={gloss('mc.rank')}>
-                  <span className="gc-seg" tabIndex={0}>排名 #{homeRank}</span>
+                  <span className="gc-seg" tabIndex={0}>{t('card.rank', { n: homeRank })}</span>
                 </Tooltip>
               )}
               {homeRank != null && hf && ' · '}
               {hf && (
                 <Tooltip content={gloss('mc.goals')}>
-                  <span className="gc-seg" tabIndex={0}>进 {hf.gf} 失 {hf.ga}</span>
+                  <span className="gc-seg" tabIndex={0}>{t('card.goals', { gf: hf.gf, ga: hf.ga })}</span>
                 </Tooltip>
               )}
             </span>
@@ -86,13 +88,13 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
             <span className="mc-rank">
               {awayRank != null && (
                 <Tooltip content={gloss('mc.rank')}>
-                  <span className="gc-seg" tabIndex={0}>排名 #{awayRank}</span>
+                  <span className="gc-seg" tabIndex={0}>{t('card.rank', { n: awayRank })}</span>
                 </Tooltip>
               )}
               {awayRank != null && af && ' · '}
               {af && (
                 <Tooltip content={gloss('mc.goals')}>
-                  <span className="gc-seg" tabIndex={0}>进 {af.gf} 失 {af.ga}</span>
+                  <span className="gc-seg" tabIndex={0}>{t('card.goals', { gf: af.gf, ga: af.ga })}</span>
                 </Tooltip>
               )}
             </span>
@@ -107,19 +109,19 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
         <div className="odds-box">
           <Tooltip content={gloss('mc.odds.home')}>
             <div className={`ob${ps && ps.home_win_pct > 45 ? ' hot' : ''}`} tabIndex={0}>
-              <div className="ol">主</div>
+              <div className="ol">{t('card.home')}</div>
               <div className="ov">{ft?.home?.toFixed(2) ?? '—'}</div>
             </div>
           </Tooltip>
           <Tooltip content={gloss('mc.odds.draw')}>
             <div className="ob" tabIndex={0}>
-              <div className="ol">平</div>
+              <div className="ol">{t('card.draw')}</div>
               <div className="ov">{ft?.draw?.toFixed(2) ?? '—'}</div>
             </div>
           </Tooltip>
           <Tooltip content={gloss('mc.odds.away')}>
             <div className={`ob${ps && ps.away_win_pct > 45 ? ' hot' : ''}`} tabIndex={0}>
-              <div className="ol">客</div>
+              <div className="ol">{t('card.away')}</div>
               <div className="ov">{ft?.away?.toFixed(2) ?? '—'}</div>
             </div>
           </Tooltip>

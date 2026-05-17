@@ -10,7 +10,7 @@ interface Props {
 export function InfoIcon({ k, side = 'top' }: Props) {
   return (
     <Tooltip content={gloss(k)} side={side}>
-      <button type="button" className="gc-info" aria-label="说明">
+      <button type="button" className="gc-info" aria-label="i">
         <svg viewBox="0 0 14 14" width={14} height={14} aria-hidden="true">
           <circle cx="7" cy="7" r="6.25" fill="none" stroke="currentColor" strokeWidth="1" />
           <rect x="6.35" y="5.6" width="1.3" height="4.2" fill="currentColor" />

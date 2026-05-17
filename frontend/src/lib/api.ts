@@ -79,7 +79,10 @@ export type FixtureSummary = {
 export type FixtureCore = {
   id: number
   home_team: string; away_team: string
+  home_team_zh?: string | null
+  away_team_zh?: string | null
   competition_id: number; competition_name: string
+  competition_name_zh?: string | null
   competition_country?: string
   kickoff_utc: string
   status: 'pre' | 'live' | 'ft'
@@ -123,7 +126,10 @@ export interface H2HRecord {
 
 export interface DroppingOddsItem {
   fixture_id: number; home_team: string; away_team: string
+  home_team_zh?: string | null
+  away_team_zh?: string | null
   competition_name: string; kickoff_utc: string
+  competition_name_zh?: string | null
   market: string; bookmaker: string
   odds_home: number | null; odds_draw: number | null; odds_away: number | null
   drop_pct: number | null; drop_market: string | null; recorded_at: string
@@ -131,17 +137,52 @@ export interface DroppingOddsItem {
 
 export interface ValueBetItem {
   fixture_id: number; home_team: string; away_team: string
+  home_team_zh?: string | null
+  away_team_zh?: string | null
   competition_name: string; kickoff_utc: string
+  competition_name_zh?: string | null
   selection: 'home' | 'draw' | 'away'; edge_pct: number; prob: number; odds: number
 }
+
+export interface UserOut { id: number; email: string }
+export interface Credentials { email: string; password: string }
 
 type P = Record<string, string | number | boolean | undefined | null>
 
 async function get<T>(path: string, params?: P): Promise<T> {
   const url = new URL('/api' + path, window.location.origin)
   if (params) Object.entries(params).forEach(([k, v]) => { if (v != null) url.searchParams.set(k, String(v)) })
-  const res = await fetch(url.toString())
+  const res = await fetch(url.toString(), { credentials: 'include' })
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${path}`)
+  return res.json()
+}
+
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch('/api' + path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${detail || path}`)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch('/api' + path, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${detail || path}`)
+  }
   return res.json()
 }
 
@@ -158,5 +199,19 @@ export const api = {
   history: (p?: { limit?: number; offset?: number; league?: number }) =>
     get<{ items: FixtureSummary[]; total: number }>('/history', p),
   triggerSync: () =>
-    fetch('/api/sync/trigger', { method: 'POST' }).then(r => r.json() as Promise<{ started: boolean }>),
+    fetch('/api/sync/trigger', { method: 'POST', credentials: 'include' }).then(r => r.json() as Promise<{ started: boolean }>),
+  auth: {
+    signup: (c: Credentials) => post<UserOut>('/auth/signup', c),
+    login:  (c: Credentials) => post<UserOut>('/auth/login', c),
+    logout: () => post<void>('/auth/logout'),
+    me:     () => get<UserOut>('/auth/me'),
+  },
+  myCompetitions: {
+    get: () => get<{ competition_ids: number[] }>('/me/competitions'),
+    put: (ids: number[]) => put<{ competition_ids: number[] }>('/me/competitions', { competition_ids: ids }),
+  },
+  myLocale: {
+    get: () => get<{ locale: 'zh' | 'en' }>('/me/locale'),
+    put: (locale: 'zh' | 'en') => put<{ locale: 'zh' | 'en' }>('/me/locale', { locale }),
+  },
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api, type FixtureDetail } from '../lib/api'
 import { fmtKickoff } from '../lib/format'
+import { pickZh, useT } from '../lib/i18n'
 import { PredictabilityBadge } from '../components/shared/PredictabilityBadge'
 import { InfoIcon } from '../components/shared/InfoIcon'
 import { FormStrip } from '../components/match/FormStrip'
@@ -16,6 +17,7 @@ import { AhLineTable } from '../components/match/AhLineTable'           // your 
 export default function MatchDetail() {
   const { id } = useParams()
   const nav = useNavigate()
+  const t = useT()
   const [data, setData] = useState<FixtureDetail | null>(null)
   const [ahLine, setAhLine] = useState<number>(-0.5)
 
@@ -28,7 +30,7 @@ export default function MatchDetail() {
     })
   }, [id])
 
-  if (!data) return <div className="empty">加载中…</div>
+  if (!data) return <div className="empty">{t('md.loading')}</div>
 
   const f = data.fixture
   const p = data.prediction
@@ -36,21 +38,24 @@ export default function MatchDetail() {
   const ko = fmtKickoff(f.kickoff_utc)
   const homeForm = data.home_team_obj?.form
   const awayForm = data.away_team_obj?.form
+  const homeName = pickZh(f.home_team_zh, f.home_team)
+  const awayName = pickZh(f.away_team_zh, f.away_team)
+  const compName = pickZh(f.competition_name_zh, f.competition_name)
 
   return (
     <>
       <div className="ph">
         <div>
-          <a href="#" onClick={(e) => { e.preventDefault(); nav('/matches') }} className="card-sub" style={{ display: 'block', marginBottom: 4 }}>← 比赛列表</a>
-          <div className="ph-title">{f.home_team} vs {f.away_team}</div>
+          <a href="#" onClick={(e) => { e.preventDefault(); nav('/matches') }} className="card-sub" style={{ display: 'block', marginBottom: 4 }}>{t('md.back_to_matches')}</a>
+          <div className="ph-title">{homeName} vs {awayName}</div>
           <div className="ph-sub">
-            {f.competition_name}{f.competition_country ? ` · ${f.competition_country}` : ''} · {ko.date} {ko.day} {ko.time}
+            {compName}{f.competition_country ? ` · ${f.competition_country}` : ''} · {ko.date} {ko.day} {ko.time}
           </div>
         </div>
         <div className="ph-actions">
           <PredictabilityBadge level={f.predictability} />
-          <button className="btn">⭐ 收藏</button>
-          <button className="btn btn-primary">下注计算器</button>
+          <button className="btn">{t('common.fav')}</button>
+          <button className="btn btn-primary">{t('md.calculator')}</button>
         </div>
       </div>
 
@@ -58,12 +63,12 @@ export default function MatchDetail() {
         <div className="md-hero">
           <div className="md-team home">
             <div className="md-team-row">
-              <TeamAbbr name={f.home_team} teamId={f.home_team_id} size={56} />
+              <TeamAbbr name={homeName} teamId={f.home_team_id} size={56} />
               <div>
-                <div className="tname">{f.home_team}</div>
+                <div className="tname">{homeName}</div>
                 {homeForm && (
                   <div className="meta">
-                    进 {homeForm.gf} 失 {homeForm.ga} · {homeForm.won}-{homeForm.drawn}-{homeForm.lost}
+                    {t('card.goals', { gf: homeForm.gf, ga: homeForm.ga })} · {homeForm.won}-{homeForm.drawn}-{homeForm.lost}
                   </div>
                 )}
               </div>
@@ -78,14 +83,14 @@ export default function MatchDetail() {
           <div className="md-team away">
             <div className="md-team-row">
               <div style={{ textAlign: 'left' }}>
-                <div className="tname">{f.away_team}</div>
+                <div className="tname">{awayName}</div>
                 {awayForm && (
                   <div className="meta">
-                    进 {awayForm.gf} 失 {awayForm.ga} · {awayForm.won}-{awayForm.drawn}-{awayForm.lost}
+                    {t('card.goals', { gf: awayForm.gf, ga: awayForm.ga })} · {awayForm.won}-{awayForm.drawn}-{awayForm.lost}
                   </div>
                 )}
               </div>
-              <TeamAbbr name={f.away_team} teamId={f.away_team_id} size={56} />
+              <TeamAbbr name={awayName} teamId={f.away_team_id} size={56} />
             </div>
             <FormStrip form5={awayForm?.form5} />
           </div>
@@ -95,24 +100,24 @@ export default function MatchDetail() {
           <div className="md-col">
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">模型概率 <InfoIcon k="md.model_prob" /></div>
-                <span className="card-sub">{p?.simulations ? `${p.simulations.toLocaleString()} 次模拟` : '无模型'}</span>
+                <div className="card-title">{t('md.model_prob')} <InfoIcon k="md.model_prob" /></div>
+                <span className="card-sub">{p?.simulations ? t('md.simulations', { n: p.simulations.toLocaleString() }) : t('md.no_model')}</span>
               </div>
               {p ? (
                 <>
-                  <BigBar label="主胜"     value={p.home_win_pct} kind="h" />
-                  <BigBar label="平局"     value={p.draw_pct}     kind="d" />
-                  <BigBar label="客胜"     value={p.away_win_pct} kind="a" />
+                  <BigBar label={t('md.prob.home_win')} value={p.home_win_pct} kind="h" />
+                  <BigBar label={t('md.prob.draw')}     value={p.draw_pct}     kind="d" />
+                  <BigBar label={t('md.prob.away_win')} value={p.away_win_pct} kind="a" />
                   <div className="divider" />
-                  <BigBar label="大 2.5"   value={p.o25_pct}  kind="o" infoKey="md.bigbar.over25" />
-                  <BigBar label="两队进球" value={p.btts_pct} kind="o" infoKey="md.bigbar.btts" />
+                  <BigBar label={t('md.prob.over25')}   value={p.o25_pct}  kind="o" infoKey="md.bigbar.over25" />
+                  <BigBar label={t('md.prob.btts')}     value={p.btts_pct} kind="o" infoKey="md.bigbar.btts" />
                 </>
-              ) : <div className="empty">暂无模型数据</div>}
+              ) : <div className="empty">{t('md.no_model_data')}</div>}
             </div>
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">比分概率热图 <InfoIcon k="md.scoreline_heatmap" /></div>
+                <div className="card-title">{t('md.scoreline_heatmap')} <InfoIcon k="md.scoreline_heatmap" /></div>
                 {ah_lines.length > 0 && (
                   <AhLineSelector
                     value={ahLine}
@@ -123,13 +128,13 @@ export default function MatchDetail() {
               </div>
               {p
                 ? <ScorelineHeatmap scorelines={p.scorelines} ahLine={ahLine} />
-                : <div className="empty">无模型数据</div>}
+                : <div className="empty">{t('md.no_model_data')}</div>}
             </div>
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">亚盘全表 <InfoIcon k="md.ah_table" /></div>
-                <span className="card-sub">{ah_lines.length} 条线</span>
+                <div className="card-title">{t('md.ah_table')} <InfoIcon k="md.ah_table" /></div>
+                <span className="card-sub">{t('md.ah_lines_count', { n: ah_lines.length })}</span>
               </div>
               <AhLineTable lines={ah_lines} />
             </div>
@@ -138,11 +143,11 @@ export default function MatchDetail() {
           <div className="md-col">
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">跌赔记录 <InfoIcon k="md.drop_records" /></div>
-                <span className="card-sub">最近 24h</span>
+                <div className="card-title">{t('md.drop_records')} <InfoIcon k="md.drop_records" /></div>
+                <span className="card-sub">{t('md.recent_24h')}</span>
               </div>
               {data.dropping_records.length === 0 ? (
-                <div className="empty">无跌赔</div>
+                <div className="empty">{t('md.no_drops')}</div>
               ) : (
                 data.dropping_records.slice(0, 20).map((d, i) => (
                   <div key={i} className="drop-row">
@@ -157,17 +162,17 @@ export default function MatchDetail() {
 
             <div className="card">
               <div className="card-hdr">
-                <div className="card-title">两队状态对比 <InfoIcon k="md.team_compare" /></div>
-                <span className="card-sub">赛季累计</span>
+                <div className="card-title">{t('md.team_compare')} <InfoIcon k="md.team_compare" /></div>
+                <span className="card-sub">{t('md.season_cumulative')}</span>
               </div>
               {homeForm && awayForm ? (
                 <>
-                  <BigBar label="主进球" value={homeForm.gf} suffix="" kind="h" />
-                  <BigBar label="客进球" value={awayForm.gf} suffix="" kind="a" />
-                  <BigBar label="主失球" value={homeForm.ga} suffix="" kind="h" />
-                  <BigBar label="客失球" value={awayForm.ga} suffix="" kind="a" />
+                  <BigBar label={t('md.compare.home_goals')}    value={homeForm.gf} suffix="" kind="h" />
+                  <BigBar label={t('md.compare.away_goals')}    value={awayForm.gf} suffix="" kind="a" />
+                  <BigBar label={t('md.compare.home_conceded')} value={homeForm.ga} suffix="" kind="h" />
+                  <BigBar label={t('md.compare.away_conceded')} value={awayForm.ga} suffix="" kind="a" />
                 </>
-              ) : <div className="empty">暂无状态数据</div>}
+              ) : <div className="empty">{t('md.no_team_form')}</div>}
             </div>
           </div>
         </div>

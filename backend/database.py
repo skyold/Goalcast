@@ -122,6 +122,30 @@ CREATE TABLE IF NOT EXISTS teams (
 )
 """
 
+CREATE_USERS = """
+CREATE TABLE IF NOT EXISTS users (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    email          TEXT NOT NULL UNIQUE,
+    password_hash  TEXT NOT NULL,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+CREATE_USER_SETTINGS = """
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    locale   TEXT NOT NULL DEFAULT 'zh'
+)
+"""
+
+CREATE_USER_COMPETITION_PREFS = """
+CREATE TABLE IF NOT EXISTS user_competition_prefs (
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    competition_id INTEGER NOT NULL,
+    PRIMARY KEY (user_id, competition_id)
+)
+"""
+
 # Speeds up local form5 derivation (scan fixtures by team_id, status='FT', ORDER BY kickoff DESC).
 CREATE_FIXTURES_IDX_HTEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_home_team ON fixtures(home_team_id, kickoff_utc)"
 CREATE_FIXTURES_IDX_ATEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_away_team ON fixtures(away_team_id, kickoff_utc)"
@@ -147,6 +171,9 @@ async def init_db() -> None:
             CREATE_BOOKMAKER_ODDS, CREATE_BO_IDX1, CREATE_BO_IDX2,
             CREATE_COMPETITIONS,
             CREATE_TEAMS,
+            CREATE_USERS,
+            CREATE_USER_SETTINGS,
+            CREATE_USER_COMPETITION_PREFS,
         ):
             await db.execute(ddl)
         cur = await db.execute("PRAGMA table_info(fixtures)")

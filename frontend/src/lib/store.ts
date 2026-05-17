@@ -12,11 +12,13 @@ interface AppStore {
   syncStatus: SyncStatus
   theme: Theme
   density: Density
+  mobileDrawerOpen: boolean
   toggleLeague: (id: number) => void
   setDate: (date: string) => void
   setSyncStatus: (s: Partial<SyncStatus>) => void
   setTheme: (t: Theme) => void
   setDensity: (d: Density) => void
+  setMobileDrawer: (open: boolean) => void
 }
 
 const today = () => new Date().toISOString().split('T')[0]
@@ -29,6 +31,7 @@ export const useStore = create<AppStore>()(
       syncStatus: { synced_at: null, is_syncing: false },
       theme: 'A',
       density: 'standard',
+      mobileDrawerOpen: false,
       toggleLeague: (id) => set((s) => ({
         selectedLeagues: s.selectedLeagues.includes(id)
           ? s.selectedLeagues.filter((x) => x !== id)
@@ -38,6 +41,7 @@ export const useStore = create<AppStore>()(
       setSyncStatus: (s) => set((prev) => ({ syncStatus: { ...prev.syncStatus, ...s } })),
       setTheme: (theme) => set({ theme }),
       setDensity: (density) => set({ density }),
+      setMobileDrawer: (open) => set({ mobileDrawerOpen: open }),
     }),
     {
       name: 'goalcast-store',

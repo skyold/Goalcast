@@ -67,3 +67,10 @@ debug
 node_modules/
 .superpowers/
 backend/data/*.db
+
+# Playwright + local debug screenshots
+.playwright-mcp/
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+/*.png

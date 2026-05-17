@@ -557,3 +557,146 @@ body {
 .mc-rank > .gc-seg:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); border-radius: 3px; }
 .drop-tag { cursor: help; outline: none; }
 .drop-tag:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 35%, transparent); border-radius: 4px; }
+
+/* ============================================================
+   TOPBAR (mobile-first hamburger + auth state)
+   Visible on all sizes; hamburger hidden ≥768px.
+   ============================================================ */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  gap: 12px;
+  min-height: 48px;
+}
+.topbar-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 28px; height: 22px; padding: 2px;
+}
+.topbar-hamburger span {
+  display: block; height: 2px; width: 100%;
+  background: var(--text); border-radius: 1px;
+}
+.topbar-brand { font-family: var(--font-display); font-size: var(--fs-md); font-weight: 600; opacity: 0; pointer-events: none; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.topbar-email {
+  font-size: var(--fs-sm); color: var(--text-dim);
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sb-backdrop {
+  display: none;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 80;
+}
+
+/* ============================================================
+   AUTH PAGES (login / signup)
+   ============================================================ */
+.auth-page {
+  display: flex; align-items: center; justify-content: center;
+  min-height: calc(100vh - 48px); padding: 24px;
+}
+.auth-card {
+  display: flex; flex-direction: column; gap: 14px;
+  width: 100%; max-width: 360px;
+  padding: 28px; border-radius: var(--radius-lg);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.auth-title { font-family: var(--font-display); font-size: var(--fs-h1); font-weight: 700; margin-bottom: 4px; }
+.auth-field { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); color: var(--text-dim); }
+.auth-field input {
+  height: 38px; padding: 0 12px;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-size: var(--fs-base);
+}
+.auth-field input:focus { outline: none; border-color: var(--acc); }
+.auth-hint { font-size: var(--fs-xs); color: var(--text-fade); }
+.auth-err {
+  padding: 8px 12px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--neg) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--neg) 40%, transparent);
+  color: var(--neg); font-size: var(--fs-sm);
+}
+.auth-foot { font-size: var(--fs-sm); color: var(--text-mute); text-align: center; margin-top: 8px; }
+.auth-foot a { color: var(--acc); }
+
+/* ============================================================
+   MY LEAGUES — settings page
+   ============================================================ */
+.league-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+.league-chk {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: var(--radius);
+  background: var(--bg-2); border: 1px solid var(--border);
+  font-size: var(--fs-sm); color: var(--text-dim);
+  cursor: pointer; transition: all .12s ease;
+}
+.league-chk:hover { color: var(--text); border-color: var(--border-strong); }
+.league-chk.active {
+  background: color-mix(in srgb, var(--acc) 12%, var(--surface));
+  border-color: var(--acc);
+  color: var(--text);
+}
+.league-chk input[type="checkbox"] {
+  appearance: none;
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 1px solid var(--border-strong); border-radius: 3px;
+  background: var(--bg);
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.league-chk input[type="checkbox"]:checked {
+  background: var(--acc); border-color: var(--acc);
+}
+.league-chk input[type="checkbox"]:checked::after {
+  content: '✓'; color: var(--bg); font-size: 11px; font-weight: 700; line-height: 1;
+}
+
+/* ============================================================
+   MOBILE — <768px
+   Sidebar becomes off-canvas drawer; grids collapse to single col.
+   ============================================================ */
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+  :root[data-density="compact"] .app,
+  :root[data-density="loose"]   .app { grid-template-columns: 1fr; }
+
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 240px; z-index: 90;
+    transform: translateX(-100%); transition: transform .2s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sb-backdrop { display: block; }
+
+  .topbar-hamburger { display: flex; }
+  .topbar-brand { opacity: 1; pointer-events: auto; }
+
+  .ph { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+  .ph-actions { width: 100%; flex-wrap: wrap; }
+
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dash-grid { grid-template-columns: 1fr; }
+  .match-grid { grid-template-columns: 1fr; }
+  .md-grid { grid-template-columns: 1fr; }
+  .md-hero { flex-direction: column; gap: 12px; }
+
+  /* Filters wrap and scroll horizontally instead of overflowing the page. */
+  .filters { padding: 12px 14px; gap: 10px; flex-direction: column; align-items: stretch; }
+  .filter-grp { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+  .filter-grp::-webkit-scrollbar { display: none; }
+
+  /* Page chrome */
+  .page { padding: 14px 16px; }
+  .card { padding: 14px; }
+
+  /* Smaller hero numbers */
+  .ph-title { font-size: 20px; }
+  .topbar-email { max-width: 120px; }
+}

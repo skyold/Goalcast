@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../lib/store'
 import { api, type FixtureSummary } from '../lib/api'
 import { POPULAR_LEAGUE_IDS } from '../lib/popularLeagues'
+import { pickZh, useT } from '../lib/i18n'
 import MatchCard from '../components/match/MatchCard'
 
 type SortKey = 'time' | 'drop' | 'prob'
@@ -22,9 +23,9 @@ function sortFixtures(fixtures: FixtureSummary[], key: SortKey): FixtureSummary[
 }
 
 const DATE_PRESETS = [
-  { label: '今天', offset: 0 },
-  { label: '明天', offset: 1 },
-  { label: '后天', offset: 2 },
+  { labelKey: 'matches.date.today',     offset: 0 },
+  { labelKey: 'matches.date.tomorrow',  offset: 1 },
+  { labelKey: 'matches.date.day_after', offset: 2 },
 ]
 const offsetDay = (n: number) => {
   const d = new Date(); d.setDate(d.getDate() + n)
@@ -33,6 +34,7 @@ const offsetDay = (n: number) => {
 
 export default function Matches() {
   const nav = useNavigate()
+  const t = useT()
   const { selectedLeagues, toggleLeague, selectedDate, setDate } = useStore()
   const [sort, setSort] = useState<SortKey>('time')
   const [filter, setFilter] = useState({ excludePoor: false, onlyHigh: false, minDrop: false, hasAi: false })
@@ -63,7 +65,7 @@ export default function Matches() {
   const fixtures = sortFixtures(data?.fixtures ?? [], sort)
 
   const groups: Record<string, FixtureSummary[]> = {}
-  for (const f of fixtures) (groups[f.competition_name] ??= []).push(f)
+  for (const f of fixtures) (groups[pickZh(f.competition_name_zh, f.competition_name)] ??= []).push(f)
 
   const presetValues = DATE_PRESETS.map(p => offsetDay(p.offset))
   const isPreset = presetValues.includes(selectedDate)
@@ -72,28 +74,28 @@ export default function Matches() {
     <>
       <div className="ph">
         <div>
-          <div className="ph-title">比赛列表</div>
+          <div className="ph-title">{t('matches.title')}</div>
           <div className="ph-sub">
             {selectedLeagues.length > 0
-              ? `共 ${fixtures.length} 场 · 已选 ${selectedLeagues.length} 个联赛`
-              : '请选择联赛'}
+              ? t('matches.subtitle.counts', { total: fixtures.length, leagues: selectedLeagues.length })
+              : t('matches.subtitle.empty')}
           </div>
         </div>
         <div className="ph-actions">
-          <button className="btn" onClick={() => window.location.reload()}>↻ 刷新</button>
-          <button className="btn btn-primary">导出 CSV</button>
+          <button className="btn" onClick={() => window.location.reload()}>↻ {t('common.refresh')}</button>
+          <button className="btn btn-primary">{t('common.export_csv')}</button>
         </div>
       </div>
 
       <div className="filters">
         <div className="filter-grp">
-          <span className="filter-lbl">日期</span>
-          {DATE_PRESETS.map(({ label, offset }) => {
+          <span className="filter-lbl">{t('matches.section.date')}</span>
+          {DATE_PRESETS.map(({ labelKey, offset }) => {
             const v = offsetDay(offset)
             return (
-              <button key={label}
+              <button key={labelKey}
                 className={`chip${selectedDate === v ? ' active' : ''}`}
-                onClick={() => setDate(v)}>{label}</button>
+                onClick={() => setDate(v)}>{t(labelKey)}</button>
             )
           })}
           <input
@@ -105,11 +107,8 @@ export default function Matches() {
         </div>
 
         <div className="filter-grp">
-          <span className="filter-lbl">联赛</span>
+          <span className="filter-lbl">{t('matches.section.league')}</span>
           {(() => {
-            // Split competitions into popular (always shown) and the long tail
-            // (hidden behind "更多"). Selected-but-not-popular leagues stay
-            // visible so the user can always see what's active.
             const popular: typeof competitions = []
             const others: typeof competitions = []
             for (const c of competitions) {
@@ -124,13 +123,13 @@ export default function Matches() {
                     key={c.id}
                     className={`chip chip-mute${selectedLeagues.includes(c.id) ? ' active' : ''}`}
                     onClick={() => toggleLeague(c.id)}
-                  >{c.name_zh ?? c.name}</button>
+                  >{pickZh(c.name_zh, c.name)}</button>
                 ))}
                 {others.length > 0 && (
                   <button
                     className="chip chip-mute"
                     onClick={() => setShowAllLeagues(v => !v)}
-                  >{showAllLeagues ? '收起' : `更多 (+${others.length})`}</button>
+                  >{showAllLeagues ? t('common.collapse') : t('matches.more_n', { n: others.length })}</button>
                 )}
               </>
             )
@@ -138,36 +137,36 @@ export default function Matches() {
         </div>
 
         <div className="filter-grp">
-          <span className="filter-lbl">筛选</span>
-          <button className={`chip${filter.excludePoor ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, excludePoor: !f.excludePoor }))}>排除 差</button>
-          <button className={`chip${filter.onlyHigh    ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, onlyHigh: !f.onlyHigh }))}>只看 高+良</button>
-          <button className={`chip${filter.minDrop     ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, minDrop: !f.minDrop }))}>跌幅 ≥ 50%</button>
-          <button className={`chip${filter.hasAi       ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, hasAi: !f.hasAi }))}>有 AI</button>
+          <span className="filter-lbl">{t('matches.section.filter')}</span>
+          <button className={`chip${filter.excludePoor ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, excludePoor: !f.excludePoor }))}>{t('matches.filter.exclude_poor')}</button>
+          <button className={`chip${filter.onlyHigh    ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, onlyHigh: !f.onlyHigh }))}>{t('matches.filter.high_only')}</button>
+          <button className={`chip${filter.minDrop     ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, minDrop: !f.minDrop }))}>{t('matches.filter.min_drop')}</button>
+          <button className={`chip${filter.hasAi       ? ' active' : ''}`} onClick={() => setFilter(f => ({ ...f, hasAi: !f.hasAi }))}>{t('matches.filter.has_ai')}</button>
         </div>
 
         <div className="filter-spacer" />
 
         <div className="filter-grp">
-          <span className="filter-lbl">排序</span>
+          <span className="filter-lbl">{t('matches.section.sort')}</span>
           <select className="date-pick" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
-            <option value="time">开赛时间</option>
-            <option value="drop">跌幅</option>
-            <option value="prob">主胜概率</option>
+            <option value="time">{t('matches.sort.time')}</option>
+            <option value="drop">{t('matches.sort.drop')}</option>
+            <option value="prob">{t('matches.sort.prob')}</option>
           </select>
         </div>
       </div>
 
       <div className="page">
-        {selectedLeagues.length === 0 && <div className="empty">请先选择联赛以加载比赛数据</div>}
-        {isLoading && selectedLeagues.length > 0 && <div className="empty">加载中…</div>}
+        {selectedLeagues.length === 0 && <div className="empty">{t('matches.empty.choose')}</div>}
+        {isLoading && selectedLeagues.length > 0 && <div className="empty">{t('matches.empty.loading')}</div>}
         {!isLoading && selectedLeagues.length > 0 && fixtures.length === 0 && (
-          <div className="empty">当天所选联赛无比赛</div>
+          <div className="empty">{t('matches.empty.none')}</div>
         )}
         {Object.entries(groups).map(([league, fxs]) => (
           <div key={league} className="league-block">
             <h2 className="section-title">
               <span>{league}</span>
-              <span className="count">{fxs.length} 场</span>
+              <span className="count">{t('matches.section.matches_count', { n: fxs.length })}</span>
             </h2>
             <div className="match-grid">
               {fxs.map(f => <MatchCard key={f.id} fixture={f} onClick={() => nav(`/matches/${f.id}`)} />)}
@@ -176,7 +175,7 @@ export default function Matches() {
         ))}
         {fixtures.length >= limit && (
           <button className="btn" style={{ display: 'block', margin: '20px auto' }} onClick={() => setLimit(l => l + 200)}>
-            加载更多
+            {t('matches.load_more')}
           </button>
         )}
       </div>
