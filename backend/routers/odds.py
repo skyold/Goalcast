@@ -77,7 +77,7 @@ async def value_bets(
                 SELECT fixture_id, MAX(recorded_at) FROM odds_snapshots GROUP BY fixture_id
             )
         ) s ON f.id=s.fixture_id
-        WHERE f.status='pre' {prefs_clause} ORDER BY f.kickoff_utc
+        WHERE f.status='NS' {prefs_clause} ORDER BY f.kickoff_utc
     """
     async with db.execute(sql.format(prefs_clause=prefs_clause), prefs_params) as cur:
         rows = await cur.fetchall()

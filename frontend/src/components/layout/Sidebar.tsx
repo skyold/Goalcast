@@ -5,11 +5,12 @@ import { useAuth } from '../../lib/auth'
 import { useT } from '../../lib/i18n'
 
 const NAV = [
-  { to: '/',            key: 'nav.dashboard',  glyph: '◆', end: true },
-  { to: '/matches',     key: 'nav.matches',    glyph: '▦' },
-  { to: '/value-bets',  key: 'nav.value_bets', glyph: '◈' },
-  { to: '/dropping',    key: 'nav.dropping',   glyph: '▼' },
-  { to: '/history',     key: 'nav.history',    glyph: '⊟' },
+  { to: '/',                     key: 'nav.dashboard',  glyph: '◆', end: true },
+  { to: '/matches',              key: 'nav.matches',    glyph: '▦' },
+  { to: '/value-bets',           key: 'nav.value_bets', glyph: '◈' },
+  { to: '/dropping',             key: 'nav.dropping',   glyph: '▼' },
+  { to: '/insights/mispricing',  key: 'nav.mispricing', glyph: '✦' },
+  { to: '/history',              key: 'nav.history',    glyph: '⊟' },
 ]
 
 const SETTINGS_NAV = [

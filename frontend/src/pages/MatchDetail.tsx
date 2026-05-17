@@ -11,6 +11,7 @@ import { FormStrip } from '../components/match/FormStrip'
 import { TeamAbbr } from '../components/match/TeamAbbr'
 import { BigBar } from '../components/match/BigBar'
 import { ScorelineHeatmap } from '../components/match/ScorelineHeatmap'   // your existing comp
+import { OddsTimeseries } from '../components/match/OddsTimeseries'
 import { AhLineSelector } from '../components/match/AhLineSelector'     // your existing comp
 import { AhLineTable } from '../components/match/AhLineTable'           // your existing comp
 
@@ -159,6 +160,8 @@ export default function MatchDetail() {
                 ))
               )}
             </div>
+
+            <OddsTimeseries fixtureId={f.id} />
 
             <div className="card">
               <div className="card-hdr">

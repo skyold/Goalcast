@@ -271,6 +271,83 @@ async def list_fixtures(
 
     return {"fixtures": fixtures, "total": total, "cached_at": None}
 
+@router.get("/fixtures/{fixture_id}/odds-timeseries")
+async def odds_timeseries(
+    fixture_id: int,
+    window: Annotated[str, Query(pattern="^(24h|7d)$")] = "24h",
+    bookmaker: Annotated[str | None, Query()] = "Pinnacle",
+    market: Annotated[str | None, Query()] = "all",
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Phase 1 — drop_pct time series for a fixture.
+
+    `odds_snapshots.odds_home/draw/away` columns exist but are 100% NULL in
+    practice (the sync only writes drop_pct). So this endpoint returns a
+    single-series line of drop_pct over time. Default narrows to Pinnacle (sharp)
+    on the 1x2 market; pass ?bookmaker=all and ?market=all to widen.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    hours = 24 if window == "24h" else 168
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
+    clauses = ["fixture_id=?", "recorded_at >= ?", "drop_pct IS NOT NULL"]
+    params: list = [fixture_id, cutoff]
+    if bookmaker and bookmaker != "all":
+        clauses.append("bookmaker=?")
+        params.append(bookmaker)
+    if market and market != "all":
+        clauses.append("market=?")
+        params.append(market)
+
+    where = " AND ".join(clauses)
+    async with db.execute(
+        f"SELECT recorded_at, drop_pct, bookmaker, market FROM odds_snapshots "
+        f"WHERE {where} ORDER BY recorded_at",
+        params,
+    ) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+
+    # Downsample to ≤ 50 points: bucket by even time slices and take the
+    # min drop_pct per bucket (most extreme = most informative).
+    MAX_POINTS = 50
+    if len(rows) > MAX_POINTS:
+        rows = _downsample_by_time(rows, MAX_POINTS)
+
+    return {
+        "fixture_id": fixture_id,
+        "window": window,
+        "bookmaker": bookmaker,
+        "market": market,
+        "points": rows,
+    }
+
+
+def _downsample_by_time(rows: list[dict], max_points: int) -> list[dict]:
+    if len(rows) <= max_points:
+        return rows
+    from datetime import datetime
+
+    t0 = datetime.fromisoformat(rows[0]["recorded_at"])
+    t1 = datetime.fromisoformat(rows[-1]["recorded_at"])
+    span = (t1 - t0).total_seconds() or 1.0
+    bucket_size = span / max_points
+
+    buckets: dict[int, list[dict]] = {}
+    for r in rows:
+        t = datetime.fromisoformat(r["recorded_at"])
+        idx = min(int((t - t0).total_seconds() / bucket_size), max_points - 1)
+        buckets.setdefault(idx, []).append(r)
+
+    out: list[dict] = []
+    for idx in sorted(buckets):
+        bucket = buckets[idx]
+        # Pick the row with the most extreme (smallest = most negative) drop_pct.
+        pick = min(bucket, key=lambda r: r["drop_pct"])
+        out.append(pick)
+    return out
+
+
 @router.get("/competitions")
 async def list_competitions(db: aiosqlite.Connection = Depends(get_db)):
     # Pull every competition referenced by fixtures and join with the curated

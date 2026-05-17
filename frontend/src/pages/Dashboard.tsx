@@ -36,6 +36,10 @@ export default function Dashboard() {
     queryKey: ['value-top'],
     queryFn: () => api.valueBets({ min_edge: 5 }),
   })
+  const { data: mispricingRes } = useQuery({
+    queryKey: ['mispricing-top'],
+    queryFn: () => api.mispricings({ date: new Date().toISOString().slice(0, 10), min_abs_edge: 5, limit: 3 }),
+  })
   const { data: upcomingRes } = useQuery({
     queryKey: ['fix-upcoming'],
     queryFn: () => api.fixtures({ limit: 4 }),
@@ -46,6 +50,7 @@ export default function Dashboard() {
   const pred = predRes?.total ?? 0
   const drops = dropRes?.items?.slice(0, 5) ?? []
   const values = valueRes?.items?.slice(0, 5) ?? []
+  const mispricings = mispricingRes?.items?.slice(0, 3) ?? []
   const upcoming = upcomingRes?.fixtures ?? []
 
   return (
@@ -123,6 +128,28 @@ export default function Dashboard() {
                 )
               })}
               {values.length === 0 && <div className="empty">{t('dash.empty.values')}</div>}
+            </div>
+
+            <div className="card">
+              <div className="card-hdr">
+                <div className="card-title">{t('insights.mispricing.dashboard.title')}</div>
+                <a className="card-sub" href="#" onClick={(e) => { e.preventDefault(); nav('/insights/mispricing') }}>{t('common.view_all')} →</a>
+              </div>
+              {mispricings.length === 0 && <div className="empty">{t('insights.mispricing.empty')}</div>}
+              {mispricings.map((m, i) => {
+                const positive = m.delta_pct > 0
+                return (
+                  <div key={i} className="alert-row" onClick={() => nav(`/matches/${m.fixture_id}`)}>
+                    <div className="alert-pct" style={{ color: positive ? 'var(--acc)' : 'var(--neg)' }}>
+                      {positive ? '+' : ''}{m.delta_pct.toFixed(1)}%
+                    </div>
+                    <div className="alert-mid">
+                      <div className="alert-match">{pickZh(m.home_team_zh, m.home_team)} vs {pickZh(m.away_team_zh, m.away_team)}</div>
+                      <div className="alert-meta">{t(`insights.mispricing.selection.${m.selection}`)} · {m.model_prob_pct.toFixed(0)}% vs {m.market_prob_pct.toFixed(0)}% @ {m.odds.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             <div className="card">

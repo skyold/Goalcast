@@ -13,6 +13,7 @@ import History from './pages/History'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import SettingsLeagues from './pages/SettingsLeagues'
+import Mispricings from './pages/Mispricings'
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
@@ -31,6 +32,7 @@ export default function AppRoutes() {
             <Route path="login" element={<Login />} />
             <Route path="signup" element={<Signup />} />
             <Route path="settings/leagues" element={<SettingsLeagues />} />
+            <Route path="insights/mispricing" element={<Mispricings />} />
           </Route>
         </Routes>
       </BrowserRouter>

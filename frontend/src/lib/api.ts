@@ -214,4 +214,39 @@ export const api = {
     get: () => get<{ locale: 'zh' | 'en' }>('/me/locale'),
     put: (locale: 'zh' | 'en') => put<{ locale: 'zh' | 'en' }>('/me/locale', { locale }),
   },
+  oddsTimeseries: (fixtureId: number, params?: { window?: '24h' | '7d'; bookmaker?: string; market?: string }) =>
+    get<OddsTimeseriesResponse>(`/fixtures/${fixtureId}/odds-timeseries`, params as P),
+  mispricings: (p?: { date?: string; min_abs_edge?: number; limit?: number }) =>
+    get<{ items: MispricingItem[]; date: string }>('/insights/mispricings', p),
+}
+
+export interface OddsTimeseriesPoint {
+  recorded_at: string
+  drop_pct: number
+  bookmaker: string
+  market: string
+}
+export interface OddsTimeseriesResponse {
+  fixture_id: number
+  window: '24h' | '7d'
+  bookmaker: string | null
+  market: string | null
+  points: OddsTimeseriesPoint[]
+}
+
+export interface MispricingItem {
+  fixture_id: number
+  home_team: string
+  home_team_zh: string | null
+  away_team: string
+  away_team_zh: string | null
+  competition_name: string
+  competition_name_zh: string | null
+  kickoff_utc: string
+  predictability: Predictability
+  selection: 'home' | 'draw' | 'away'
+  model_prob_pct: number
+  market_prob_pct: number
+  delta_pct: number
+  odds: number
 }
