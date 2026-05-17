@@ -219,18 +219,20 @@ async def app_with_ft(tmp_path, monkeypatch):
             )
         # 4 predictions: 1001 picks home (correct), 1002 picks home (actual draw, miss),
         # 1003 picks home (correct), 1005 picks away (correct). Hit rate 3/4 = 75%.
+        # Phase-snap: league_stats reads from historical_predictions @ waypoint='kickoff',
+        # not the raw `predictions` table (which gets cleared post-FT).
         preds = [
-            (1001, 100, 70, 20, 10),
-            (1002, 100, 60, 20, 20),
-            (1003, 100, 55, 25, 20),
-            (1005, 100, 20, 30, 50),
+            # fixture_id, sims, home_pct, draw_pct, away_pct
+            (1001, 100, 70.0, 20.0, 10.0),
+            (1002, 100, 60.0, 20.0, 20.0),
+            (1003, 100, 55.0, 25.0, 20.0),
+            (1005, 100, 20.0, 30.0, 50.0),
         ]
         for p in preds:
             await db.execute(
-                """INSERT INTO predictions
-                   (fixture_id, simulations, home_win, draw, away_win, btts,
-                    o15_goals, o25_goals, o35_goals, o45_goals, scorelines, updated_at)
-                   VALUES (?, ?, ?, ?, ?, 50, 60, 50, 30, 10, '{}', ?)""",
+                """INSERT INTO historical_predictions
+                   (fixture_id, waypoint, simulations, home_win_pct, draw_pct, away_win_pct, captured_at)
+                   VALUES (?, 'kickoff', ?, ?, ?, ?, ?)""",
                 (p[0], p[1], p[2], p[3], p[4], now),
             )
         await db.commit()

@@ -168,6 +168,42 @@ CREATE TABLE IF NOT EXISTS user_alert_settings (
 )
 """
 
+# Snapshot pipeline tables. predictions and bookmaker_odds tables upsert
+# (rows overwritten as kickoff approaches) so pre-game state is lost the moment
+# a fixture transitions to FT. These two history tables capture predictions
+# and odds at five waypoints (T-48h / T-24h / T-6h / T-1h / kickoff) so that
+# backward-looking metrics (model hit rate / CLV / upset rate) remain computable.
+CREATE_HISTORICAL_PREDICTIONS = """
+CREATE TABLE IF NOT EXISTS historical_predictions (
+    fixture_id    INTEGER NOT NULL,
+    waypoint      TEXT    NOT NULL,
+    simulations   INTEGER NOT NULL,
+    home_win_pct  REAL    NOT NULL,
+    draw_pct      REAL    NOT NULL,
+    away_win_pct  REAL    NOT NULL,
+    btts_pct      REAL,
+    o25_pct       REAL,
+    scorelines    TEXT,
+    captured_at   TIMESTAMP NOT NULL,
+    PRIMARY KEY (fixture_id, waypoint)
+)
+"""
+CREATE_HISTORICAL_PREDICTIONS_IDX = "CREATE INDEX IF NOT EXISTS idx_hist_pred_waypoint ON historical_predictions(waypoint)"
+
+CREATE_HISTORICAL_ODDS = """
+CREATE TABLE IF NOT EXISTS historical_odds (
+    fixture_id    INTEGER NOT NULL,
+    bookmaker_id  INTEGER NOT NULL,
+    market_id     INTEGER NOT NULL,
+    outcome       TEXT    NOT NULL,
+    waypoint      TEXT    NOT NULL,
+    odds          REAL    NOT NULL,
+    captured_at   TIMESTAMP NOT NULL,
+    PRIMARY KEY (fixture_id, bookmaker_id, market_id, outcome, waypoint)
+)
+"""
+CREATE_HISTORICAL_ODDS_IDX = "CREATE INDEX IF NOT EXISTS idx_hist_odds_fix ON historical_odds(fixture_id, waypoint)"
+
 # Speeds up local form5 derivation (scan fixtures by team_id, status='FT', ORDER BY kickoff DESC).
 CREATE_FIXTURES_IDX_HTEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_home_team ON fixtures(home_team_id, kickoff_utc)"
 CREATE_FIXTURES_IDX_ATEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_away_team ON fixtures(away_team_id, kickoff_utc)"
@@ -199,6 +235,10 @@ async def init_db() -> None:
             CREATE_ALERTS,
             CREATE_ALERTS_IDX,
             CREATE_USER_ALERT_SETTINGS,
+            CREATE_HISTORICAL_PREDICTIONS,
+            CREATE_HISTORICAL_PREDICTIONS_IDX,
+            CREATE_HISTORICAL_ODDS,
+            CREATE_HISTORICAL_ODDS_IDX,
         ):
             await db.execute(ddl)
         cur = await db.execute("PRAGMA table_info(fixtures)")

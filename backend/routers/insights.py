@@ -141,11 +141,16 @@ async def league_stats(
         season_clause = " AND f.season_id = ?"
         params.append(season_id)
 
+    # historical_predictions @ waypoint='kickoff' is the pre-game model state
+    # captured by the snapshot pipeline (services/snapshot.py). Until the pipeline
+    # has run a full kickoff cycle on a fixture, hp.* is NULL and the model_*
+    # metrics fall back to None (handled below).
     async with db.execute(
         f"""SELECT f.id, f.score_home, f.score_away, f.predictability,
-                   p.simulations, p.home_win, p.draw, p.away_win
+                   hp.simulations, hp.home_win_pct, hp.draw_pct, hp.away_win_pct
             FROM fixtures f
-            LEFT JOIN predictions p ON p.fixture_id = f.id
+            LEFT JOIN historical_predictions hp
+              ON hp.fixture_id = f.id AND hp.waypoint = 'kickoff'
             WHERE f.competition_id = ? AND f.status = 'FT'
                   AND f.score_home IS NOT NULL AND f.score_away IS NOT NULL
                   {season_clause}""",
@@ -175,12 +180,9 @@ async def league_stats(
     away_wins = sum(1 for r in rows if r["score_home"] < r["score_away"])
     total_goals = sum((r["score_home"] or 0) + (r["score_away"] or 0) for r in rows)
 
-    # model_hit_rate + upset would compare the model's pre-game top pick to the
-    # actual outcome. The data pipeline currently doesn't snapshot predictions
-    # at NS→FT transition (predictions and bookmaker_odds rows are pre-game only),
-    # so for FT rows the JOIN is always empty. The fields stay in the response
-    # contract — they'll auto-populate once a snapshot pipeline lands — but in
-    # current data they will be None / 0 for every league.
+    # model_hit_rate + upset compare the model's pre-game top pick (snapshotted
+    # at the 'kickoff' waypoint) to the actual outcome. predicted_count will
+    # grow as the snapshot pipeline accumulates kickoff captures.
     model_total = 0
     model_hits = 0
     for r in rows:
@@ -188,7 +190,7 @@ async def league_stats(
         if not sims:
             continue
         model_total += 1
-        picks = {"home": r["home_win"], "draw": r["draw"], "away": r["away_win"]}
+        picks = {"home": r["home_win_pct"], "draw": r["draw_pct"], "away": r["away_win_pct"]}
         top = max(picks, key=picks.get)
         actual = (
             "home" if r["score_home"] > r["score_away"]

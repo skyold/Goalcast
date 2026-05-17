@@ -623,8 +623,25 @@ async def _alerts_scan_job():
     except Exception:
         pass
 
+
+async def _snapshot_job():
+    """Capture prediction + odds at fixed waypoints (T-48h / T-24h / T-6h /
+    T-1h / kickoff) into historical_* tables. Fresh DB connection per run;
+    exceptions swallowed so a transient hiccup doesn't kill the scheduler."""
+    try:
+        import aiosqlite
+        from database import _db_path
+        from services.snapshot import run_snapshot
+        async with aiosqlite.connect(_db_path()) as db:
+            db.row_factory = aiosqlite.Row
+            await run_snapshot(db)
+    except Exception:
+        pass
+
+
 scheduler.add_job(sync_dropping_odds, "interval", minutes=5, id="dropping")
 scheduler.add_job(_alerts_scan_job, "interval", minutes=5, id="alerts_scan")
+scheduler.add_job(_snapshot_job, "interval", minutes=15, id="snapshot")
 scheduler.add_job(sync_from_trends, "interval", hours=1, id="fixture_trends")
 scheduler.add_job(sync_fixtures_upcoming, "interval", hours=1, id="fixtures_upcoming")
 scheduler.add_job(sync_ah_odds_latest, "interval", minutes=5, id="ah_odds_latest")
