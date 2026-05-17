@@ -271,6 +271,48 @@ async def list_fixtures(
 
     return {"fixtures": fixtures, "total": total, "cached_at": None}
 
+@router.get("/fixtures/{fixture_id}/h2h")
+async def fixture_h2h(
+    fixture_id: int,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Phase 5 — self-built H2H. The schema has a `fixtures.h2h` TEXT column but
+    OddAlerts never populates it (0/59k rows observed). We reconstruct history
+    from the fixtures table itself: pull finished games where the two teams in
+    `fixture_id` met before, in either home/away orientation.
+    """
+    async with db.execute(
+        "SELECT home_team_id, away_team_id FROM fixtures WHERE id=?", (fixture_id,)
+    ) as cur:
+        anchor = await cur.fetchone()
+    if not anchor or anchor["home_team_id"] is None or anchor["away_team_id"] is None:
+        return {"fixture_id": fixture_id, "items": [], "count": 0}
+
+    h, a = anchor["home_team_id"], anchor["away_team_id"]
+    async with db.execute(
+        """SELECT f.id, f.kickoff_utc, f.competition_id, f.competition_name,
+                  c.name_zh AS competition_name_zh,
+                  f.home_team, f.away_team, f.home_team_id, f.away_team_id,
+                  th.name_zh AS home_team_zh, ta.name_zh AS away_team_zh,
+                  f.score_home, f.score_away
+           FROM fixtures f
+           LEFT JOIN teams th ON th.id = f.home_team_id
+           LEFT JOIN teams ta ON ta.id = f.away_team_id
+           LEFT JOIN competitions c ON c.id = f.competition_id
+           WHERE f.status = 'FT'
+             AND f.id != ?
+             AND ((f.home_team_id = ? AND f.away_team_id = ?)
+                  OR (f.home_team_id = ? AND f.away_team_id = ?))
+             AND f.score_home IS NOT NULL AND f.score_away IS NOT NULL
+           ORDER BY f.kickoff_utc DESC
+           LIMIT ?""",
+        (fixture_id, h, a, a, h, limit),
+    ) as cur:
+        items = [dict(r) for r in await cur.fetchall()]
+    return {"fixture_id": fixture_id, "items": items, "count": len(items)}
+
+
 @router.get("/fixtures/{fixture_id}/odds-timeseries")
 async def odds_timeseries(
     fixture_id: int,

@@ -115,3 +115,97 @@ async def list_mispricings(
 
     items.sort(key=lambda x: abs(x["delta_pct"]), reverse=True)
     return {"items": items[:limit], "date": target}
+
+
+@router.get("/insights/leagues/{competition_id}")
+async def league_stats(
+    competition_id: int,
+    season_id: Annotated[int | None, Query()] = None,
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Aggregate per-competition stats for finished (status='FT') fixtures.
+
+    Returns goal/result distribution + a model_hit_rate measuring how often the
+    model's top-probability pick agrees with the actual winner.
+    """
+    async with db.execute(
+        "SELECT name_en, name_zh FROM competitions WHERE id=?", (competition_id,)
+    ) as cur:
+        comp_row = await cur.fetchone()
+    comp_name = comp_row["name_en"] if comp_row else None
+    comp_name_zh = comp_row["name_zh"] if comp_row else None
+
+    season_clause = ""
+    params: list = [competition_id]
+    if season_id is not None:
+        season_clause = " AND f.season_id = ?"
+        params.append(season_id)
+
+    async with db.execute(
+        f"""SELECT f.id, f.score_home, f.score_away, f.predictability,
+                   p.simulations, p.home_win, p.draw, p.away_win
+            FROM fixtures f
+            LEFT JOIN predictions p ON p.fixture_id = f.id
+            WHERE f.competition_id = ? AND f.status = 'FT'
+                  AND f.score_home IS NOT NULL AND f.score_away IS NOT NULL
+                  {season_clause}""",
+        params,
+    ) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+
+    n = len(rows)
+    if n == 0:
+        return {
+            "competition_id": competition_id,
+            "competition_name": comp_name,
+            "competition_name_zh": comp_name_zh,
+            "season_id": season_id,
+            "matches_played": 0,
+            "avg_goals": 0.0,
+            "home_win_pct": 0.0,
+            "draw_pct": 0.0,
+            "away_win_pct": 0.0,
+            "upset_pct": 0.0,
+            "model_hit_rate_pct": None,
+            "top_predictability_pct": 0.0,
+        }
+
+    home_wins = sum(1 for r in rows if r["score_home"] > r["score_away"])
+    draws = sum(1 for r in rows if r["score_home"] == r["score_away"])
+    away_wins = sum(1 for r in rows if r["score_home"] < r["score_away"])
+    total_goals = sum((r["score_home"] or 0) + (r["score_away"] or 0) for r in rows)
+
+    upsets = sum(1 for r in rows if r["predictability"] == "poor")
+    top_pred = sum(1 for r in rows if r["predictability"] in ("high", "good"))
+
+    model_total = 0
+    model_hits = 0
+    for r in rows:
+        sims = r.get("simulations")
+        if not sims:
+            continue
+        model_total += 1
+        picks = {"home": r["home_win"], "draw": r["draw"], "away": r["away_win"]}
+        top = max(picks, key=picks.get)
+        actual = (
+            "home" if r["score_home"] > r["score_away"]
+            else "away" if r["score_home"] < r["score_away"]
+            else "draw"
+        )
+        if top == actual:
+            model_hits += 1
+
+    return {
+        "competition_id": competition_id,
+        "competition_name": comp_name,
+        "competition_name_zh": comp_name_zh,
+        "season_id": season_id,
+        "matches_played": n,
+        "avg_goals": round(total_goals / n, 2),
+        "home_win_pct": round(home_wins / n * 100, 1),
+        "draw_pct":     round(draws    / n * 100, 1),
+        "away_win_pct": round(away_wins / n * 100, 1),
+        "upset_pct":    round(upsets / n * 100, 1),
+        "model_hit_rate_pct": round(model_hits / model_total * 100, 1) if model_total else None,
+        "top_predictability_pct": round(top_pred / n * 100, 1),
+    }

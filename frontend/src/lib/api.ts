@@ -223,6 +223,10 @@ export const api = {
     dismiss: (id: number) => post<void>(`/me/alerts/${id}/dismiss`),
     scan:    () => post<{ inserted: number }>('/me/alerts/scan'),
   },
+  leagueStats: (competitionId: number, params?: { season_id?: number }) =>
+    get<LeagueStats>(`/insights/leagues/${competitionId}`, params as P),
+  h2h: (fixtureId: number, params?: { limit?: number }) =>
+    get<{ fixture_id: number; items: H2HItem[]; count: number }>(`/fixtures/${fixtureId}/h2h`, params as P),
   alertSettings: {
     get: () => get<AlertSettings>('/me/alert-settings'),
     put: (s: AlertSettings) => put<AlertSettings>('/me/alert-settings', s),
@@ -257,6 +261,37 @@ export interface AlertItem {
   competition_name: string
   competition_name_zh: string | null
   kickoff_utc: string
+}
+
+export interface LeagueStats {
+  competition_id: number
+  competition_name: string | null
+  competition_name_zh: string | null
+  season_id: number | null
+  matches_played: number
+  avg_goals: number
+  home_win_pct: number
+  draw_pct: number
+  away_win_pct: number
+  upset_pct: number
+  model_hit_rate_pct: number | null
+  top_predictability_pct: number
+}
+
+export interface H2HItem {
+  id: number
+  kickoff_utc: string
+  competition_id: number
+  competition_name: string
+  competition_name_zh: string | null
+  home_team: string
+  away_team: string
+  home_team_id: number | null
+  away_team_id: number | null
+  home_team_zh: string | null
+  away_team_zh: string | null
+  score_home: number | null
+  score_away: number | null
 }
 
 export interface OddsTimeseriesPoint {

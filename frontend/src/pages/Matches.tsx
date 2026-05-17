@@ -92,6 +92,9 @@ export default function Matches() {
             {selectedLeagues.length > 0
               ? t('matches.subtitle.counts', { total: fixtures.length, leagues: selectedLeagues.length })
               : t('matches.subtitle.empty')}
+            {selectedLeagues.length === 1 && (
+              <> · <Link to={`/insights/leagues/${selectedLeagues[0]}`}>{t('insights.league.view')}</Link></>
+            )}
           </div>
         </div>
         <div className="ph-actions">

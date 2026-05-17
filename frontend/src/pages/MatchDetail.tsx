@@ -12,6 +12,7 @@ import { TeamAbbr } from '../components/match/TeamAbbr'
 import { BigBar } from '../components/match/BigBar'
 import { ScorelineHeatmap } from '../components/match/ScorelineHeatmap'   // your existing comp
 import { OddsTimeseries } from '../components/match/OddsTimeseries'
+import { H2HCard } from '../components/match/H2HCard'
 import { AhLineSelector } from '../components/match/AhLineSelector'     // your existing comp
 import { AhLineTable } from '../components/match/AhLineTable'           // your existing comp
 
@@ -162,6 +163,8 @@ export default function MatchDetail() {
             </div>
 
             <OddsTimeseries fixtureId={f.id} />
+
+            <H2HCard fixtureId={f.id} anchorHomeTeamId={f.home_team_id} />
 
             <div className="card">
               <div className="card-hdr">
