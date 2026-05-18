@@ -231,6 +231,47 @@ export const api = {
     get: () => get<AlertSettings>('/me/alert-settings'),
     put: (s: AlertSettings) => put<AlertSettings>('/me/alert-settings', s),
   },
+  backtest: {
+    summary: (p?: { competition_id?: number; waypoint?: string; min_samples?: number }) =>
+      get<BacktestSummary>('/backtest/summary', p as P),
+    byLeague: (p?: { waypoint?: string; min_samples?: number }) =>
+      get<BacktestByLeague>('/backtest/by-league', p as P),
+  },
+}
+
+export interface BacktestMetrics {
+  samples: number
+  top1_hit_rate: number | null
+  top1_hit_rate_ci95: [number, number] | null
+  brier: number | null
+}
+
+export interface BacktestSummary {
+  model_id: string
+  signal_version: string | null
+  scope: { competition_id: number | null; waypoint: string }
+  samples: number
+  enough: boolean
+  min_samples: number
+  metrics: BacktestMetrics
+}
+
+export interface BacktestByLeagueItem {
+  competition_id: number
+  competition_name: string | null
+  competition_name_zh: string | null
+  samples: number
+  enough: boolean
+  top1_hit_rate: number | null
+  top1_hit_rate_ci95: [number, number] | null
+  brier: number | null
+}
+
+export interface BacktestByLeague {
+  model_id: string
+  scope: { waypoint: string }
+  min_samples: number
+  items: BacktestByLeagueItem[]
 }
 
 export interface AlertSettings {

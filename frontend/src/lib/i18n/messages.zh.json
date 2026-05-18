@@ -229,6 +229,23 @@
   "insights.mispricing.min_edge_label": "最小 |Δ|",
   "insights.mispricing.empty": "今日无满足阈值的错定价",
   "insights.mispricing.loading": "扫描中…",
+
+  "backtest.title": "回测中心",
+  "backtest.subtitle": "OddAlerts 默认模型在过往 FT 比赛上的命中率与概率精度（kickoff waypoint）",
+  "backtest.loading": "聚合中…",
+  "backtest.accruing.title": "数据积累中 · 已收集 {samples} / {min}",
+  "backtest.accruing.body": "快照管线刚上线，需要时间积累 FT × kickoff 配对。阈值前不展示指标，避免用小样本误导。",
+  "backtest.accruing.short": "积累中",
+  "backtest.metric.hit_rate": "Top-1 命中率",
+  "backtest.metric.brier": "Brier 分数",
+  "backtest.metric.brier_hint": "越低越准 · 0 = 完美 / 1 = 随机",
+  "backtest.metric.samples": "样本数",
+  "backtest.by_league.empty": "暂无可分桶的联赛",
+  "backtest.col.league": "联赛",
+  "backtest.col.samples": "样本",
+  "backtest.col.hit_rate": "命中率",
+  "backtest.col.brier": "Brier",
+
   "nav.mispricing": "错定价",
   "nav.alerts_settings": "提醒设置",
 

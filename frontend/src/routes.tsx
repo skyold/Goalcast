@@ -16,6 +16,7 @@ import SettingsLeagues from './pages/SettingsLeagues'
 import SettingsAlerts from './pages/SettingsAlerts'
 import Mispricings from './pages/Mispricings'
 import LeagueStats from './pages/LeagueStats'
+import Backtest from './pages/Backtest'
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
@@ -37,6 +38,7 @@ export default function AppRoutes() {
             <Route path="settings/alerts" element={<SettingsAlerts />} />
             <Route path="insights/mispricing" element={<Mispricings />} />
             <Route path="insights/leagues/:id" element={<LeagueStats />} />
+            <Route path="insights/backtest" element={<Backtest />} />
           </Route>
         </Routes>
       </BrowserRouter>

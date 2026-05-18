@@ -229,6 +229,23 @@
   "insights.mispricing.min_edge_label": "Min |Δ|",
   "insights.mispricing.empty": "No mispricings meet the threshold today",
   "insights.mispricing.loading": "Scanning…",
+
+  "backtest.title": "Backtest center",
+  "backtest.subtitle": "OddAlerts default model accuracy on past FT matches (kickoff waypoint)",
+  "backtest.loading": "Aggregating…",
+  "backtest.accruing.title": "Data accruing · collected {samples} / {min}",
+  "backtest.accruing.body": "Snapshot pipeline only just launched; FT × kickoff pairs accumulate over time. Metrics stay hidden below threshold to avoid misleading you with small samples.",
+  "backtest.accruing.short": "accruing",
+  "backtest.metric.hit_rate": "Top-1 hit rate",
+  "backtest.metric.brier": "Brier score",
+  "backtest.metric.brier_hint": "Lower is better · 0 = perfect / 1 = random",
+  "backtest.metric.samples": "Samples",
+  "backtest.by_league.empty": "No leagues to bucket yet",
+  "backtest.col.league": "League",
+  "backtest.col.samples": "Samples",
+  "backtest.col.hit_rate": "Hit rate",
+  "backtest.col.brier": "Brier",
+
   "nav.mispricing": "Mispricings",
   "nav.alerts_settings": "Alert settings",
 
