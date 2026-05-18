@@ -1,4 +1,4 @@
-"""GS-HT-EV — 上半场平手盘 EV 5%~28% 反推香港盘赔率区间.
+"""GS-KEN-HT-EV — 上半场平手盘 EV 5%~28% 反推香港盘赔率区间.
 
 Mirrors docs/OA_HT_V2.py — but as a Pure Function on the snapshot pipeline.
 
@@ -84,7 +84,7 @@ def _derive_main_line_from_history(
 
 @register
 class GSHtEv(BaseSignal):
-    signal_type: ClassVar[str] = "GS-HT-EV"
+    signal_type: ClassVar[str] = "GS-KEN-HT-EV"
     signal_version: ClassVar[str] = "v1.0"
     scope: ClassVar[str] = "public"
 
