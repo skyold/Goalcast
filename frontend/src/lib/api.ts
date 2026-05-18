@@ -236,7 +236,27 @@ export const api = {
       get<BacktestSummary>('/backtest/summary', p as P),
     byLeague: (p?: { waypoint?: string; min_samples?: number }) =>
       get<BacktestByLeague>('/backtest/by-league', p as P),
+    calibration: (p?: { competition_id?: number; waypoint?: string; bins?: number; min_per_bin?: number }) =>
+      get<BacktestCalibration>('/backtest/calibration', p as P),
   },
+}
+
+export interface BacktestCalibrationBin {
+  bin_index: number
+  lower: number
+  upper: number
+  n: number
+  predicted_avg: number | null
+  actual_rate: number | null
+  enough: boolean
+}
+
+export interface BacktestCalibration {
+  model_id: string
+  scope: { competition_id: number | null; waypoint: string }
+  bins_count: number
+  min_per_bin: number
+  bins: BacktestCalibrationBin[]
 }
 
 export interface BacktestMetrics {

@@ -113,6 +113,76 @@ async def summary(
     }
 
 
+async def calibration(
+    db: aiosqlite.Connection,
+    *,
+    competition_id: Optional[int] = None,
+    waypoint: str = "kickoff",
+    bins: int = 10,
+    min_per_bin: int = 30,
+) -> dict:
+    """Top-1 reliability buckets.
+
+    For each (FT × kickoff_snap) pair, the model's top-1 probability becomes
+    the bin key; the bin's actual_rate is the fraction of those pairs where
+    top-1 was the actual outcome. Perfect calibration ⇒ predicted_avg ≈
+    actual_rate per bin (the diagonal).
+
+    Returns `bins` as a fixed 10-array (bin_index 0..9 = [0,10), [10,20), ...,
+    [90,100]). Empty bins still appear (n=0) so the UI can render a stable
+    x-axis without conditional rendering per bin.
+    """
+    pairs = await fetch_pairs(db, competition_id=competition_id, waypoint=waypoint)
+
+    buckets: list[dict] = []
+    for i in range(bins):
+        lo = i / bins
+        hi = (i + 1) / bins
+        buckets.append({
+            "bin_index": i,
+            "lower": lo,
+            "upper": hi,
+            "n": 0,
+            "_prob_sum": 0.0,
+            "_hits": 0,
+        })
+
+    for r in pairs:
+        probs = (r["home_win_pct"], r["draw_pct"], r["away_win_pct"])
+        top_idx = max(range(3), key=lambda i: probs[i])
+        top_prob = probs[top_idx] / 100.0
+        # Clamp: a probability of 1.0 lands in the last bin.
+        bin_idx = min(int(top_prob * bins), bins - 1)
+        actual = _actual_outcome(r["score_home"], r["score_away"])
+        top_sel = ("home", "draw", "away")[top_idx]
+
+        b = buckets[bin_idx]
+        b["n"] += 1
+        b["_prob_sum"] += top_prob
+        if top_sel == actual:
+            b["_hits"] += 1
+
+    items = []
+    for b in buckets:
+        n = b["n"]
+        items.append({
+            "bin_index": b["bin_index"],
+            "lower": round(b["lower"], 2),
+            "upper": round(b["upper"], 2),
+            "n": n,
+            "predicted_avg": round(b["_prob_sum"] / n, 4) if n else None,
+            "actual_rate":   round(b["_hits"]    / n, 4) if n else None,
+            "enough": n >= min_per_bin,
+        })
+    return {
+        "model_id": MODEL_ID_DEFAULT,
+        "scope": {"competition_id": competition_id, "waypoint": waypoint},
+        "bins_count": bins,
+        "min_per_bin": min_per_bin,
+        "bins": items,
+    }
+
+
 async def by_league(
     db: aiosqlite.Connection,
     *,

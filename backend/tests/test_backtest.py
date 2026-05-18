@@ -152,3 +152,60 @@ async def test_by_league_marks_under_threshold_as_not_enough(app):
     by_comp = {it["competition_id"]: it for it in items}
     assert by_comp[500]["enough"] is True   # 3 >= 2
     assert by_comp[600]["enough"] is False  # 1 < 2
+
+
+# ---------- /api/backtest/calibration ----------
+
+@pytest.mark.asyncio
+async def test_calibration_returns_10_bins_with_known_bucket(app):
+    """All 4 fixtures share top-1 = home @ 60%, so only bin[60-70) is populated.
+    Hits: F1 home, F3 home; misses: F2 draw, F4 away → actual_rate = 2/4 = 0.50.
+    Other 9 bins are present but n=0."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/backtest/calibration", params={"min_per_bin": 1})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["model_id"] == "oddalerts_default"
+    assert len(d["bins"]) == 10
+    by_idx = {b["bin_index"]: b for b in d["bins"]}
+    b6 = by_idx[6]
+    assert b6["lower"] == pytest.approx(0.60)
+    assert b6["upper"] == pytest.approx(0.70)
+    assert b6["n"] == 4
+    assert b6["predicted_avg"] == pytest.approx(0.60, abs=0.005)
+    assert b6["actual_rate"] == pytest.approx(0.50, abs=0.005)
+    assert b6["enough"] is True
+    for i in range(10):
+        if i == 6:
+            continue
+        assert by_idx[i]["n"] == 0
+        assert by_idx[i]["predicted_avg"] is None
+        assert by_idx[i]["actual_rate"] is None
+
+
+@pytest.mark.asyncio
+async def test_calibration_marks_under_threshold_as_not_enough(app):
+    """min_per_bin=10 vs only 4 samples → enough=false; bin still populated."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/backtest/calibration", params={"min_per_bin": 10})
+    by_idx = {b["bin_index"]: b for b in r.json()["bins"]}
+    assert by_idx[6]["n"] == 4
+    assert by_idx[6]["enough"] is False
+    # predicted_avg / actual_rate still returned — UI decides whether to render.
+    assert by_idx[6]["predicted_avg"] == pytest.approx(0.60, abs=0.005)
+
+
+@pytest.mark.asyncio
+async def test_calibration_competition_filter(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get(
+            "/api/backtest/calibration",
+            params={"competition_id": 500, "min_per_bin": 1},
+        )
+    by_idx = {b["bin_index"]: b for b in r.json()["bins"]}
+    # comp 500 has 3 fixtures, 2 hits (F1, F3) → actual_rate = 2/3
+    assert by_idx[6]["n"] == 3
+    assert by_idx[6]["actual_rate"] == pytest.approx(2 / 3, abs=0.005)
