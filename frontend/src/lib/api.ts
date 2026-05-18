@@ -243,6 +243,38 @@ export const api = {
     house: (p?: { book_type?: string; start_bankroll?: number }) =>
       get<PaperHouseSummary>('/paper-trading/house', p as P),
   },
+  signals: {
+    active: (p?: { waypoint?: string; min_strength?: number; limit?: number; only_upcoming?: boolean }) =>
+      get<SignalListResponse>('/signals/active', p as P),
+    byType: (type: string, p?: { fixture_id?: number; competition_id?: number; waypoint?: string; min_strength?: number; limit?: number; only_upcoming?: boolean }) =>
+      get<SignalListResponse>(`/signals/${encodeURIComponent(type)}`, p as P),
+  },
+}
+
+export interface SignalItem {
+  fixture_id: number
+  signal_type: string
+  signal_version: string | null
+  waypoint: string
+  scope: 'public' | 'member'
+  strength: number | null
+  captured_at: string
+  value: Record<string, any>
+  home_team: string | null
+  away_team: string | null
+  home_team_zh: string | null
+  away_team_zh: string | null
+  competition_id: number | null
+  competition_name: string | null
+  competition_name_zh: string | null
+  kickoff_utc: string | null
+  fixture_status: string | null
+}
+
+export interface SignalListResponse {
+  signal_type?: string
+  items: SignalItem[]
+  count: number
 }
 
 export interface PaperHouseMetrics {

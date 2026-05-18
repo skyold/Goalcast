@@ -10,6 +10,7 @@ const NAV = [
   { to: '/value-bets',           key: 'nav.value_bets', glyph: '◈' },
   { to: '/dropping',             key: 'nav.dropping',   glyph: '▼' },
   { to: '/insights/mispricing',  key: 'nav.mispricing', glyph: '✦' },
+  { to: '/insights/signals',     key: 'nav.signals',    glyph: '⚡' },
   { to: '/history',              key: 'nav.history',    glyph: '⊟' },
 ]
 
