@@ -140,7 +140,8 @@ CREATE TABLE signals_snapshot (
   fixture_id     INTEGER NOT NULL REFERENCES fixtures(id),
   signal_type    TEXT    NOT NULL,        -- 'GS-Mispricing' etc.
   signal_version TEXT    NOT NULL,        -- 'v1.0'
-  waypoint       TEXT    NOT NULL,        -- 48h/24h/6h/1h/kickoff/now
+  waypoint       TEXT    NOT NULL,        -- 48h/24h/6h/1h/kickoff（与 historical_predictions 五点对齐；
+                                          --  不引入额外 'now' waypoint，避免双轨）
   scope          TEXT    NOT NULL,        -- 'public'/'member'
   value_json     TEXT    NOT NULL,        -- 信号自定义 JSON
   strength       REAL,                    -- 标准化强度 [0,1]，用于排序
@@ -155,7 +156,11 @@ CREATE INDEX idx_ss_fixture       ON signals_snapshot(fixture_id);
 
 ```
 GET /api/signals/:type
-  ?fixture_id=&competition_id=&min_strength=&waypoint=now&since=
+  ?fixture_id=&competition_id=&min_strength=&waypoint=kickoff&since=
+
+# waypoint 默认取 'kickoff'（最权威、与 #5 回测对齐）；可选 48h/24h/6h/1h。
+# 如果调用方需要"最新可用"语义（即所有信号在赛前最接近现在的那个 waypoint），
+# 可省略 waypoint 参数，后端按 max(captured_at) 返回每场比赛各信号的最新行。
 
 → {
   "signal_type": "GS-Mispricing",
@@ -164,7 +169,7 @@ GET /api/signals/:type
   "items": [
     {
       "fixture_id": 123,
-      "waypoint": "now",
+      "waypoint": "kickoff",
       "captured_at": "2026-05-18T09:00:00Z",
       "strength": 0.72,
       "value": { "delta_pct": -14.5, "selection": "home" }
@@ -195,19 +200,39 @@ GET /api/signals/:type
 ### Data Flow
 
 ```
-[每个 waypoint tick] APScheduler →
+[每个 waypoint tick · 复用现有 services/snapshot.py 的 _capture 钩子，不新建 scheduler]
   for each fixture in (NS 且距 kickoff 在 waypoint 范围):
-    for each Signal in registered_signals:
-      row = Signal.compute(fixture_id, waypoint)
-      INSERT OR REPLACE INTO signals_snapshot
+    1) 现有逻辑：写 historical_predictions / historical_odds 一行（已存在）
+    2) 新增：for each Signal in registered_signals:
+         row = Signal.compute(db, fixture_id, waypoint)
+         INSERT OR REPLACE INTO signals_snapshot
+       try/except 隔离：信号失败不阻塞 1) 的快照入库
 
 [/api/signals/:type]
   → SELECT FROM signals_snapshot 按 strength 排序
   → 缓存 60s LRU
 
 [/api/insights/mispricings] (旧)
-  → 兼容层：内部转 GET /api/signals/GS-Mispricing?...，响应字段映射回旧 schema
+  → 兼容层：内部 SELECT FROM signals_snapshot WHERE signal_type='GS-Mispricing'
+    AND waypoint=（默认 kickoff 或最新可用），响应字段映射回旧 schema
 ```
+
+### 信号读源契约（critical）
+
+每个 Signal 的 `compute(db, fixture_id, waypoint)` **必须从带 waypoint 的历史表读，不读 upsert 的 live 表**：
+
+| Signal | 读源（waypoint-stamped）| ⚠️ 不读 |
+|--------|--------------------------|---------|
+| `GS-Mispricing` | `historical_predictions(fixture_id, waypoint)` × `historical_odds(fixture_id, bookmaker_id=1, market_id=6, waypoint)` | ❌ `predictions`（upsert）/ ❌ `bookmaker_odds.current`（live） |
+| `GS-OddsDrop` | `historical_odds` 按 waypoint 取相邻两点计算跌幅 | ❌ `odds_snapshots.drop_pct`（live 衍生字段，未来废弃） |
+| `GS-LineMove` | `historical_odds` 按 waypoint 序列分析 | ❌ `bookmaker_odds.opening/current/peak`（混合时间语义） |
+| `GS-SharpSquare` | `historical_odds` 同 waypoint 在 Pinnacle vs Bet365 上做 de-vig 对比 | ❌ `bookmaker_odds.current` |
+| `GS-Predictability` | `fixtures.predictability`（赛前赋的标签，FT 后不可被改写——需 sync 层 audit）| — |
+| `GS-H2HForm` | `fixtures` 自建 H2H（按 status='FT' 历史交手）| — |
+
+**理由**：`predictions` 和 `bookmaker_odds` 是 upsert 表，T-48h 时刻读它们已经丢失彼时数据；
+而 `historical_predictions / historical_odds` 在每个 waypoint 都写一行不可变快照。
+只有从历史表读，"在 T-48h 时这个信号是什么值"才可被 #5 回测、可被 paper-trading House Book 跟单。
 
 ### Acceptance
 

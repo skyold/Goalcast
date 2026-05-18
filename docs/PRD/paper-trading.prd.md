@@ -113,22 +113,40 @@
 ### Data Flow
 
 ```
-[每 30 min] APScheduler →
-  /api/insights/mispricings (delta_pct > 阈值, status='NS', kickoff > now+1h)
-    → 对每条 selection 写 simulated_bets(book_type='house_5pct', stake=1,
-        entry_odds=当前 Pinnacle odds, entry_at=now, outcome=NULL)
-    → 去重：(book_type, fixture_id, selection, user_id) UNIQUE
+[snapshot worker 每个 waypoint tick · 同 historical_predictions / signals_snapshot 节拍]
+  for each fixture in (NS 且距 kickoff 在 waypoint 范围):
+    rows = SELECT * FROM signals_snapshot
+           WHERE signal_type='GS-Mispricing' AND fixture_id=? AND waypoint=?
+    if rows.strength * 10 ≥ 阈值 AND value_json.delta_pct > 0:
+      INSERT OR IGNORE INTO simulated_bets (
+        book_type='house_5pct', user_id=0, fixture_id, selection=value_json.selection,
+        stake_units=1.0, entry_odds=<从 historical_odds 取该 waypoint 对应 selection 的 Pinnacle odds>,
+        entry_at=signals_snapshot.captured_at, entry_waypoint=waypoint,
+        signal_type='GS-Mispricing', signal_version=signals_snapshot.signal_version, outcome=NULL
+      )
+    UNIQUE (book_type, fixture_id, selection, user_id) 自动去重重复触发。
 
-[fixtures.status FT 转换] sync 时触发 →
+[fixtures.status FT 转换] sync worker poll →
   扫描 simulated_bets WHERE outcome IS NULL AND fixture_id IN (新结算的)
-    → 按 fixtures.score_home/away 推 H/D/A
-    → 命中：pnl_units = stake * (entry_odds - 1)；未中：pnl_units = -stake
-    → UPDATE simulated_bets SET outcome, pnl_units, settled_at = now
+    → 按 fixtures.score_home/away 推实际 outcome ∈ {H, D, A}
+    → 命中：pnl_units = stake_units * (entry_odds - 1)；未中：pnl_units = -stake_units
+    → closing_odds ← historical_odds.waypoint='kickoff' 同 fixture/selection
+    → UPDATE simulated_bets SET outcome, pnl_units, settled_at, closing_odds
 
 [/api/paper-trading/house]
-  → 累计聚合：sum(pnl_units), running bankroll, bootstrap CI, CLV 平均, max drawdown
+  → 累计聚合：sum(pnl_units), running bankroll, bootstrap CI,
+    CLV = mean((closing_odds - entry_odds) / entry_odds), max drawdown
   → 缓存 5 min LRU
 ```
+
+> **数据源切换说明**：House Book 一律从 `signals_snapshot`（waypoint-stamped）读，不直接读
+> 当前的 `/api/insights/mispricings`（live "now"）。原因：(1) `entry_odds` 必须是某个固定 waypoint
+> 的快照值，否则 CLV 不可回溯（"closing_odds vs entry_odds"无可信对比基线）；
+> (2) `proprietary-signals.prd.md` 落地后，`/insights/mispricings` 是兼容层，真值已在 `signals_snapshot`。
+> 所以 House Book 跳过中间层、直接对齐底层数据源。
+>
+> **依赖前置**：本 PRD 的 House Book 实施依赖 `signals_snapshot` 表 + GS-Mispricing 信号已写入
+> （即 proprietary-signals PRD 的"schema carve-out"那一步必须先 land；详见两 PRD 共同的 Phasing）。
 
 ### `simulated_bets` Schema
 
@@ -136,23 +154,30 @@
 CREATE TABLE simulated_bets (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   book_type       TEXT    NOT NULL,        -- 'house_3pct'/'house_5pct'/'house_7pct'/'personal'
-  user_id         INTEGER,                  -- NULL for house_*
+  user_id         INTEGER NOT NULL DEFAULT 0, -- 0 for House Book (sentinel, NOT NULL — SQLite UNIQUE
+                                              -- treats NULL as distinct, so the constraint below would
+                                              -- fail to dedupe House Book entries if user_id were NULL)
   fixture_id      INTEGER NOT NULL REFERENCES fixtures(id),
   selection       TEXT    NOT NULL,         -- 'home'/'draw'/'away'
   stake_units     REAL    NOT NULL,         -- V1 固定 1.0
-  entry_odds      REAL    NOT NULL,         -- 下单时 Pinnacle 1X2 odds
+  entry_odds      REAL    NOT NULL,         -- 下单时 Pinnacle 1X2 odds（来自 signals_snapshot.value_json）
   entry_at        TIMESTAMP NOT NULL,
-  signal_source   TEXT,                     -- 'mispricings_delta_5pct'/'manual' 等
+  entry_waypoint  TEXT    NOT NULL,         -- 信号触发时的 waypoint（48h/24h/6h/1h/kickoff）
+  signal_type     TEXT,                     -- 'GS-Mispricing' 等；NULL for 'personal' manual
+  signal_version  TEXT,                     -- 'v1.0' 等；NULL for 'personal' manual
   outcome         TEXT,                     -- NULL until settled; then 'win'/'loss'
   pnl_units       REAL,                     -- NULL until settled
   settled_at      TIMESTAMP,
-  closing_odds    REAL,                     -- snapshot for CLV
+  closing_odds    REAL,                     -- 从 historical_odds.waypoint='kickoff' 取，CLV 计算用
   UNIQUE (book_type, fixture_id, selection, user_id)
 );
-CREATE INDEX idx_sb_book_settled ON simulated_bets(book_type, settled_at);
-CREATE INDEX idx_sb_user_settled ON simulated_bets(user_id, settled_at);
+CREATE INDEX idx_sb_book_settled    ON simulated_bets(book_type, settled_at);
+CREATE INDEX idx_sb_user_settled    ON simulated_bets(user_id, settled_at);
 CREATE INDEX idx_sb_fixture_pending ON simulated_bets(fixture_id) WHERE outcome IS NULL;
 ```
+
+> **House Book 用 `user_id = 0` sentinel** 而非 NULL：SQLite 的 UNIQUE 约束把 NULL 视为不同值，
+> 若 `user_id` 为 NULL，同信号两次 scheduler tick 会重复下单，违反去重语义。设 0 为系统账户。
 
 ### Response 字段契约（V1 House Book 示例）
 
