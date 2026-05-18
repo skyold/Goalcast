@@ -1,22 +1,27 @@
 """Paper-trading core workers — House Book auto-follow + FT settlement.
 
-Two idempotent functions, both pure read-from / write-to SQLite (no network,
+Three idempotent functions, all pure read-from / write-to SQLite (no network,
 no scheduler-aware logic — composed by sync.py APScheduler hooks).
 
-1. place_house_bets(db, book_type, threshold)
+1. place_house_bets(db, book_type, threshold)  [legacy, paper-trading V1]
      For each GS-Mispricing row in signals_snapshot with delta_pct > threshold
      (positive edge only — model > market) on a fixture still status='NS',
      INSERT OR IGNORE into simulated_bets with user_id=0 sentinel. The UNIQUE
      constraint (book_type, fixture_id, selection, user_id) guarantees a
      single bet per (book, match, side) regardless of how often this runs.
 
-2. settle_bets(db)
+2. place_bets_for_books(db)  [Phase 4a of signal-catalog PRD]
+     Same idea but iterates rows from simulated_books. Each book carries
+     signal_type / conditions_json / match_scope, so the worker applies the
+     SAME conditions evaluator the backtest uses (forward ↔ backtest parity).
+
+3. settle_bets(db)
      For every pending bet (outcome IS NULL) whose fixture is status='FT' and
      has score_home/away, compute the actual 1X2 outcome, mark win/loss,
      write pnl_units, and snapshot closing_odds from
      historical_odds.waypoint='kickoff' for CLV.
 
-See docs/PRD/paper-trading.prd.md.
+See docs/PRD/paper-trading.prd.md + docs/PRD/signal-catalog-and-subscriptions.prd.md.
 """
 from __future__ import annotations
 
@@ -25,9 +30,30 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
+from services.signals.conditions import eval_conditions
+
 DEFAULT_SIGNAL_TYPE = "GS-Mispricing"
 HOUSE_USER_ID = 0
 DEFAULT_STAKE = 1.0
+
+# Map of book.name → legacy book_type string. New bets on these specific Books
+# preserve the legacy `book_type` value so the existing `/api/paper-trading/house`
+# endpoint that filters by `book_type='house_5pct'` keeps working. Books not in
+# this map use a synthetic `book_<id>` book_type.
+_LEGACY_BAND_NAMES: dict[str, str] = {
+    "House-GS-Mispricing-3pct": "house_3pct",
+    "House-GS-Mispricing-5pct": "house_5pct",
+    "House-GS-Mispricing-7pct": "house_7pct",
+}
+
+
+def _book_type_for(book: dict) -> str:
+    """Return the (book_type) string to write into simulated_bets for this book,
+    preserving legacy band names where applicable."""
+    name = book["name"]
+    if name in _LEGACY_BAND_NAMES:
+        return _LEGACY_BAND_NAMES[name]
+    return f"book_{book['id']}"
 
 
 def _actual_outcome(score_home: int, score_away: int) -> str:
@@ -105,6 +131,114 @@ async def place_house_bets(
     if inserted:
         await db.commit()
     return inserted
+
+
+async def place_bets_for_books(db: aiosqlite.Connection) -> int:
+    """Per-book auto-bet for every non-archived simulated_books row.
+
+    For each book whose signal_type/version matches a non-NS signals_snapshot
+    row, evaluate book.conditions_json + match_scope against the row, look up
+    the Pinnacle 1X2 odds for the indicated selection, and INSERT OR IGNORE
+    one bet into simulated_bets (book_id-keyed UNIQUE index dedupes).
+
+    Returns total newly-inserted rows across all books. Idempotent — safe
+    to schedule every minute.
+    """
+    async with db.execute(
+        """SELECT id, user_id, name, signal_type, signal_version,
+                  conditions_json, match_scope
+           FROM simulated_books WHERE archived_at IS NULL"""
+    ) as cur:
+        books = [dict(r) for r in await cur.fetchall()]
+    if not books:
+        return 0
+
+    # Pre-fetch signals_snapshot rows for all (signal_type, signal_version)
+    # combos in one pass — avoid N book-scoped queries.
+    sig_versions = {(b["signal_type"], b["signal_version"]) for b in books}
+    placeholders = ",".join("(?,?)" for _ in sig_versions)
+    flat: list = []
+    for st, sv in sig_versions:
+        flat.extend([st, sv])
+    sig_sql = f"""
+        SELECT s.fixture_id, s.signal_type, s.signal_version, s.waypoint,
+               s.value_json, s.strength, s.captured_at, f.competition_id
+        FROM signals_snapshot s
+        JOIN fixtures f ON f.id = s.fixture_id
+        WHERE f.status = 'NS'
+          AND (s.signal_type, s.signal_version) IN (VALUES {placeholders})
+    """
+    async with db.execute(sig_sql, flat) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+    # bucket by (signal_type, signal_version)
+    by_sig: dict[tuple[str, str], list[dict]] = {}
+    for r in rows:
+        by_sig.setdefault((r["signal_type"], r["signal_version"]), []).append(r)
+
+    total_inserted = 0
+    for book in books:
+        try:
+            conditions = json.loads(book["conditions_json"]) if book["conditions_json"] else {}
+        except (TypeError, ValueError):
+            conditions = {}
+        candidates = by_sig.get((book["signal_type"], book["signal_version"]), [])
+        if not candidates:
+            continue
+
+        # Pre-resolve match_scope user prefs for this book if needed.
+        allowed_competitions: set[int] | None = None
+        if book["match_scope"] == "my_leagues" and book["user_id"] != HOUSE_USER_ID:
+            async with db.execute(
+                "SELECT competition_id FROM user_competition_prefs WHERE user_id=?",
+                (book["user_id"],),
+            ) as cur:
+                allowed_competitions = {r["competition_id"] for r in await cur.fetchall()}
+        # House Books are PRD-forced to match_scope='all' — invariant enforced
+        # at INSERT time elsewhere; defensively allow all here if user_id=0.
+
+        book_type = _book_type_for(book)
+        for r in candidates:
+            if allowed_competitions is not None and r["competition_id"] not in allowed_competitions:
+                continue
+            if not eval_conditions(conditions, r):
+                continue
+            try:
+                value = json.loads(r["value_json"]) if r["value_json"] else {}
+            except (TypeError, ValueError):
+                continue
+            selection = value.get("selection")
+            if selection not in ("home", "draw", "away"):
+                continue
+            # Pinnacle 1X2 odds at this waypoint for the selected side.
+            async with db.execute(
+                """SELECT odds FROM historical_odds
+                   WHERE fixture_id=? AND waypoint=? AND bookmaker_id=1
+                     AND market_id=6 AND outcome=?""",
+                (r["fixture_id"], r["waypoint"], selection),
+            ) as cur:
+                odds_row = await cur.fetchone()
+            if odds_row is None or odds_row["odds"] is None:
+                continue
+            entry_odds = odds_row["odds"]
+            res = await db.execute(
+                """INSERT OR IGNORE INTO simulated_bets
+                     (book_id, book_type, user_id, fixture_id, selection,
+                      stake_units, entry_odds, entry_at, entry_waypoint,
+                      signal_type, signal_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    book["id"], book_type, book["user_id"],
+                    r["fixture_id"], selection,
+                    DEFAULT_STAKE, entry_odds,
+                    r["captured_at"], r["waypoint"],
+                    r["signal_type"], r["signal_version"],
+                ),
+            )
+            if res.rowcount and res.rowcount > 0:
+                total_inserted += 1
+    if total_inserted:
+        await db.commit()
+    return total_inserted
 
 
 async def house_book_summary(

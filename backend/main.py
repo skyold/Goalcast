@@ -1,15 +1,23 @@
 from contextlib import asynccontextmanager
+import aiosqlite
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import init_db
+from database import _db_path, init_db
 from routers import auth, me, fixtures, odds, history, insights, backtest, paper_trading, signals as signals_router, sync as sync_router
 from services.sync import scheduler
 from services.seed import load_seeds
+from services.signals.books import bootstrap_books
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await load_seeds()
+    # Auto-create one House Book per REGISTERED signal + migrate legacy
+    # simulated_bets.book_type='house_*pct' rows into the new book_id model.
+    # Idempotent; safe on every cold start.
+    async with aiosqlite.connect(_db_path()) as db:
+        db.row_factory = aiosqlite.Row
+        await bootstrap_books(db)
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)
