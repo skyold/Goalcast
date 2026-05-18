@@ -27,6 +27,16 @@ class GSMispricing(BaseSignal):
     signal_type: ClassVar[str] = "GS-Mispricing"
     signal_version: ClassVar[str] = "v1.0"
     scope: ClassVar[str] = "public"
+    description: ClassVar[str] = "模型概率与市场 de-vig 后的隐含概率最大差异"
+    output_schema: ClassVar[dict[str, str]] = {
+        "selection": "home|draw|away — 模型与市场最大分歧那一面",
+        "delta_pct": "float, 模型 pct − 市场 de-vig pct (正 = 模型更看好)",
+    }
+    strength_formula: ClassVar[str] = "min(|delta_pct| / 10.0, 1.0)"
+    failure_modes: ClassVar[list[str]] = [
+        "historical_predictions 缺失 → 不出信号",
+        "Pinnacle 1X2 (bookmaker_id=1, market_id=6) 三档赔率任一缺失 → 不出信号 (de-vig 需要全部三档)",
+    ]
 
     async def compute(
         self,

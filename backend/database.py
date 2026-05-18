@@ -204,6 +204,21 @@ CREATE TABLE IF NOT EXISTS historical_odds (
 """
 CREATE_HISTORICAL_ODDS_IDX = "CREATE INDEX IF NOT EXISTS idx_hist_odds_fix ON historical_odds(fixture_id, waypoint)"
 
+# Catalog methodology text per signal × locale. Consumed by
+# /api/signals/catalog. Decoupling文案 from code so that markdown bodies can be
+# updated without redeploying (seed via scripts/seed_methodology.py). See
+# docs/PRD/signal-catalog-and-subscriptions.prd.md Q1 — chose DB over static
+# constants to match the competitions.name_zh "DB-as-translation" pattern.
+CREATE_SIGNAL_METHODOLOGY = """
+CREATE TABLE IF NOT EXISTS signal_methodology (
+    signal_type  TEXT NOT NULL,
+    locale       TEXT NOT NULL,
+    body_md      TEXT NOT NULL,
+    updated_at   TIMESTAMP NOT NULL,
+    PRIMARY KEY (signal_type, locale)
+)
+"""
+
 # Goalcast Signals snapshot. One row per (fixture, signal_type, waypoint).
 # Written by services.signals via snapshot.py after historical_* rows for
 # the same (fixture, waypoint) land. See docs/PRD/proprietary-signals.prd.md.
@@ -301,6 +316,7 @@ async def init_db() -> None:
             CREATE_HISTORICAL_PREDICTIONS_IDX,
             CREATE_HISTORICAL_ODDS,
             CREATE_HISTORICAL_ODDS_IDX,
+            CREATE_SIGNAL_METHODOLOGY,
             CREATE_SIGNALS_SNAPSHOT,
             CREATE_SIGNALS_SNAPSHOT_IDX_RANK,
             CREATE_SIGNALS_SNAPSHOT_IDX_FIX,

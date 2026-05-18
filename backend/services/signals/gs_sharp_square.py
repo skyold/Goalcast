@@ -41,6 +41,18 @@ class GSSharpSquare(BaseSignal):
     signal_type: ClassVar[str] = "GS-SharpSquare"
     signal_version: ClassVar[str] = "v1.0"
     scope: ClassVar[str] = "member"
+    description: ClassVar[str] = "Pinnacle 与 Bet365 de-vig 后 1X2 隐含概率的最大分歧"
+    output_schema: ClassVar[dict[str, str]] = {
+        "selection":    "home|draw|away — 两书商最大分歧那一面",
+        "delta_pct":    "float, signed; +X% = Pinnacle 比 Bet365 更看好该 selection",
+        "pinnacle_pct": "float, Pinnacle de-vig 后的隐含 pct",
+        "bet365_pct":   "float, Bet365 de-vig 后的隐含 pct",
+    }
+    strength_formula: ClassVar[str] = "min(|delta_pct| / 10.0, 1.0)"
+    failure_modes: ClassVar[list[str]] = [
+        "Pinnacle (bookmaker_id=1) 或 Bet365 (bookmaker_id=2) 任一书商的 1X2 三档不全 → 不出信号",
+        "任一赔率 ≤ 0 (脏数据) → 不出信号",
+    ]
 
     async def compute(
         self,
