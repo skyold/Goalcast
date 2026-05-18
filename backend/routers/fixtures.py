@@ -140,22 +140,32 @@ def _build_odds_summary(rows: list[dict]) -> dict | None:
 @router.get("/fixtures")
 async def list_fixtures(
     date: Annotated[str | None, Query()] = None,
+    days_ahead: Annotated[int | None, Query()] = None,
     leagues: Annotated[str | None, Query()] = None,
     predictability: Annotated[str | None, Query()] = None,
     min_drop: Annotated[float | None, Query()] = None,
     has_ai: Annotated[bool, Query()] = False,
     limit: Annotated[int, Query()] = 200,
     status: Annotated[str | None, Query()] = None,
+    ignore_prefs: Annotated[bool, Query()] = False,
     db: aiosqlite.Connection = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
 ):
     # Phase 3: logged-in users have a competition whitelist. Empty prefs => empty
     # results (forces the user to set prefs); non-empty => intersect with the
     # already-requested `leagues` filter (so chip drill-down still works).
-    user_prefs = await get_user_competition_prefs(user, db)
+    # `ignore_prefs=true` is for dashboard comparison KPIs (all-leagues counts).
+    user_prefs = None if ignore_prefs else await get_user_competition_prefs(user, db)
     if user_prefs is not None and not user_prefs:
         return {"fixtures": [], "total": 0, "cached_at": None}
-    target = date or str(date_type.today())
+    # Date filter: `date` (single day, drill-down) wins; otherwise `days_ahead`
+    # gives a forward N-day window starting today (dashboard KPIs); else today.
+    today = date_type.today()
+    date_start = date or str(today)
+    date_end = date_start
+    if not date and days_ahead and days_ahead > 0:
+        from datetime import timedelta
+        date_end = str(today + timedelta(days=days_ahead - 1))
     select_cols = (
         "SELECT f.*, "
         "  hf.form5_str AS h_form5, hf.won AS h_won, hf.drawn AS h_drawn, hf.lost AS h_lost,"
@@ -181,9 +191,9 @@ async def list_fixtures(
         "   WHERE (fixture_id, recorded_at) IN ("
         "     SELECT fixture_id, MAX(recorded_at) FROM odds_snapshots GROUP BY fixture_id)"
         " ) ds ON ds.fixture_id=f.id"
-        " WHERE date(f.kickoff_utc)=?"
+        " WHERE date(f.kickoff_utc) BETWEEN ? AND ?"
     )
-    params: list = [target]
+    params: list = [date_start, date_end]
     where_extra = ""
     if leagues:
         ids = [int(x) for x in leagues.split(",") if x.strip()]

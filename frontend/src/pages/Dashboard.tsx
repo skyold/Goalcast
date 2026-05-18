@@ -15,22 +15,39 @@ export default function Dashboard() {
   const t = useT()
   const locale = useLocale()
 
-  // Three counts, all served by /fixtures with cheap filters.
+  // KPI counts: each card shows "selected / all" — `days_ahead=7` for forward window;
+  // duplicate queries with `ignore_prefs=true` for the all-leagues comparison number.
   const { data: totalRes } = useQuery({
-    queryKey: ['fix-count', 'total'],
-    queryFn: () => api.fixtures({ limit: 1 }),
+    queryKey: ['fix-count', 'total', 'mine'],
+    queryFn: () => api.fixtures({ limit: 1, days_ahead: 7 }),
+  })
+  const { data: totalAllRes } = useQuery({
+    queryKey: ['fix-count', 'total', 'all'],
+    queryFn: () => api.fixtures({ limit: 1, days_ahead: 7, ignore_prefs: true }),
   })
   const { data: aiRes } = useQuery({
-    queryKey: ['fix-count', 'ai'],
-    queryFn: () => api.fixtures({ limit: 1, has_ai: true }),
+    queryKey: ['fix-count', 'ai', 'mine'],
+    queryFn: () => api.fixtures({ limit: 1, days_ahead: 7, has_ai: true }),
+  })
+  const { data: aiAllRes } = useQuery({
+    queryKey: ['fix-count', 'ai', 'all'],
+    queryFn: () => api.fixtures({ limit: 1, days_ahead: 7, has_ai: true, ignore_prefs: true }),
   })
   const { data: predRes } = useQuery({
-    queryKey: ['fix-count', 'pred'],
-    queryFn: () => api.fixtures({ limit: 1, predictability: 'high,good,medium' }),
+    queryKey: ['fix-count', 'pred', 'mine'],
+    queryFn: () => api.fixtures({ limit: 1, days_ahead: 7, predictability: 'high,good,medium' }),
+  })
+  const { data: predAllRes } = useQuery({
+    queryKey: ['fix-count', 'pred', 'all'],
+    queryFn: () => api.fixtures({ limit: 1, days_ahead: 7, predictability: 'high,good,medium', ignore_prefs: true }),
   })
   const { data: dropRes } = useQuery({
-    queryKey: ['drop-top'],
+    queryKey: ['drop-top', 'mine'],
     queryFn: () => api.droppingOdds({ min_drop: 50 }),
+  })
+  const { data: dropAllRes } = useQuery({
+    queryKey: ['drop-top', 'all'],
+    queryFn: () => api.droppingOdds({ min_drop: 50, ignore_prefs: true }),
   })
   const { data: valueRes } = useQuery({
     queryKey: ['value-top'],
@@ -42,13 +59,17 @@ export default function Dashboard() {
   })
   const { data: upcomingRes } = useQuery({
     queryKey: ['fix-upcoming'],
-    queryFn: () => api.fixtures({ limit: 4 }),
+    queryFn: () => api.fixtures({ limit: 4, days_ahead: 7 }),
   })
 
   const total = totalRes?.total ?? 0
+  const totalAll = totalAllRes?.total ?? 0
   const withAi = aiRes?.total ?? 0
+  const withAiAll = aiAllRes?.total ?? 0
   const pred = predRes?.total ?? 0
+  const predAll = predAllRes?.total ?? 0
   const drops = dropRes?.items?.slice(0, 5) ?? []
+  const dropsAllCount = dropAllRes?.items?.length ?? 0
   const values = valueRes?.items?.slice(0, 5) ?? []
   const mispricings = mispricingRes?.items?.slice(0, 3) ?? []
   const upcoming = upcomingRes?.fixtures ?? []
@@ -68,10 +89,10 @@ export default function Dashboard() {
 
       <div className="page">
         <div className="kpi-grid">
-          <Kpi label={t('dash.kpi.candidates')}      value={total}        delta={t('dash.kpi.delta_yesterday', { n: 3 })}                                       spark={[8, 10, 9, 11, 13, 12, 13]} color="var(--acc)"   infoKey="dash.candidates" />
-          <Kpi label={t('dash.kpi.ai_modeled')}      value={withAi}       delta={t('dash.kpi.coverage_pct', { n: total ? Math.round(withAi/total*100) : 0 })}   spark={[6, 7, 8, 9, 10, 11, withAi]} color="var(--acc-3)" infoKey="dash.ai_modeled" />
-          <Kpi label={t('dash.kpi.drop_high')}       value={drops.length} delta={t('dash.kpi.drop_alerts', { n: drops.length })}                                 spark={[2, 3, 4, 3, 5, 6, drops.length]} color="var(--acc-2)" infoKey="dash.drop_high" />
-          <Kpi label={t('dash.kpi.predictability_ok')} value={pred}       delta={t('dash.kpi.coverage')}                                                         spark={[55, 58, 53, 60, 58, 61, pred]} color="var(--acc)"   infoKey="dash.predictability" />
+          <Kpi label={t('dash.kpi.candidates')}      value={`${total} / ${totalAll}`}              delta={t('dash.kpi.selected_vs_all')}                                                                spark={[8, 10, 9, 11, 13, 12, 13]} color="var(--acc)"   infoKey="dash.candidates" />
+          <Kpi label={t('dash.kpi.ai_modeled')}      value={`${withAi} / ${withAiAll}`}            delta={t('dash.kpi.coverage_pct', { n: totalAll ? Math.round(withAiAll/totalAll*100) : 0 })}        spark={[6, 7, 8, 9, 10, 11, withAi]} color="var(--acc-3)" infoKey="dash.ai_modeled" />
+          <Kpi label={t('dash.kpi.drop_high')}       value={`${drops.length} / ${dropsAllCount}`}  delta={t('dash.kpi.selected_vs_all')}                                                                spark={[2, 3, 4, 3, 5, 6, drops.length]} color="var(--acc-2)" infoKey="dash.drop_high" />
+          <Kpi label={t('dash.kpi.predictability_ok')} value={`${pred} / ${predAll}`}              delta={t('dash.kpi.selected_vs_all')}                                                                spark={[55, 58, 53, 60, 58, 61, pred]} color="var(--acc)"   infoKey="dash.predictability" />
         </div>
 
         <div className="dash-grid">

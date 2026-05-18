@@ -187,14 +187,14 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
-  fixtures: (p: { date?: string; leagues?: string; limit?: number; status?: string; predictability?: string; min_drop?: number; has_ai?: boolean }) =>
+  fixtures: (p: { date?: string; days_ahead?: number; leagues?: string; limit?: number; status?: string; predictability?: string; min_drop?: number; has_ai?: boolean; ignore_prefs?: boolean }) =>
     get<{ fixtures: FixtureSummary[]; total: number; cached_at: string | null }>('/fixtures', p),
   fixture: (id: number) => get<FixtureDetail>(`/fixtures/${id}`),
   competitions: () =>
     get<{ competitions: Array<{ id: number; name: string; name_zh?: string | null }> }>('/competitions'),
-  droppingOdds: (p?: { min_drop?: number; market?: string }) =>
+  droppingOdds: (p?: { min_drop?: number; market?: string; ignore_prefs?: boolean }) =>
     get<{ items: DroppingOddsItem[]; synced_at: string }>('/dropping-odds', p),
-  valueBets: (p?: { min_edge?: number }) =>
+  valueBets: (p?: { min_edge?: number; ignore_prefs?: boolean }) =>
     get<{ items: ValueBetItem[] }>('/value-bets', p),
   history: (p?: { limit?: number; offset?: number; league?: number }) =>
     get<{ items: FixtureSummary[]; total: number }>('/history', p),

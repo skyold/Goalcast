@@ -12,10 +12,13 @@ router = APIRouter()
 async def dropping_odds(
     min_drop: Annotated[float, Query()] = 10.0,
     market: Annotated[str | None, Query()] = None,
+    ignore_prefs: Annotated[bool, Query()] = False,
     db: aiosqlite.Connection = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
 ):
-    user_prefs = await get_user_competition_prefs(user, db)
+    # `ignore_prefs=true` lets the dashboard show "all leagues" comparison KPIs
+    # alongside the per-user filtered view.
+    user_prefs = None if ignore_prefs else await get_user_competition_prefs(user, db)
     if user_prefs is not None and not user_prefs:
         return {"items": [], "synced_at": datetime.now(timezone.utc).isoformat()}
     params: list = [-abs(min_drop)]
@@ -48,10 +51,11 @@ async def dropping_odds(
 @router.get("/value-bets")
 async def value_bets(
     min_edge: Annotated[float, Query()] = 5.0,
+    ignore_prefs: Annotated[bool, Query()] = False,
     db: aiosqlite.Connection = Depends(get_db),
     user: dict | None = Depends(get_current_user_optional),
 ):
-    user_prefs = await get_user_competition_prefs(user, db)
+    user_prefs = None if ignore_prefs else await get_user_competition_prefs(user, db)
     if user_prefs is not None and not user_prefs:
         return {"items": []}
     prefs_clause = ""
