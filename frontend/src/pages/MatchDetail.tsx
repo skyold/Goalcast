@@ -65,7 +65,7 @@ export default function MatchDetail() {
         <div className="md-hero">
           <div className="md-team home">
             <div className="md-team-row">
-              <TeamAbbr name={homeName} teamId={f.home_team_id} size={56} />
+              <TeamAbbr name={homeName} nameZh={f.home_team_zh} teamId={f.home_team_id} size={56} />
               <div>
                 <div className="tname">{homeName}</div>
                 {homeForm && (
@@ -92,7 +92,7 @@ export default function MatchDetail() {
                   </div>
                 )}
               </div>
-              <TeamAbbr name={awayName} teamId={f.away_team_id} size={56} />
+              <TeamAbbr name={awayName} nameZh={f.away_team_zh} teamId={f.away_team_id} size={56} />
             </div>
             <FormStrip form5={awayForm?.form5} />
           </div>
