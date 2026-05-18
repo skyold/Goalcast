@@ -258,3 +258,115 @@ async def test_three_book_types_run_in_parallel_per_fixture(db_path):
         async with db.execute("SELECT book_type FROM simulated_bets WHERE fixture_id=10") as cur:
             book_types = {r["book_type"] for r in await cur.fetchall()}
     assert book_types == {"house_3pct", "house_5pct", "house_7pct"}
+
+
+# ---------- house_book_summary ----------
+
+async def _seed_settled_bet(
+    db_path: str, *, fixture_id: int, book_type: str,
+    selection: str, entry_odds: float, score_home: int, score_away: int,
+    settled_at: str,
+):
+    """Helper: insert a fixture + a simulated_bet already settled."""
+    won = (
+        (selection == "home" and score_home > score_away)
+        or (selection == "draw" and score_home == score_away)
+        or (selection == "away" and score_home < score_away)
+    )
+    pnl = (entry_odds - 1) if won else -1.0
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            """INSERT INTO fixtures (id, competition_id, competition_name,
+               home_team, away_team, score_home, score_away,
+               kickoff_utc, status, fetched_at, updated_at)
+               VALUES (?, 100, 'L', 'A', 'B', ?, ?, '2026-05-10T15:00:00', 'FT', ?, ?)""",
+            (fixture_id, score_home, score_away, NOW, NOW),
+        )
+        await db.execute(
+            """INSERT INTO simulated_bets
+                 (book_type, user_id, fixture_id, selection, stake_units,
+                  entry_odds, entry_at, entry_waypoint, signal_type, signal_version,
+                  outcome, pnl_units, settled_at, closing_odds)
+               VALUES (?, 0, ?, ?, 1.0, ?, ?, 'kickoff', 'GS-Mispricing', 'v1.0', ?, ?, ?, ?)""",
+            (book_type, fixture_id, selection, entry_odds, NOW,
+             "win" if won else "loss", pnl, settled_at, entry_odds),
+        )
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_house_book_summary_aggregates_settled_bets(db_path):
+    """3 settled bets in house_5pct (2 win + 1 loss, total pnl = +2.10) →
+    bankroll.current = 1002.10, win_rate = 2/3, roi = 2.10 / 3 stakes = 70%."""
+    await _seed_settled_bet(db_path, fixture_id=11, book_type="house_5pct",
+                              selection="home", entry_odds=2.10,
+                              score_home=2, score_away=0,
+                              settled_at="2026-05-12T15:00:00")
+    await _seed_settled_bet(db_path, fixture_id=12, book_type="house_5pct",
+                              selection="home", entry_odds=1.80,
+                              score_home=0, score_away=2,
+                              settled_at="2026-05-13T15:00:00")
+    await _seed_settled_bet(db_path, fixture_id=13, book_type="house_5pct",
+                              selection="away", entry_odds=3.00,
+                              score_home=0, score_away=1,
+                              settled_at="2026-05-14T15:00:00")
+    # One pending bet on the same book.
+    await _seed_signal_fixture(db_path, fixture_id=14, delta_pct=7.5)
+    from services.paper_trading import place_house_bets, house_book_summary
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await place_house_bets(db, book_type="house_5pct", threshold=5.0)
+        d = await house_book_summary(db, book_type="house_5pct", start_bankroll=1000.0)
+
+    assert d["book_type"] == "house_5pct"
+    assert d["bets_settled"] == 3
+    assert d["bets_pending"] == 1
+    assert d["bankroll"]["start"] == 1000.0
+    assert d["bankroll"]["current"] == pytest.approx(1002.10, abs=0.01)
+    assert d["metrics"]["win_rate"] == pytest.approx(2 / 3, abs=0.001)
+    # ROI = total_pnl / total_stake = 2.10 / 3 = 0.70
+    assert d["metrics"]["roi_pct"] == pytest.approx(70.0, abs=0.5)
+    # Timeseries ordered by settled_at ASC.
+    ts = d["timeseries"]
+    assert len(ts) == 3
+    assert [p["settled_at"] for p in ts] == [
+        "2026-05-12T15:00:00", "2026-05-13T15:00:00", "2026-05-14T15:00:00",
+    ]
+    assert ts[0]["bankroll"] == pytest.approx(1001.10, abs=0.01)
+    assert ts[1]["bankroll"] == pytest.approx(1000.10, abs=0.01)
+    assert ts[2]["bankroll"] == pytest.approx(1002.10, abs=0.01)
+
+
+@pytest.mark.asyncio
+async def test_house_book_summary_filters_by_book_type(db_path):
+    """Mixed bets across book_types — summary returns only the requested band."""
+    await _seed_settled_bet(db_path, fixture_id=11, book_type="house_5pct",
+                              selection="home", entry_odds=2.10,
+                              score_home=2, score_away=0,
+                              settled_at="2026-05-12T15:00:00")
+    await _seed_settled_bet(db_path, fixture_id=12, book_type="house_3pct",
+                              selection="home", entry_odds=2.10,
+                              score_home=2, score_away=0,
+                              settled_at="2026-05-12T15:00:00")
+    from services.paper_trading import house_book_summary
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        d5 = await house_book_summary(db, book_type="house_5pct", start_bankroll=1000.0)
+        d3 = await house_book_summary(db, book_type="house_3pct", start_bankroll=1000.0)
+    assert d5["bets_settled"] == 1
+    assert d3["bets_settled"] == 1
+
+
+@pytest.mark.asyncio
+async def test_house_book_summary_empty_state(db_path):
+    """No bets at all → bankroll unchanged, roi=null, timeseries empty."""
+    from services.paper_trading import house_book_summary
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        d = await house_book_summary(db, book_type="house_5pct", start_bankroll=1000.0)
+    assert d["bets_settled"] == 0
+    assert d["bets_pending"] == 0
+    assert d["bankroll"]["current"] == 1000.0
+    assert d["metrics"]["roi_pct"] is None
+    assert d["metrics"]["win_rate"] is None
+    assert d["timeseries"] == []

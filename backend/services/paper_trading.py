@@ -107,6 +107,68 @@ async def place_house_bets(
     return inserted
 
 
+async def house_book_summary(
+    db: aiosqlite.Connection,
+    *,
+    book_type: str,
+    start_bankroll: float = 1000.0,
+) -> dict:
+    """Aggregated view of one House Book band. Pure read.
+
+    Bankroll is computed deterministically: start + cumulative(pnl_units) over
+    settled bets ordered by settled_at ASC. ROI = sum(pnl) / sum(stake) on
+    settled bets only — pending bets carry no PnL signal yet.
+    """
+    async with db.execute(
+        """SELECT COUNT(*) AS n FROM simulated_bets
+           WHERE book_type=? AND user_id=? AND outcome IS NULL""",
+        (book_type, HOUSE_USER_ID),
+    ) as cur:
+        pending = (await cur.fetchone())["n"]
+
+    async with db.execute(
+        """SELECT stake_units, pnl_units, outcome, settled_at
+           FROM simulated_bets
+           WHERE book_type=? AND user_id=? AND outcome IS NOT NULL
+           ORDER BY settled_at ASC, id ASC""",
+        (book_type, HOUSE_USER_ID),
+    ) as cur:
+        settled = [dict(r) for r in await cur.fetchall()]
+
+    n = len(settled)
+    if n == 0:
+        return {
+            "book_type": book_type,
+            "bets_settled": 0,
+            "bets_pending": pending,
+            "bankroll": {"start": start_bankroll, "current": start_bankroll},
+            "metrics": {"roi_pct": None, "win_rate": None},
+            "timeseries": [],
+        }
+
+    total_stake = sum(b["stake_units"] for b in settled)
+    total_pnl   = sum(b["pnl_units"]   for b in settled)
+    wins        = sum(1 for b in settled if b["outcome"] == "win")
+
+    running = start_bankroll
+    timeseries = []
+    for b in settled:
+        running += b["pnl_units"]
+        timeseries.append({"settled_at": b["settled_at"], "bankroll": round(running, 2)})
+
+    return {
+        "book_type": book_type,
+        "bets_settled": n,
+        "bets_pending": pending,
+        "bankroll": {"start": start_bankroll, "current": round(running, 2)},
+        "metrics": {
+            "roi_pct":  round(total_pnl / total_stake * 100, 2) if total_stake else None,
+            "win_rate": round(wins / n, 4),
+        },
+        "timeseries": timeseries,
+    }
+
+
 async def settle_bets(db: aiosqlite.Connection) -> int:
     """Settle every pending bet whose fixture has finalized. Idempotent: bets
     whose `outcome IS NOT NULL` are skipped on re-runs."""

@@ -256,6 +256,22 @@
   "backtest.calibration.col.actual": "实际命中",
   "backtest.calibration.footer": "{n} 个有效样本 · 每箱至少 {min} 才纳入主曲线",
 
+  "paper.title": "模拟投注 · House Book",
+  "paper.subtitle": "按 GS-Mispricing 信号自动跟单的虚拟账户；公开、可审计，只为验证本站信号长期是否有 ROI。",
+  "paper.disclaimer": "全部为虚拟单位，不构成任何投注建议；本站不接入真实账户、不提供出入金、不做跟单或撮合。",
+  "paper.loading": "加载账户中…",
+  "paper.band_label": "下注阈值",
+  "paper.metric.bankroll": "当前资金",
+  "paper.metric.roi": "ROI",
+  "paper.metric.roi_sub": "pnl ÷ 总投入",
+  "paper.metric.win_rate": "胜率",
+  "paper.metric.bets": "已结算 / 总下单",
+  "paper.metric.bets_sub": "{pending} 注待结算",
+  "paper.curve.title": "资金曲线",
+  "paper.curve.hint": "按 settled_at 顺序累计 pnl_units（每注 1 unit 固定 stake）",
+  "paper.curve.empty": "等待第一注信号触发并结算",
+  "paper.curve.pending": "已下 {pending} 注，等待相应比赛 FT 后才能结算",
+
   "nav.mispricing": "错定价",
   "nav.alerts_settings": "提醒设置",
 

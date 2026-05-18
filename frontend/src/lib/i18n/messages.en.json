@@ -256,6 +256,22 @@
   "backtest.calibration.col.actual": "Actual hit",
   "backtest.calibration.footer": "{n} valid pairs · bins need ≥ {min} samples to plot",
 
+  "paper.title": "Paper trading · House Book",
+  "paper.subtitle": "Virtual ledger auto-following GS-Mispricing signals. Public, auditable — its sole purpose is to prove whether this site's signals carry long-run ROI.",
+  "paper.disclaimer": "All units are virtual; nothing here is betting advice. Goalcast does not link to real accounts, accept deposits, or route real wagers.",
+  "paper.loading": "Loading book…",
+  "paper.band_label": "Edge threshold",
+  "paper.metric.bankroll": "Current bankroll",
+  "paper.metric.roi": "ROI",
+  "paper.metric.roi_sub": "pnl ÷ total stake",
+  "paper.metric.win_rate": "Win rate",
+  "paper.metric.bets": "Settled / total bets",
+  "paper.metric.bets_sub": "{pending} pending",
+  "paper.curve.title": "Bankroll curve",
+  "paper.curve.hint": "Cumulative pnl_units in settled_at order (fixed 1 unit stake each)",
+  "paper.curve.empty": "Waiting for the first signal to fire and settle",
+  "paper.curve.pending": "{pending} bets placed, waiting for FT to settle",
+
   "nav.mispricing": "Mispricings",
   "nav.alerts_settings": "Alert settings",
 

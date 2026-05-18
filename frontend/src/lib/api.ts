@@ -239,6 +239,34 @@ export const api = {
     calibration: (p?: { competition_id?: number; waypoint?: string; bins?: number; min_per_bin?: number }) =>
       get<BacktestCalibration>('/backtest/calibration', p as P),
   },
+  paperTrading: {
+    house: (p?: { book_type?: string; start_bankroll?: number }) =>
+      get<PaperHouseSummary>('/paper-trading/house', p as P),
+  },
+}
+
+export interface PaperHouseMetrics {
+  roi_pct: number | null
+  win_rate: number | null
+}
+
+export interface PaperHouseBankroll {
+  start: number
+  current: number
+}
+
+export interface PaperHouseTimePoint {
+  settled_at: string
+  bankroll: number
+}
+
+export interface PaperHouseSummary {
+  book_type: string
+  bets_settled: number
+  bets_pending: number
+  bankroll: PaperHouseBankroll
+  metrics: PaperHouseMetrics
+  timeseries: PaperHouseTimePoint[]
 }
 
 export interface BacktestCalibrationBin {
