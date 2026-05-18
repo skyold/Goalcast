@@ -117,6 +117,105 @@ async def test_sync_fixtures_upcoming_persists_positions(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_sync_fixtures_upcoming_writes_ht_pct_to_predictions(tmp_path, monkeypatch):
+    """OA fixture.probability include → HT pcts land on predictions(simulations=0).
+
+    Snapshot pipeline later copies these into historical_predictions when the
+    real sim counts arrive via sync_predictions; the gs_ht_ev signal consumes
+    them from there.
+    """
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+
+    fake = [
+        {"id": 710, "home_name": "A", "away_name": "B", "home_id": 11, "away_id": 22,
+         "competition_id": 1, "competition_name": "L1",
+         "season_id": 5, "unix": 1779000000, "status": "NS",
+         "probability": {
+             "home_win_ht": 42.0, "draw_ht": 28.0, "away_win_ht": 30.0,
+             "home_win": 55.0, "draw": 25.0, "away_win": 20.0,
+         }},
+        # No probability include → predictions row should NOT be created.
+        {"id": 711, "home_name": "C", "away_name": "D", "home_id": 33, "away_id": 44,
+         "competition_id": 1, "competition_name": "L1",
+         "season_id": 5, "unix": 1779001000, "status": "NS"},
+    ]
+    with patch.object(oa.oddalerts_client, "get_upcoming_fixtures",
+                       new=AsyncMock(side_effect=[fake, []])):
+        await sync.sync_fixtures_upcoming()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """SELECT fixture_id, simulations,
+                      home_win_ht_pct, draw_ht_pct, away_win_ht_pct
+               FROM predictions ORDER BY fixture_id"""
+        )
+        rows = [dict(r) for r in await cur.fetchall()]
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["fixture_id"] == 710
+    assert r["simulations"] == 0
+    assert r["home_win_ht_pct"] == 42.0
+    assert r["draw_ht_pct"] == 28.0
+    assert r["away_win_ht_pct"] == 30.0
+
+
+@pytest.mark.asyncio
+async def test_sync_fixtures_upcoming_ht_pct_preserved_when_predictions_run(tmp_path, monkeypatch):
+    """sync_predictions upserts sim counts but must NOT clobber HT pcts written
+    earlier by sync_fixtures_upcoming. The ON CONFLICT clause in sync_predictions
+    only touches FT fields."""
+    monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("ODDALERTS_API_KEY", "K")
+    import importlib, config, database, services.oddalerts as oa, services.sync as sync
+    for m in (config, database, oa, sync): importlib.reload(m)
+    await database.init_db()
+
+    # Step 1: fixtures sync writes HT pcts.
+    # Kickoff well in the future so sync_predictions' WHERE filter
+    # (kickoff_utc >= strftime('now')) actually includes this fixture.
+    fake_fixtures = [{
+        "id": 720, "home_name": "A", "away_name": "B", "home_id": 11, "away_id": 22,
+        "competition_id": 1, "competition_name": "L1",
+        "season_id": 5, "unix": 4102444800, "status": "NS",  # 2100-01-01
+        "probability": {"home_win_ht": 50.0, "draw_ht": 25.0, "away_win_ht": 25.0},
+    }]
+    with patch.object(oa.oddalerts_client, "get_upcoming_fixtures",
+                       new=AsyncMock(side_effect=[fake_fixtures, []])):
+        await sync.sync_fixtures_upcoming()
+
+    # Step 2: predictions sync upserts FT sim counts for the same fixture.
+    fake_pred = {
+        "simulations": 50000, "home_win": 30000, "draw": 12500, "away_win": 7500,
+        "btts": 25000, "o15_goals": 35000, "o25_goals": 25000, "o35_goals": 12500,
+        "o45_goals": 5000, "scorelines": {"1-0": 12.5},
+    }
+    with patch.object(oa.oddalerts_client, "get_predictions_single",
+                       new=AsyncMock(return_value=fake_pred)):
+        await sync.sync_predictions()
+
+    async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """SELECT simulations, home_win,
+                      home_win_ht_pct, draw_ht_pct, away_win_ht_pct
+               FROM predictions WHERE fixture_id=720"""
+        )
+        row = dict(await cur.fetchone())
+    # FT fields populated
+    assert row["simulations"] == 50000
+    assert row["home_win"] == 30000
+    # HT pcts preserved across the second upsert
+    assert row["home_win_ht_pct"] == 50.0
+    assert row["draw_ht_pct"] == 25.0
+    assert row["away_win_ht_pct"] == 25.0
+
+
+@pytest.mark.asyncio
 async def test_sync_historical_fixtures_persists_ft_only(tmp_path, monkeypatch):
     """Phase 1: only status=FT rows are persisted with score/winning_team."""
     monkeypatch.setenv("GOALCAST_DB_PATH", str(tmp_path / "test.db"))

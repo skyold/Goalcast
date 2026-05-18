@@ -51,8 +51,13 @@ class OddAlertClient:
         raw = r.json()
         return raw if isinstance(raw, list) else raw.get("data", [])
 
-    async def get_upcoming_fixtures(self, page: int = 1, per_page: int = 250) -> list[dict]:
-        r = await self._client.get("/fixtures/upcoming", params={"page": page, "per_page": per_page})
+    async def get_upcoming_fixtures(
+        self, page: int = 1, per_page: int = 250, include: str | None = None,
+    ) -> list[dict]:
+        params: dict = {"page": page, "per_page": per_page}
+        if include:
+            params["include"] = include
+        r = await self._client.get("/fixtures/upcoming", params=params)
         r.raise_for_status()
         raw = r.json()
         return raw.get("data", []) if isinstance(raw, dict) else []
