@@ -91,7 +91,11 @@ function HouseCard({ d, t }: { d: PaperHouseSummary; t: (k: string, v?: any) => 
                   value={fmtPct(d.metrics.win_rate == null ? null : d.metrics.win_rate * 100)} />
           <Metric label={t('paper.metric.bets')}
                   value={`${d.bets_settled} / ${d.bets_settled + d.bets_pending}`}
-                  sub={t('paper.metric.bets_sub', { pending: d.bets_pending })} />
+                  sub={
+                    d.bets_voided > 0
+                      ? t('paper.metric.bets_sub_with_void', { pending: d.bets_pending, voided: d.bets_voided })
+                      : t('paper.metric.bets_sub', { pending: d.bets_pending })
+                  } />
         </div>
       </div>
 

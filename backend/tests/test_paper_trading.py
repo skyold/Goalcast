@@ -366,7 +366,170 @@ async def test_house_book_summary_empty_state(db_path):
         d = await house_book_summary(db, book_type="house_5pct", start_bankroll=1000.0)
     assert d["bets_settled"] == 0
     assert d["bets_pending"] == 0
+    assert d["bets_voided"] == 0
     assert d["bankroll"]["current"] == 1000.0
     assert d["metrics"]["roi_pct"] is None
     assert d["metrics"]["win_rate"] is None
     assert d["timeseries"] == []
+
+
+# ---------- settle_bets corner cases (day-6 健壮性) ----------
+
+@pytest.mark.asyncio
+async def test_settle_bets_rescoring_after_correction(db_path):
+    """Bet on home, fixture goes FT 2-0 → 'win'. Then score corrected to 0-2
+    (e.g., post-match administrative ruling). Next settle pass must downgrade
+    to 'loss' with pnl=-1, and bump settled_at — silent stale data violates
+    'audit-style ledger' promise."""
+    await _seed_signal_fixture(db_path, fixture_id=10, delta_pct=7.5,
+                                 selection="home", entry_odds=2.10)
+    from services.paper_trading import place_house_bets, settle_bets
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await place_house_bets(db, book_type="house_5pct", threshold=5.0)
+        await db.execute(
+            "UPDATE fixtures SET status='FT', score_home=2, score_away=0 WHERE id=10"
+        )
+        await db.commit()
+        await settle_bets(db)
+        async with db.execute("SELECT outcome, pnl_units, settled_at FROM simulated_bets WHERE fixture_id=10") as cur:
+            first = dict(await cur.fetchone())
+        # Administrative correction: actual was 0-2.
+        await db.execute(
+            "UPDATE fixtures SET score_home=0, score_away=2 WHERE id=10"
+        )
+        await db.commit()
+        # Tiny sleep so settled_at strictly advances (timestamps have second resolution).
+        import asyncio
+        await asyncio.sleep(0.01)
+        changed = await settle_bets(db)
+        async with db.execute("SELECT outcome, pnl_units, settled_at FROM simulated_bets WHERE fixture_id=10") as cur:
+            second = dict(await cur.fetchone())
+    assert first["outcome"] == "win"
+    assert changed == 1
+    assert second["outcome"] == "loss"
+    assert second["pnl_units"] == pytest.approx(-1.0, abs=0.001)
+    assert second["settled_at"] >= first["settled_at"]
+
+
+@pytest.mark.asyncio
+async def test_settle_bets_resets_to_pending_when_fixture_reverts_to_ns(db_path):
+    """Settled bet; then fixture is reverted to NS (e.g., match postponed and
+    upstream feed un-finalizes it). Bet must drop back to pending — leaving
+    a 'win'/'loss' marker on a future match would poison ROI."""
+    await _seed_signal_fixture(db_path, fixture_id=10, delta_pct=7.5,
+                                 selection="home", entry_odds=2.10)
+    from services.paper_trading import place_house_bets, settle_bets
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await place_house_bets(db, book_type="house_5pct", threshold=5.0)
+        await db.execute(
+            "UPDATE fixtures SET status='FT', score_home=2, score_away=0 WHERE id=10"
+        )
+        await db.commit()
+        await settle_bets(db)
+        # Upstream reverts.
+        await db.execute(
+            "UPDATE fixtures SET status='NS', score_home=NULL, score_away=NULL WHERE id=10"
+        )
+        await db.commit()
+        changed = await settle_bets(db)
+        async with db.execute(
+            "SELECT outcome, pnl_units, settled_at FROM simulated_bets WHERE fixture_id=10"
+        ) as cur:
+            bet = dict(await cur.fetchone())
+    assert changed == 1
+    assert bet["outcome"] is None
+    assert bet["pnl_units"] is None
+    assert bet["settled_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_settle_bets_voids_cancelled_or_postponed(db_path):
+    """fixture.status='PST' (postponed) or 'CAN'/'ABD'/'AWD'/'WO' → outcome='void'
+    with pnl=0. Real bookmakers refund stake; the virtual ledger mirrors that
+    by reporting zero PnL, and excludes void bets from ROI/win_rate denominators."""
+    await _seed_signal_fixture(db_path, fixture_id=10, delta_pct=7.5)
+    from services.paper_trading import place_house_bets, settle_bets
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await place_house_bets(db, book_type="house_5pct", threshold=5.0)
+        await db.execute("UPDATE fixtures SET status='PST' WHERE id=10")
+        await db.commit()
+        changed = await settle_bets(db)
+        async with db.execute(
+            "SELECT outcome, pnl_units FROM simulated_bets WHERE fixture_id=10"
+        ) as cur:
+            bet = dict(await cur.fetchone())
+    assert changed == 1
+    assert bet["outcome"] == "void"
+    assert bet["pnl_units"] == pytest.approx(0.0, abs=0.001)
+
+
+@pytest.mark.asyncio
+async def test_settle_bets_no_change_path_is_truly_idempotent(db_path):
+    """Bet settled cleanly, fixture untouched → subsequent settle calls report
+    `changed=0` AND leave settled_at exactly as-is (no silent UPDATE churn)."""
+    await _seed_signal_fixture(db_path, fixture_id=10, delta_pct=7.5)
+    from services.paper_trading import place_house_bets, settle_bets
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await place_house_bets(db, book_type="house_5pct", threshold=5.0)
+        await db.execute(
+            "UPDATE fixtures SET status='FT', score_home=2, score_away=0 WHERE id=10"
+        )
+        await db.commit()
+        first_changed = await settle_bets(db)
+        async with db.execute("SELECT settled_at FROM simulated_bets WHERE fixture_id=10") as cur:
+            t1 = (await cur.fetchone())["settled_at"]
+        second_changed = await settle_bets(db)
+        async with db.execute("SELECT settled_at FROM simulated_bets WHERE fixture_id=10") as cur:
+            t2 = (await cur.fetchone())["settled_at"]
+    assert first_changed == 1
+    assert second_changed == 0
+    assert t1 == t2
+
+
+@pytest.mark.asyncio
+async def test_house_book_summary_excludes_void_from_roi(db_path):
+    """Two settled bets (win + loss) and one void → ROI/win_rate computed
+    only over the 2 graded bets; bets_voided surfaced separately; void's
+    pnl=0 does not skew bankroll."""
+    await _seed_settled_bet(db_path, fixture_id=11, book_type="house_5pct",
+                              selection="home", entry_odds=2.0,
+                              score_home=2, score_away=0,  # win, pnl=+1.0
+                              settled_at="2026-05-12T15:00:00")
+    await _seed_settled_bet(db_path, fixture_id=12, book_type="house_5pct",
+                              selection="home", entry_odds=2.0,
+                              score_home=0, score_away=2,  # loss, pnl=-1.0
+                              settled_at="2026-05-13T15:00:00")
+    # Manually inject a voided row (no score; status irrelevant for summary).
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            """INSERT INTO fixtures (id, competition_id, competition_name,
+               home_team, away_team, kickoff_utc, status, fetched_at, updated_at)
+               VALUES (13, 100, 'L', 'A', 'B', '2026-05-14T15:00:00', 'PST', ?, ?)""",
+            (NOW, NOW),
+        )
+        await db.execute(
+            """INSERT INTO simulated_bets
+                 (book_type, user_id, fixture_id, selection, stake_units,
+                  entry_odds, entry_at, entry_waypoint, signal_type, signal_version,
+                  outcome, pnl_units, settled_at)
+               VALUES ('house_5pct', 0, 13, 'home', 1.0, 2.0, ?, 'kickoff',
+                       'GS-Mispricing', 'v1.0', 'void', 0.0, '2026-05-14T15:00:00')""",
+            (NOW,),
+        )
+        await db.commit()
+    from services.paper_trading import house_book_summary
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        d = await house_book_summary(db, book_type="house_5pct", start_bankroll=1000.0)
+    assert d["bets_settled"] == 3   # win + loss + void
+    assert d["bets_voided"] == 1
+    # ROI denominator excludes void: total_pnl=0, total_stake=2 → 0%
+    assert d["metrics"]["roi_pct"] == pytest.approx(0.0, abs=0.5)
+    # win_rate denominator excludes void: 1 win / 2 graded = 0.5
+    assert d["metrics"]["win_rate"] == pytest.approx(0.5, abs=0.001)
+    # Bankroll: +1 - 1 + 0 = 1000 unchanged.
+    assert d["bankroll"]["current"] == pytest.approx(1000.0, abs=0.01)

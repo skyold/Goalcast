@@ -267,6 +267,7 @@
   "paper.metric.win_rate": "胜率",
   "paper.metric.bets": "已结算 / 总下单",
   "paper.metric.bets_sub": "{pending} 注待结算",
+  "paper.metric.bets_sub_with_void": "{pending} 注待结算 · {voided} 注作废（推迟/取消）",
   "paper.curve.title": "资金曲线",
   "paper.curve.hint": "按 settled_at 顺序累计 pnl_units（每注 1 unit 固定 stake）",
   "paper.curve.empty": "等待第一注信号触发并结算",

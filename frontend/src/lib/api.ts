@@ -264,6 +264,7 @@ export interface PaperHouseSummary {
   book_type: string
   bets_settled: number
   bets_pending: number
+  bets_voided: number
   bankroll: PaperHouseBankroll
   metrics: PaperHouseMetrics
   timeseries: PaperHouseTimePoint[]
