@@ -3,7 +3,7 @@ import { fmtKickoff } from '../../lib/format'
 import { PredictabilityBadge } from '../shared/PredictabilityBadge'
 import { Tooltip } from '../shared/Tooltip'
 import { gloss } from '../../lib/glossary'
-import { useT } from '../../lib/i18n'
+import { useT, pickZh } from '../../lib/i18n'
 import { FormStrip } from './FormStrip'
 import { TeamAbbr } from './TeamAbbr'
 import { ProbBar } from './ProbBar'
@@ -23,10 +23,11 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
   const dropPct = fixture.drop_flag?.drop_percentage ?? null
   const hf = fixture.home_form
   const af = fixture.away_form
-  // Prefer API-provided zh names (seeded for top leagues); fall back to upstream English.
-  const homeName = fixture.home_team_zh ?? fixture.home_team
-  const awayName = fixture.away_team_zh ?? fixture.away_team
-  const compName = fixture.competition_name_zh ?? fixture.competition_name
+  // pickZh is locale-aware (returns zh under zh-locale, en under en-locale).
+  // useT() above subscribes us to locale changes so this re-runs on switch.
+  const homeName = pickZh(fixture.home_team_zh, fixture.home_team)
+  const awayName = pickZh(fixture.away_team_zh, fixture.away_team)
+  const compName = pickZh(fixture.competition_name_zh, fixture.competition_name)
   const homeRank = fixture.home_rank ?? null
   const awayRank = fixture.away_rank ?? null
 
