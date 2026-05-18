@@ -1,22 +1,26 @@
 """Unified read endpoints over signals_snapshot.
 
-Two surfaces:
-  GET /api/signals/:type     — list one signal's recent rows, with fixture meta
+Three surfaces:
+  GET /api/signals/catalog   — all registered signals with metadata + methodology +
+                               last-7-day aggregate stats (Phase 1 of PRD
+                               signal-catalog-and-subscriptions)
   GET /api/signals/active    — top-N rows across ALL signals, ranked by strength
+  GET /api/signals/:type     — list one signal's recent rows, with fixture meta
 
-Both attach team / competition labels at the SQL boundary so the frontend
-renders without secondary fetches. JSON parsing of value_json happens here
-(SQLite stores it as TEXT).
+The first two attach team / competition labels at the SQL boundary so the
+frontend renders without secondary fetches. JSON parsing of value_json happens
+here (SQLite stores it as TEXT).
 """
 from __future__ import annotations
 
 import json
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from database import get_db
+from services.signals import REGISTERED
 
 router = APIRouter()
 
@@ -61,6 +65,75 @@ def _row_to_item(r: dict) -> dict:
         "kickoff_utc":         r["kickoff_utc"],
         "fixture_status":      r["status"],
     }
+
+
+@router.get("/signals/catalog")
+async def get_catalog(
+    locale: Annotated[Literal["zh", "en"], Query()] = "zh",
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Catalog of all registered signals with full metadata for the
+    /insights/signals master-detail UI.
+
+    Per signal returns:
+      - identity:    signal_type, signal_version, scope
+      - contract:    description, output_schema, strength_formula, failure_modes
+                     (read directly from BaseSignal ClassVars)
+      - docs:        methodology_md + methodology_updated_at (from
+                     signal_methodology table; null if not seeded yet)
+      - live stats:  stats_7d {triggered, avg_strength, max_strength} from
+                     signals_snapshot last 7 days; null when zero rows
+
+    `house_book` is reserved for Phase 4 of the signal-catalog PRD (per-signal
+    House Books). It is intentionally always null in V1 so the frontend can
+    bind to the shape immediately.
+    """
+    # 7-day aggregate stats per signal_type from signals_snapshot.
+    async with db.execute(
+        """SELECT signal_type,
+                  COUNT(*)      AS triggered,
+                  AVG(strength) AS avg_strength,
+                  MAX(strength) AS max_strength
+           FROM signals_snapshot
+           WHERE captured_at >= datetime('now', '-7 days')
+           GROUP BY signal_type"""
+    ) as cur:
+        stats_by_type: dict[str, dict] = {
+            r["signal_type"]: {
+                "triggered":    int(r["triggered"] or 0),
+                "avg_strength": float(r["avg_strength"]) if r["avg_strength"] is not None else None,
+                "max_strength": float(r["max_strength"]) if r["max_strength"] is not None else None,
+            }
+            for r in await cur.fetchall()
+        }
+
+    # Methodology bodies for requested locale.
+    async with db.execute(
+        "SELECT signal_type, body_md, updated_at FROM signal_methodology WHERE locale=?",
+        (locale,),
+    ) as cur:
+        methodology_by_type: dict[str, dict] = {
+            r["signal_type"]: {"body_md": r["body_md"], "updated_at": r["updated_at"]}
+            for r in await cur.fetchall()
+        }
+
+    items: list[dict] = []
+    for sig in REGISTERED:
+        m = methodology_by_type.get(sig.signal_type)
+        items.append({
+            "signal_type":            sig.signal_type,
+            "signal_version":         sig.signal_version,
+            "scope":                  sig.scope,
+            "description":            sig.description,
+            "output_schema":          sig.output_schema,
+            "strength_formula":       sig.strength_formula,
+            "failure_modes":          sig.failure_modes,
+            "methodology_md":         m["body_md"]    if m else None,
+            "methodology_updated_at": m["updated_at"] if m else None,
+            "stats_7d":               stats_by_type.get(sig.signal_type),
+            "house_book":             None,  # Phase 4 of PRD signal-catalog-and-subscriptions
+        })
+    return {"locale": locale, "items": items, "count": len(items)}
 
 
 @router.get("/signals/active")

@@ -248,6 +248,8 @@ export const api = {
       get<SignalListResponse>('/signals/active', p as P),
     byType: (type: string, p?: { fixture_id?: number; competition_id?: number; waypoint?: string; min_strength?: number; limit?: number; only_upcoming?: boolean }) =>
       get<SignalListResponse>(`/signals/${encodeURIComponent(type)}`, p as P),
+    catalog: (p?: { locale?: 'zh' | 'en' }) =>
+      get<SignalCatalogResponse>('/signals/catalog', p as P),
   },
 }
 
@@ -274,6 +276,32 @@ export interface SignalItem {
 export interface SignalListResponse {
   signal_type?: string
   items: SignalItem[]
+  count: number
+}
+
+// Phase 1 of signal-catalog-and-subscriptions PRD.
+export interface SignalCatalogItem {
+  signal_type: string
+  signal_version: string
+  scope: 'public' | 'member'
+  description: string
+  output_schema: Record<string, string>
+  strength_formula: string
+  failure_modes: string[]
+  methodology_md: string | null
+  methodology_updated_at: string | null
+  stats_7d: {
+    triggered: number
+    avg_strength: number | null
+    max_strength: number | null
+  } | null
+  // Reserved for Phase 4 (per-signal House Books). Always null in V1.
+  house_book: null
+}
+
+export interface SignalCatalogResponse {
+  locale: 'zh' | 'en'
+  items: SignalCatalogItem[]
   count: number
 }
 
