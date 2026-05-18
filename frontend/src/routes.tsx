@@ -18,6 +18,7 @@ import Mispricings from './pages/Mispricings'
 import LeagueStats from './pages/LeagueStats'
 import Backtest from './pages/Backtest'
 import PaperTrading from './pages/PaperTrading'
+import Signals from './pages/Signals'
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } })
 
@@ -41,6 +42,7 @@ export default function AppRoutes() {
             <Route path="insights/leagues/:id" element={<LeagueStats />} />
             <Route path="insights/backtest" element={<Backtest />} />
             <Route path="insights/paper-trading" element={<PaperTrading />} />
+            <Route path="insights/signals" element={<Signals />} />
           </Route>
         </Routes>
       </BrowserRouter>

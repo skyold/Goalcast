@@ -64,7 +64,13 @@ export function useT() {
   return (key: string, vars?: Record<string, string | number>) => t(key, vars, loc)
 }
 
-// Data layer: zh-fallback policy for team / competition names.
-export function pickZh(zh: string | null | undefined, en: string): string {
-  return zh && zh.trim() ? zh : en
+// Data layer: locale-aware name picker for team / competition names. Despite
+// the historical name `pickZh`, this returns EN under en-locale and ZH under
+// zh-locale, with cross-fallback when one side is missing. Components must
+// be subscribed to locale via `useT()` / `useLocale()` for re-render on switch.
+export function pickZh(zh: string | null | undefined, en: string | null | undefined): string {
+  const z = zh && zh.trim() ? zh : null
+  const e = en && en.trim() ? en : null
+  if (_locale === 'en') return e ?? z ?? ''
+  return z ?? e ?? ''
 }

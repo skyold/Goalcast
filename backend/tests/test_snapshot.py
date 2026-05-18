@@ -179,7 +179,10 @@ async def test_kickoff_waypoint_fires_after_status_transition(db_path):
 async def test_signals_snapshot_written_alongside_historical(db_path):
     """After a snapshot run, signals_snapshot must have a GS-Mispricing row per
     captured (fixture, waypoint) where both predictions and Pinnacle 1X2 odds
-    are present. Ensures the hook in _capture() actually fires."""
+    are present. Other registered signals (GS-LineMove, GS-SharpSquare) write
+    their own rows when their preconditions hold — we assert only on the
+    GS-Mispricing rows here, since this test seeds only Pinnacle odds and
+    line-move on the first waypoint cannot be computed yet."""
     from services.snapshot import run_snapshot
     now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
     await _seed_fixture(db_path, fixture_id=80, kickoff=now + timedelta(hours=20))
@@ -188,7 +191,9 @@ async def test_signals_snapshot_written_alongside_historical(db_path):
         await run_snapshot(db, now=now)
         async with db.execute(
             """SELECT signal_type, signal_version, waypoint, scope, value_json, strength
-               FROM signals_snapshot WHERE fixture_id=80 ORDER BY waypoint"""
+               FROM signals_snapshot
+               WHERE fixture_id=80 AND signal_type='GS-Mispricing'
+               ORDER BY waypoint"""
         ) as cur:
             rows = [dict(r) for r in await cur.fetchall()]
     # 48h + 24h waypoints captured → two GS-Mispricing rows.
@@ -196,7 +201,6 @@ async def test_signals_snapshot_written_alongside_historical(db_path):
     assert {r["waypoint"] for r in rows} == {"48h", "24h"}
     import json
     for r in rows:
-        assert r["signal_type"] == "GS-Mispricing"
         assert r["signal_version"] == "v1.0"
         assert r["scope"] == "public"
         assert r["strength"] is not None and 0.0 <= r["strength"] <= 1.0

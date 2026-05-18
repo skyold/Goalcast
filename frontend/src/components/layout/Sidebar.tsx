@@ -9,7 +9,9 @@ const NAV = [
   { to: '/matches',              key: 'nav.matches',    glyph: '▦' },
   { to: '/value-bets',           key: 'nav.value_bets', glyph: '◈' },
   { to: '/dropping',             key: 'nav.dropping',   glyph: '▼' },
-  { to: '/insights/mispricing',  key: 'nav.mispricing', glyph: '✦' },
+  { to: '/insights/mispricing',     key: 'nav.mispricing',     glyph: '✦' },
+  { to: '/insights/signals',        key: 'nav.signals',        glyph: '⚡' },
+  { to: '/insights/paper-trading',  key: 'nav.paper_trading',  glyph: '📒' },
   { to: '/history',              key: 'nav.history',    glyph: '⊟' },
 ]
 

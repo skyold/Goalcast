@@ -274,6 +274,26 @@
   "paper.curve.pending": "已下 {pending} 注，等待相应比赛 FT 后才能结算",
 
   "nav.mispricing": "错定价",
+  "nav.signals": "信号集",
+  "nav.paper_trading": "模拟投注",
+
+  "signals.title": "Goalcast 信号集",
+  "signals.subtitle": "本站从赔率与模型预测加工的自有信号，按 strength 降序",
+  "signals.loading": "聚合中…",
+  "signals.empty": "当前阈值下无活跃信号",
+  "signals.filter.type": "信号类型",
+  "signals.filter.min_strength": "最小 strength",
+  "signals.tab.all": "全部",
+  "signals.tab.mispricing": "错定价",
+  "signals.tab.linemove": "盘口漂移",
+  "signals.tab.sharpsquare": "Sharp/Square 分歧",
+  "signals.col.match": "比赛",
+  "signals.col.signal": "信号",
+  "signals.col.detail": "详情",
+  "signals.col.strength": "Strength",
+  "signals.col.waypoint": "Waypoint",
+  "signals.scope.member": "会员",
+
   "nav.alerts_settings": "提醒设置",
 
   "alerts.bell.title": "分歧告警",

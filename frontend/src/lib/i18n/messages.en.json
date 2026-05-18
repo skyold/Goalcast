@@ -274,6 +274,26 @@
   "paper.curve.pending": "{pending} bets placed, waiting for FT to settle",
 
   "nav.mispricing": "Mispricings",
+  "nav.signals": "Signals",
+  "nav.paper_trading": "Paper trading",
+
+  "signals.title": "Goalcast Signals",
+  "signals.subtitle": "Proprietary derivatives computed from odds and model output, ranked by strength",
+  "signals.loading": "Aggregating…",
+  "signals.empty": "No active signals at this threshold",
+  "signals.filter.type": "Type",
+  "signals.filter.min_strength": "Min strength",
+  "signals.tab.all": "All",
+  "signals.tab.mispricing": "Mispricing",
+  "signals.tab.linemove": "Line move",
+  "signals.tab.sharpsquare": "Sharp/Square",
+  "signals.col.match": "Match",
+  "signals.col.signal": "Signal",
+  "signals.col.detail": "Detail",
+  "signals.col.strength": "Strength",
+  "signals.col.waypoint": "Waypoint",
+  "signals.scope.member": "Member",
+
   "nav.alerts_settings": "Alert settings",
 
   "alerts.bell.title": "Divergence alerts",
