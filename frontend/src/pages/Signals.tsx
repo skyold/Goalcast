@@ -14,14 +14,17 @@ import { api, type SignalItem, type SignalCatalogItem } from '../lib/api'
 import { fmtKickoff } from '../lib/format'
 import { pickZh, useLocale, useT } from '../lib/i18n'
 import MethodologyPanel from '../components/signals/MethodologyPanel'
+import CompareTable from '../components/signals/CompareTable'
 
 type Selection = 'all' | string  // 'all' for cross-signal feed; otherwise signal_type
+type Mode = 'detail' | 'compare'
 
 const STRENGTH_CHIPS = [0.3, 0.5, 0.7] as const
 
 export default function Signals() {
   const t = useT()
   const locale = useLocale()
+  const [mode, setMode] = useState<Mode>('detail')
   const [selected, setSelected] = useState<Selection>('all')
   const [minStrength, setMinStrength] = useState<number>(0.5)
 
@@ -50,10 +53,36 @@ export default function Signals() {
       <div className="ph">
         <div>
           <div className="ph-title">{t('signals.title')}</div>
-          <div className="ph-sub">{t('signals.subtitle')} · {fixtures.length}</div>
+          <div className="ph-sub">
+            {mode === 'compare' ? t('signals.compare.subtitle') : t('signals.subtitle')}
+            {mode === 'detail' && ` · ${fixtures.length}`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            className={`chip${mode === 'detail' ? ' active' : ''}`}
+            onClick={() => setMode('detail')}
+          >{t('signals.mode.detail')}</button>
+          <button
+            className={`chip${mode === 'compare' ? ' active' : ''}`}
+            onClick={() => setMode('compare')}
+          >{t('signals.mode.compare')}</button>
         </div>
       </div>
 
+      {mode === 'compare' && (
+        <div className="page">
+          {catalogQ.isLoading && <div className="empty">{t('signals.loading')}</div>}
+          {!catalogQ.isLoading && (
+            <CompareTable
+              items={catalog}
+              onSelect={(st) => { setSelected(st); setMode('detail') }}
+            />
+          )}
+        </div>
+      )}
+
+      {mode === 'detail' && (
       <div className="page" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
         {/* ─── LEFT: catalog ─── */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -103,6 +132,7 @@ export default function Signals() {
           {fixtures.length > 0 && <SignalsTable items={fixtures} t={t} />}
         </main>
       </div>
+      )}
     </>
   )
 }
