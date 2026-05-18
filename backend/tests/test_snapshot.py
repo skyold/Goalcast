@@ -176,6 +176,63 @@ async def test_kickoff_waypoint_fires_after_status_transition(db_path):
 
 
 @pytest.mark.asyncio
+async def test_ht_pct_copied_to_historical_predictions(db_path):
+    """HT pcts on predictions row → snapshot copies them to historical_predictions.
+
+    Wires up the gs_ht_ev signal: without this copy, gs_ht_ev.compute()
+    returns None because historical_predictions.home_win_ht_pct is NULL.
+    """
+    from services.snapshot import run_snapshot
+    now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+    await _seed_fixture(db_path, fixture_id=90, kickoff=now + timedelta(hours=20))
+    # Backfill HT pcts onto the predictions row (mirrors sync_fixtures_upcoming
+    # writing them, then sync_predictions filling in FT sim counts).
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            """UPDATE predictions
+                 SET home_win_ht_pct=42.0, draw_ht_pct=28.0, away_win_ht_pct=30.0
+               WHERE fixture_id=90""",
+        )
+        await db.commit()
+
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await run_snapshot(db, now=now)
+        async with db.execute(
+            """SELECT waypoint, home_win_ht_pct, draw_ht_pct, away_win_ht_pct
+               FROM historical_predictions WHERE fixture_id=90
+               ORDER BY waypoint"""
+        ) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    assert len(rows) >= 1
+    for r in rows:
+        assert r["home_win_ht_pct"] == 42.0
+        assert r["draw_ht_pct"] == 28.0
+        assert r["away_win_ht_pct"] == 30.0
+
+
+@pytest.mark.asyncio
+async def test_ht_pct_null_when_predictions_lack_it(db_path):
+    """No HT pcts on predictions → historical_predictions rows have NULLs (no crash)."""
+    from services.snapshot import run_snapshot
+    now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+    await _seed_fixture(db_path, fixture_id=91, kickoff=now + timedelta(hours=20))
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await run_snapshot(db, now=now)
+        async with db.execute(
+            """SELECT home_win_ht_pct, draw_ht_pct, away_win_ht_pct
+               FROM historical_predictions WHERE fixture_id=91"""
+        ) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    assert rows
+    for r in rows:
+        assert r["home_win_ht_pct"] is None
+        assert r["draw_ht_pct"] is None
+        assert r["away_win_ht_pct"] is None
+
+
+@pytest.mark.asyncio
 async def test_signals_snapshot_written_alongside_historical(db_path):
     """After a snapshot run, signals_snapshot must have a GS-Mispricing row per
     captured (fixture, waypoint) where both predictions and Pinnacle 1X2 odds

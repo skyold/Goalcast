@@ -130,7 +130,9 @@ async def sync_fixtures_upcoming() -> None:
             page = 1
             upserted = 0
             while True:
-                items = await oddalerts_client.get_upcoming_fixtures(page=page, per_page=250)
+                items = await oddalerts_client.get_upcoming_fixtures(
+                    page=page, per_page=250, include="probability",
+                )
                 if not items:
                     break
                 now = _now()
@@ -168,6 +170,30 @@ async def sync_fixtures_upcoming() -> None:
                          now, now),
                     )
                     upserted += 1
+                    # Persist HT 1X2 percentages onto predictions row when the
+                    # probability include is populated. simulations=0 sentinel
+                    # so a FT-less row doesn't satisfy snapshot's
+                    # `if pred["simulations"]` gate; sync_predictions later
+                    # upserts the real sim counts while ON CONFLICT here
+                    # leaves HT pcts untouched.
+                    prob = it.get("probability") or {}
+                    ht_h = prob.get("home_win_ht")
+                    ht_d = prob.get("draw_ht")
+                    ht_a = prob.get("away_win_ht")
+                    if ht_h is not None and ht_d is not None and ht_a is not None:
+                        await db.execute(
+                            """INSERT INTO predictions
+                                 (fixture_id, simulations,
+                                  home_win_ht_pct, draw_ht_pct, away_win_ht_pct,
+                                  updated_at)
+                               VALUES (?, 0, ?, ?, ?, ?)
+                               ON CONFLICT(fixture_id) DO UPDATE SET
+                                 home_win_ht_pct=excluded.home_win_ht_pct,
+                                 draw_ht_pct    =excluded.draw_ht_pct,
+                                 away_win_ht_pct=excluded.away_win_ht_pct,
+                                 updated_at     =excluded.updated_at""",
+                            (fid, ht_h, ht_d, ht_a, now),
+                        )
                 page += 1
                 if len(items) < 250:
                     break

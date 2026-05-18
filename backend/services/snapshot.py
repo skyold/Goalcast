@@ -118,7 +118,8 @@ async def _capture(db: aiosqlite.Connection, fixture_id: int, waypoint: str, now
     wrote = False
 
     async with db.execute(
-        """SELECT simulations, home_win, draw, away_win, btts, o25_goals, scorelines
+        """SELECT simulations, home_win, draw, away_win, btts, o25_goals, scorelines,
+                  home_win_ht_pct, draw_ht_pct, away_win_ht_pct
            FROM predictions WHERE fixture_id=?""",
         (fixture_id,),
     ) as cur:
@@ -129,8 +130,9 @@ async def _capture(db: aiosqlite.Connection, fixture_id: int, waypoint: str, now
             """INSERT INTO historical_predictions
                  (fixture_id, waypoint, simulations,
                   home_win_pct, draw_pct, away_win_pct,
-                  btts_pct, o25_pct, scorelines, captured_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  btts_pct, o25_pct, scorelines, captured_at,
+                  home_win_ht_pct, draw_ht_pct, away_win_ht_pct)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(fixture_id, waypoint) DO NOTHING""",
             (
                 fixture_id, waypoint, sims,
@@ -141,6 +143,9 @@ async def _capture(db: aiosqlite.Connection, fixture_id: int, waypoint: str, now
                 round(pred["o25_goals"] / sims * 100, 2) if pred["o25_goals"] is not None else None,
                 pred["scorelines"],
                 now.isoformat(),
+                pred["home_win_ht_pct"],
+                pred["draw_ht_pct"],
+                pred["away_win_ht_pct"],
             ),
         )
         wrote = True

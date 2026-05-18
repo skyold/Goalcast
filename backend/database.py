@@ -262,6 +262,20 @@ ALTER_FIXTURES_HOME_POS = "ALTER TABLE fixtures ADD COLUMN home_position INTEGER
 ALTER_FIXTURES_AWAY_POS = "ALTER TABLE fixtures ADD COLUMN away_position INTEGER"
 ALTER_FIXTURES_WINNING  = "ALTER TABLE fixtures ADD COLUMN winning_team INTEGER"
 
+# HT 1X2 percentages on historical_predictions (consumed by signals/gs_ht_ev).
+# Nullable so legacy rows captured before HT plumbing remain valid; the signal
+# returns None when any HT pct is NULL.
+ALTER_HIST_PRED_HT_HOME = "ALTER TABLE historical_predictions ADD COLUMN home_win_ht_pct REAL"
+ALTER_HIST_PRED_HT_DRAW = "ALTER TABLE historical_predictions ADD COLUMN draw_ht_pct     REAL"
+ALTER_HIST_PRED_HT_AWAY = "ALTER TABLE historical_predictions ADD COLUMN away_win_ht_pct REAL"
+
+# Same HT percentages on the live `predictions` upsert table. Written by
+# sync_fixtures_upcoming from OA's fixture.probability include; copied into
+# historical_predictions by snapshot.py:_capture at each waypoint.
+ALTER_PRED_HT_HOME = "ALTER TABLE predictions ADD COLUMN home_win_ht_pct REAL"
+ALTER_PRED_HT_DRAW = "ALTER TABLE predictions ADD COLUMN draw_ht_pct     REAL"
+ALTER_PRED_HT_AWAY = "ALTER TABLE predictions ADD COLUMN away_win_ht_pct REAL"
+
 async def init_db() -> None:
     async with aiosqlite.connect(_db_path()) as db:
         # WAL mode allows concurrent readers + one writer without disk-image
@@ -308,6 +322,24 @@ async def init_db() -> None:
             await db.execute(ALTER_FIXTURES_AWAY_POS)
         if "winning_team" not in existing:
             await db.execute(ALTER_FIXTURES_WINNING)
+        # HT 1X2 columns on historical_predictions (idempotent).
+        cur = await db.execute("PRAGMA table_info(historical_predictions)")
+        hp_existing = {row[1] for row in await cur.fetchall()}
+        if "home_win_ht_pct" not in hp_existing:
+            await db.execute(ALTER_HIST_PRED_HT_HOME)
+        if "draw_ht_pct" not in hp_existing:
+            await db.execute(ALTER_HIST_PRED_HT_DRAW)
+        if "away_win_ht_pct" not in hp_existing:
+            await db.execute(ALTER_HIST_PRED_HT_AWAY)
+        # Same HT columns on the live predictions upsert table (idempotent).
+        cur = await db.execute("PRAGMA table_info(predictions)")
+        p_existing = {row[1] for row in await cur.fetchall()}
+        if "home_win_ht_pct" not in p_existing:
+            await db.execute(ALTER_PRED_HT_HOME)
+        if "draw_ht_pct" not in p_existing:
+            await db.execute(ALTER_PRED_HT_DRAW)
+        if "away_win_ht_pct" not in p_existing:
+            await db.execute(ALTER_PRED_HT_AWAY)
         # Indexes that reference fixtures.home_team_id / away_team_id must be created
         # AFTER ALTERs (in case those columns were added by an older migration path).
         for ddl in (CREATE_FIXTURES_IDX_HTEAM, CREATE_FIXTURES_IDX_ATEAM):
