@@ -4,8 +4,11 @@ Mispricing = |model_probability - de-vigged market implied probability|.
 - Model probability comes from `predictions` (simulation counts / total).
 - Market implied probability is computed from Pinnacle (bookmaker_id=1) 1x2
   odds (market_id=6) with vig removed: raw_imp[i] / sum(raw_imp).
-- For each fixture we emit one row per selection (home / draw / away) where
-  |delta| >= min_abs_edge.
+- For each fixture we emit at most ONE row — the selection (home / draw /
+  away) whose |delta| is largest AND meets min_abs_edge. The other two
+  selections' deltas are arithmetically complementary (sum(model) =
+  sum(implied) = 1), so listing them adds no signal and clutters the TOP
+  list with the same match repeated three times.
 """
 from __future__ import annotations
 
@@ -94,24 +97,26 @@ async def list_mispricings(
         }
         odds_map = {"home": oh, "draw": od, "away": oa}
 
-        for sel in ("home", "draw", "away"):
-            delta_pct = (model[sel] - imp[sel]) * 100.0
-            if abs(delta_pct) < min_abs_edge:
-                continue
-            items.append({
-                "fixture_id": r["fixture_id"],
-                "home_team": r["home_team"], "home_team_zh": r["home_team_zh"],
-                "away_team": r["away_team"], "away_team_zh": r["away_team_zh"],
-                "competition_name": r["competition_name"],
-                "competition_name_zh": r["competition_name_zh"],
-                "kickoff_utc": r["kickoff_utc"],
-                "predictability": r["predictability"],
-                "selection": sel,
-                "model_prob_pct": round(model[sel] * 100, 2),
-                "market_prob_pct": round(imp[sel] * 100, 2),
-                "delta_pct": round(delta_pct, 2),
-                "odds": odds_map[sel],
-            })
+        # Pick the single selection with the largest |delta| for this fixture.
+        deltas = {sel: (model[sel] - imp[sel]) * 100.0 for sel in ("home", "draw", "away")}
+        top_sel = max(deltas, key=lambda s: abs(deltas[s]))
+        top_delta = deltas[top_sel]
+        if abs(top_delta) < min_abs_edge:
+            continue
+        items.append({
+            "fixture_id": r["fixture_id"],
+            "home_team": r["home_team"], "home_team_zh": r["home_team_zh"],
+            "away_team": r["away_team"], "away_team_zh": r["away_team_zh"],
+            "competition_name": r["competition_name"],
+            "competition_name_zh": r["competition_name_zh"],
+            "kickoff_utc": r["kickoff_utc"],
+            "predictability": r["predictability"],
+            "selection": top_sel,
+            "model_prob_pct": round(model[top_sel] * 100, 2),
+            "market_prob_pct": round(imp[top_sel] * 100, 2),
+            "delta_pct": round(top_delta, 2),
+            "odds": odds_map[top_sel],
+        })
 
     items.sort(key=lambda x: abs(x["delta_pct"]), reverse=True)
     return {"items": items[:limit], "date": target}

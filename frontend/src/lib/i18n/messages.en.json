@@ -215,7 +215,7 @@
   "insights.timeseries.empty": "No drops in last {window}",
   "insights.timeseries.source": "Pinnacle · all markets",
   "insights.mispricing.title": "Top mispricings today",
-  "insights.mispricing.subtitle": "Model probability vs de-vigged market probability, ranked by |delta|",
+  "insights.mispricing.subtitle": "Model probability vs de-vigged market probability; one row per match (largest |Δ| selection), ranked by |Δ|",
   "insights.mispricing.dashboard.title": "Top 3 mispricings",
   "insights.mispricing.col.match": "Match",
   "insights.mispricing.col.selection": "Pick",

@@ -215,7 +215,7 @@
   "insights.timeseries.empty": "近 {window} 无跌赔记录",
   "insights.timeseries.source": "Pinnacle · 全市场",
   "insights.mispricing.title": "今日错定价 TOP 列表",
-  "insights.mispricing.subtitle": "模型概率 vs 市场去 vig 概率的偏差，按 |delta| 排序",
+  "insights.mispricing.subtitle": "模型概率 vs 市场去 vig 概率的偏差；每场只取 |Δ| 最大的选项，按 |Δ| 降序",
   "insights.mispricing.dashboard.title": "今日错定价 TOP 3",
   "insights.mispricing.col.match": "比赛",
   "insights.mispricing.col.selection": "选项",
