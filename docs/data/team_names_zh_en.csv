@@ -1,0 +1,164 @@
+type,id,name_en,name_zh,short_code,country
+team,9346,AC Milan,AC米兰,,
+team,8658,AFC Bournemouth,伯恩茅斯,,
+team,33215,AVS,AVS,,
+team,4441,AZ,阿尔克马尔,,
+team,3991,Ajax,阿贾克斯,,
+team,12324,Alverca,阿尔维卡,,
+team,8136,Angers SCO,昂热,,
+team,10526,Arouca,阿罗卡,,
+team,5303,Arsenal,阿森纳,,
+team,10661,Aston Villa,阿斯顿维拉,,
+team,11513,Atalanta,亚特兰大,,
+team,9306,Athletic Club,毕尔巴鄂竞技,,
+team,11509,Atlético Madrid,马德里竞技,,
+team,7501,Auxerre,欧塞尔,,
+team,10170,Bayer 04 Leverkusen,勒沃库森,,
+team,4245,Benfica,本菲卡,,
+team,10204,Bologna,博洛尼亚,,
+team,5089,Borussia Dortmund,多特蒙德,,
+team,4899,Borussia Mönchengladbach,门兴格拉德巴赫,,
+team,6599,Brentford,布伦特福德,,
+team,8674,Brest,布雷斯特,,
+team,10206,Brighton & Hove Albion,布莱顿,,
+team,9447,Burnley,伯恩利,,
+team,10950,Cagliari,卡利亚里,,
+team,11348,Casa Pia,卡萨皮亚,,
+team,9449,Celta de Vigo,塞尔塔,,
+team,11402,Chelsea,切尔西,,
+team,12782,Como,科莫,,
+team,10120,Cremonese,克雷莫纳,,
+team,4076,Crystal Palace,水晶宫,,
+team,4679,Deportivo Alavés,阿拉维斯,,
+team,7567,Eintracht Frankfurt,法兰克福,,
+team,10695,Elche,埃尔切,,
+team,8613,Espanyol,西班牙人,,
+team,10525,Estoril,埃斯托里尔,,
+team,12337,Estrela Amadora,埃斯特雷拉,,
+team,8948,Everton,埃弗顿,,
+team,6918,Excelsior,精英队,,
+team,5824,FC Augsburg,奥格斯堡,,
+team,10963,FC Barcelona,巴塞罗那,,
+team,11648,FC Bayern München,拜仁慕尼黑,,
+team,6590,FC Groningen,格罗宁根,,
+team,6629,FC Köln,科隆,,
+team,9843,FC Twente,特温特,,
+team,7725,FC Union Berlin,柏林联合,,
+team,9745,FC Utrecht,乌德勒支,,
+team,8021,FC Volendam,福伦丹,,
+team,6288,FSV Mainz 05,美因茨,,
+team,11644,Famalicão,法马利康,,
+team,4019,Feyenoord,费耶诺德,,
+team,10134,Fiorentina,佛罗伦萨,,
+team,4364,Fortuna Sittard,锡塔德,,
+team,10719,Fulham,富勒姆,,
+team,10539,Genoa,热那亚,,
+team,10342,Getafe,赫塔费,,
+team,10680,Gil Vicente,吉尔维森特,,
+team,10989,Girona,赫罗纳,,
+team,8442,Go Ahead Eagles,前进之鹰,,
+team,4398,Hamburger SV,汉堡,,
+team,6597,Heidenheim,海登海姆,,
+team,9576,Hellas Verona,维罗纳,,
+team,3993,Heracles Almelo,海拉克勒斯,,
+team,11523,Inter,国际米兰,,
+team,11357,Juventus,尤文图斯,,
+team,8035,LOSC Lille,里尔,,
+team,9295,Lazio,拉齐奥,,
+team,7502,Le Havre,勒阿弗尔,,
+team,10951,Lecce,莱切,,
+team,10956,Leeds United,利兹联,,
+team,10148,Lens,朗斯,,
+team,5040,Levante,莱万特,,
+team,4017,Liverpool,利物浦,,
+team,8143,Lorient,洛里昂,,
+team,5041,Mallorca,马洛卡,,
+team,10660,Manchester City,曼城,,
+team,10659,Manchester United,曼联,,
+team,8138,Metz,梅斯,,
+team,8139,Monaco,摩纳哥,,
+team,9280,Moreirense,莫雷伦斯,,
+team,5111,NAC Breda,布雷达,,
+team,5774,NEC Nijmegen,奈梅亨,,
+team,7728,Nacional,纳辛纳尔,,
+team,8140,Nantes,南特,,
+team,9566,Napoli,那不勒斯,,
+team,4008,Newcastle United,纽卡斯尔联,,
+team,7676,Nice,尼斯,,
+team,9771,Nottingham Forest,诺丁汉森林,,
+team,5771,Olympique Lyonnais,里昂,,
+team,8675,Olympique Marseille,马赛,,
+team,4698,Osasuna,奥萨苏纳,,
+team,9699,PEC Zwolle,兹沃勒,,
+team,6588,PSV,埃因霍温,,
+team,7506,Paris,巴黎FC,,
+team,10524,Paris Saint Germain,巴黎圣日耳曼,,
+team,10126,Parma,帕尔马,,
+team,11847,Pisa,比萨,,
+team,11893,Porto,波尔图,,
+team,10760,RB Leipzig,莱比锡红牛,,
+team,5406,Rayo Vallecano,巴列卡诺,,
+team,11355,Real Betis,皇家贝蒂斯,,
+team,10988,Real Madrid,皇家马德里,,
+team,9546,Real Oviedo,皇家奥维耶多,,
+team,5424,Real Sociedad,皇家社会,,
+team,6967,Rennes,雷恩,,
+team,5423,Rio Ave,里奥阿维,,
+team,10436,Roma,罗马,,
+team,6464,SC Freiburg,弗赖堡,,
+team,9698,SC Heerenveen,海伦芬,,
+team,5849,Santa Clara,圣克拉拉,,
+team,12099,Sassuolo,萨索洛,,
+team,11575,Sevilla,塞维利亚,,
+team,5036,Sparta Rotterdam,斯巴达鹿特丹,,
+team,9279,Sporting Braga,布拉加,,
+team,5095,Sporting CP,葡萄牙体育,,
+team,9976,St. Pauli,圣保利,,
+team,7675,Strasbourg,斯特拉斯堡,,
+team,9769,Sunderland,桑德兰,,
+team,6287,TSG Hoffenheim,霍芬海姆,,
+team,3994,Telstar,特尔斯达,,
+team,12130,Tondela,通德拉,,
+team,9507,Torino,都灵,,
+team,5489,Tottenham Hotspur,热刺,,
+team,7497,Toulouse,图卢兹,,
+team,9511,Udinese,乌迪内斯,,
+team,5755,Valencia,瓦伦西亚,,
+team,4397,VfB Stuttgart,斯图加特,,
+team,6630,VfL Wolfsburg,沃尔夫斯堡,,
+team,4168,Villarreal,比利亚雷亚尔,,
+team,10341,Vitória Guimarães,吉马良斯,,
+team,6589,Werder Bremen,云达不来梅,,
+team,3998,West Ham United,西汉姆联,,
+team,11392,Wolverhampton Wanderers,狼队,,
+competition,699,Liga Profesional de Fútbol,阿甲,,Argentina
+competition,72,A-League Men,澳超,,Australia
+competition,411,Admiral Bundesliga,奥甲,,Austria
+competition,198,Pro League,比甲,,Belgium
+competition,115,Serie A,巴甲,,Brazil
+competition,8,Super League,中超,,China
+competition,268,Carabao Cup,联赛杯,,England
+competition,327,FA Cup,足总杯,,England
+competition,423,Premier League,英超,,England
+competition,51,Champions League,欧冠,,Europe
+competition,976,Europa Conference League,欧会杯,,Europe
+competition,32,Europa League,欧联,,Europe
+competition,200,Ligue 1,法甲,,France
+competition,477,Bundesliga,德甲,,Germany
+competition,417,DFB Pokal,德国杯,,Germany
+competition,406,Super League,希超,,Greece
+competition,531,Coppa Italia,意大利杯,,Italy
+competition,499,Serie A,意甲,,Italy
+competition,77,J1 League,日职联,,Japan
+competition,2,Liga MX,墨超,,Mexico
+competition,437,Eredivisie,荷甲,,Netherlands
+competition,294,Eliteserien,挪超,,Norway
+competition,475,Liga Portugal,葡超,,Portugal
+competition,259,Premiership,苏超,,Scotland
+competition,461,Copa Libertadores,南美解放者杯,,South America
+competition,230,K League 1,韩K联,,South Korea
+competition,730,Copa Del Rey,国王杯,,Spain
+competition,419,La Liga,西甲,,Spain
+competition,255,Allsvenskan,瑞典超,,Sweden
+competition,500,Super League,瑞士超,,Switzerland
+competition,414,Super Lig,土超,,Türkiye

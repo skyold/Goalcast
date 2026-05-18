@@ -1,0 +1,1116 @@
+{
+  "teams": [
+    {
+      "id": 9346,
+      "name_en": "AC Milan",
+      "name_zh": "AC米兰",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8658,
+      "name_en": "AFC Bournemouth",
+      "name_zh": "伯恩茅斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 33215,
+      "name_en": "AVS",
+      "name_zh": "AVS",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4441,
+      "name_en": "AZ",
+      "name_zh": "阿尔克马尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 3991,
+      "name_en": "Ajax",
+      "name_zh": "阿贾克斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 12324,
+      "name_en": "Alverca",
+      "name_zh": "阿尔维卡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8136,
+      "name_en": "Angers SCO",
+      "name_zh": "昂热",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10526,
+      "name_en": "Arouca",
+      "name_zh": "阿罗卡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5303,
+      "name_en": "Arsenal",
+      "name_zh": "阿森纳",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10661,
+      "name_en": "Aston Villa",
+      "name_zh": "阿斯顿维拉",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11513,
+      "name_en": "Atalanta",
+      "name_zh": "亚特兰大",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9306,
+      "name_en": "Athletic Club",
+      "name_zh": "毕尔巴鄂竞技",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11509,
+      "name_en": "Atlético Madrid",
+      "name_zh": "马德里竞技",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7501,
+      "name_en": "Auxerre",
+      "name_zh": "欧塞尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10170,
+      "name_en": "Bayer 04 Leverkusen",
+      "name_zh": "勒沃库森",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4245,
+      "name_en": "Benfica",
+      "name_zh": "本菲卡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10204,
+      "name_en": "Bologna",
+      "name_zh": "博洛尼亚",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5089,
+      "name_en": "Borussia Dortmund",
+      "name_zh": "多特蒙德",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4899,
+      "name_en": "Borussia Mönchengladbach",
+      "name_zh": "门兴格拉德巴赫",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6599,
+      "name_en": "Brentford",
+      "name_zh": "布伦特福德",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8674,
+      "name_en": "Brest",
+      "name_zh": "布雷斯特",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10206,
+      "name_en": "Brighton & Hove Albion",
+      "name_zh": "布莱顿",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9447,
+      "name_en": "Burnley",
+      "name_zh": "伯恩利",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10950,
+      "name_en": "Cagliari",
+      "name_zh": "卡利亚里",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11348,
+      "name_en": "Casa Pia",
+      "name_zh": "卡萨皮亚",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9449,
+      "name_en": "Celta de Vigo",
+      "name_zh": "塞尔塔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11402,
+      "name_en": "Chelsea",
+      "name_zh": "切尔西",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 12782,
+      "name_en": "Como",
+      "name_zh": "科莫",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10120,
+      "name_en": "Cremonese",
+      "name_zh": "克雷莫纳",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4076,
+      "name_en": "Crystal Palace",
+      "name_zh": "水晶宫",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4679,
+      "name_en": "Deportivo Alavés",
+      "name_zh": "阿拉维斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7567,
+      "name_en": "Eintracht Frankfurt",
+      "name_zh": "法兰克福",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10695,
+      "name_en": "Elche",
+      "name_zh": "埃尔切",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8613,
+      "name_en": "Espanyol",
+      "name_zh": "西班牙人",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10525,
+      "name_en": "Estoril",
+      "name_zh": "埃斯托里尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 12337,
+      "name_en": "Estrela Amadora",
+      "name_zh": "埃斯特雷拉",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8948,
+      "name_en": "Everton",
+      "name_zh": "埃弗顿",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6918,
+      "name_en": "Excelsior",
+      "name_zh": "精英队",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5824,
+      "name_en": "FC Augsburg",
+      "name_zh": "奥格斯堡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10963,
+      "name_en": "FC Barcelona",
+      "name_zh": "巴塞罗那",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11648,
+      "name_en": "FC Bayern München",
+      "name_zh": "拜仁慕尼黑",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6590,
+      "name_en": "FC Groningen",
+      "name_zh": "格罗宁根",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6629,
+      "name_en": "FC Köln",
+      "name_zh": "科隆",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9843,
+      "name_en": "FC Twente",
+      "name_zh": "特温特",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7725,
+      "name_en": "FC Union Berlin",
+      "name_zh": "柏林联合",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9745,
+      "name_en": "FC Utrecht",
+      "name_zh": "乌德勒支",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8021,
+      "name_en": "FC Volendam",
+      "name_zh": "福伦丹",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6288,
+      "name_en": "FSV Mainz 05",
+      "name_zh": "美因茨",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11644,
+      "name_en": "Famalicão",
+      "name_zh": "法马利康",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4019,
+      "name_en": "Feyenoord",
+      "name_zh": "费耶诺德",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10134,
+      "name_en": "Fiorentina",
+      "name_zh": "佛罗伦萨",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4364,
+      "name_en": "Fortuna Sittard",
+      "name_zh": "锡塔德",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10719,
+      "name_en": "Fulham",
+      "name_zh": "富勒姆",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10539,
+      "name_en": "Genoa",
+      "name_zh": "热那亚",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10342,
+      "name_en": "Getafe",
+      "name_zh": "赫塔费",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10680,
+      "name_en": "Gil Vicente",
+      "name_zh": "吉尔维森特",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10989,
+      "name_en": "Girona",
+      "name_zh": "赫罗纳",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8442,
+      "name_en": "Go Ahead Eagles",
+      "name_zh": "前进之鹰",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4398,
+      "name_en": "Hamburger SV",
+      "name_zh": "汉堡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6597,
+      "name_en": "Heidenheim",
+      "name_zh": "海登海姆",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9576,
+      "name_en": "Hellas Verona",
+      "name_zh": "维罗纳",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 3993,
+      "name_en": "Heracles Almelo",
+      "name_zh": "海拉克勒斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11523,
+      "name_en": "Inter",
+      "name_zh": "国际米兰",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11357,
+      "name_en": "Juventus",
+      "name_zh": "尤文图斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8035,
+      "name_en": "LOSC Lille",
+      "name_zh": "里尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9295,
+      "name_en": "Lazio",
+      "name_zh": "拉齐奥",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7502,
+      "name_en": "Le Havre",
+      "name_zh": "勒阿弗尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10951,
+      "name_en": "Lecce",
+      "name_zh": "莱切",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10956,
+      "name_en": "Leeds United",
+      "name_zh": "利兹联",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10148,
+      "name_en": "Lens",
+      "name_zh": "朗斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5040,
+      "name_en": "Levante",
+      "name_zh": "莱万特",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4017,
+      "name_en": "Liverpool",
+      "name_zh": "利物浦",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8143,
+      "name_en": "Lorient",
+      "name_zh": "洛里昂",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5041,
+      "name_en": "Mallorca",
+      "name_zh": "马洛卡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10660,
+      "name_en": "Manchester City",
+      "name_zh": "曼城",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10659,
+      "name_en": "Manchester United",
+      "name_zh": "曼联",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8138,
+      "name_en": "Metz",
+      "name_zh": "梅斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8139,
+      "name_en": "Monaco",
+      "name_zh": "摩纳哥",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9280,
+      "name_en": "Moreirense",
+      "name_zh": "莫雷伦斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5111,
+      "name_en": "NAC Breda",
+      "name_zh": "布雷达",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5774,
+      "name_en": "NEC Nijmegen",
+      "name_zh": "奈梅亨",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7728,
+      "name_en": "Nacional",
+      "name_zh": "纳辛纳尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8140,
+      "name_en": "Nantes",
+      "name_zh": "南特",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9566,
+      "name_en": "Napoli",
+      "name_zh": "那不勒斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4008,
+      "name_en": "Newcastle United",
+      "name_zh": "纽卡斯尔联",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7676,
+      "name_en": "Nice",
+      "name_zh": "尼斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9771,
+      "name_en": "Nottingham Forest",
+      "name_zh": "诺丁汉森林",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5771,
+      "name_en": "Olympique Lyonnais",
+      "name_zh": "里昂",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 8675,
+      "name_en": "Olympique Marseille",
+      "name_zh": "马赛",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4698,
+      "name_en": "Osasuna",
+      "name_zh": "奥萨苏纳",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9699,
+      "name_en": "PEC Zwolle",
+      "name_zh": "兹沃勒",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6588,
+      "name_en": "PSV",
+      "name_zh": "埃因霍温",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7506,
+      "name_en": "Paris",
+      "name_zh": "巴黎FC",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10524,
+      "name_en": "Paris Saint Germain",
+      "name_zh": "巴黎圣日耳曼",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10126,
+      "name_en": "Parma",
+      "name_zh": "帕尔马",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11847,
+      "name_en": "Pisa",
+      "name_zh": "比萨",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11893,
+      "name_en": "Porto",
+      "name_zh": "波尔图",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10760,
+      "name_en": "RB Leipzig",
+      "name_zh": "莱比锡红牛",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5406,
+      "name_en": "Rayo Vallecano",
+      "name_zh": "巴列卡诺",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11355,
+      "name_en": "Real Betis",
+      "name_zh": "皇家贝蒂斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10988,
+      "name_en": "Real Madrid",
+      "name_zh": "皇家马德里",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9546,
+      "name_en": "Real Oviedo",
+      "name_zh": "皇家奥维耶多",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5424,
+      "name_en": "Real Sociedad",
+      "name_zh": "皇家社会",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6967,
+      "name_en": "Rennes",
+      "name_zh": "雷恩",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5423,
+      "name_en": "Rio Ave",
+      "name_zh": "里奥阿维",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10436,
+      "name_en": "Roma",
+      "name_zh": "罗马",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6464,
+      "name_en": "SC Freiburg",
+      "name_zh": "弗赖堡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9698,
+      "name_en": "SC Heerenveen",
+      "name_zh": "海伦芬",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5849,
+      "name_en": "Santa Clara",
+      "name_zh": "圣克拉拉",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 12099,
+      "name_en": "Sassuolo",
+      "name_zh": "萨索洛",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11575,
+      "name_en": "Sevilla",
+      "name_zh": "塞维利亚",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5036,
+      "name_en": "Sparta Rotterdam",
+      "name_zh": "斯巴达鹿特丹",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9279,
+      "name_en": "Sporting Braga",
+      "name_zh": "布拉加",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5095,
+      "name_en": "Sporting CP",
+      "name_zh": "葡萄牙体育",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9976,
+      "name_en": "St. Pauli",
+      "name_zh": "圣保利",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7675,
+      "name_en": "Strasbourg",
+      "name_zh": "斯特拉斯堡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9769,
+      "name_en": "Sunderland",
+      "name_zh": "桑德兰",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6287,
+      "name_en": "TSG Hoffenheim",
+      "name_zh": "霍芬海姆",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 3994,
+      "name_en": "Telstar",
+      "name_zh": "特尔斯达",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 12130,
+      "name_en": "Tondela",
+      "name_zh": "通德拉",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9507,
+      "name_en": "Torino",
+      "name_zh": "都灵",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5489,
+      "name_en": "Tottenham Hotspur",
+      "name_zh": "热刺",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 7497,
+      "name_en": "Toulouse",
+      "name_zh": "图卢兹",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 9511,
+      "name_en": "Udinese",
+      "name_zh": "乌迪内斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 5755,
+      "name_en": "Valencia",
+      "name_zh": "瓦伦西亚",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4397,
+      "name_en": "VfB Stuttgart",
+      "name_zh": "斯图加特",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6630,
+      "name_en": "VfL Wolfsburg",
+      "name_zh": "沃尔夫斯堡",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 4168,
+      "name_en": "Villarreal",
+      "name_zh": "比利亚雷亚尔",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 10341,
+      "name_en": "Vitória Guimarães",
+      "name_zh": "吉马良斯",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 6589,
+      "name_en": "Werder Bremen",
+      "name_zh": "云达不来梅",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 3998,
+      "name_en": "West Ham United",
+      "name_zh": "西汉姆联",
+      "short_code": null,
+      "country": null
+    },
+    {
+      "id": 11392,
+      "name_en": "Wolverhampton Wanderers",
+      "name_zh": "狼队",
+      "short_code": null,
+      "country": null
+    }
+  ],
+  "competitions": [
+    {
+      "id": 699,
+      "name_en": "Liga Profesional de Fútbol",
+      "name_zh": "阿甲",
+      "country": "Argentina"
+    },
+    {
+      "id": 72,
+      "name_en": "A-League Men",
+      "name_zh": "澳超",
+      "country": "Australia"
+    },
+    {
+      "id": 411,
+      "name_en": "Admiral Bundesliga",
+      "name_zh": "奥甲",
+      "country": "Austria"
+    },
+    {
+      "id": 198,
+      "name_en": "Pro League",
+      "name_zh": "比甲",
+      "country": "Belgium"
+    },
+    {
+      "id": 115,
+      "name_en": "Serie A",
+      "name_zh": "巴甲",
+      "country": "Brazil"
+    },
+    {
+      "id": 8,
+      "name_en": "Super League",
+      "name_zh": "中超",
+      "country": "China"
+    },
+    {
+      "id": 268,
+      "name_en": "Carabao Cup",
+      "name_zh": "联赛杯",
+      "country": "England"
+    },
+    {
+      "id": 327,
+      "name_en": "FA Cup",
+      "name_zh": "足总杯",
+      "country": "England"
+    },
+    {
+      "id": 423,
+      "name_en": "Premier League",
+      "name_zh": "英超",
+      "country": "England"
+    },
+    {
+      "id": 51,
+      "name_en": "Champions League",
+      "name_zh": "欧冠",
+      "country": "Europe"
+    },
+    {
+      "id": 976,
+      "name_en": "Europa Conference League",
+      "name_zh": "欧会杯",
+      "country": "Europe"
+    },
+    {
+      "id": 32,
+      "name_en": "Europa League",
+      "name_zh": "欧联",
+      "country": "Europe"
+    },
+    {
+      "id": 200,
+      "name_en": "Ligue 1",
+      "name_zh": "法甲",
+      "country": "France"
+    },
+    {
+      "id": 477,
+      "name_en": "Bundesliga",
+      "name_zh": "德甲",
+      "country": "Germany"
+    },
+    {
+      "id": 417,
+      "name_en": "DFB Pokal",
+      "name_zh": "德国杯",
+      "country": "Germany"
+    },
+    {
+      "id": 406,
+      "name_en": "Super League",
+      "name_zh": "希超",
+      "country": "Greece"
+    },
+    {
+      "id": 531,
+      "name_en": "Coppa Italia",
+      "name_zh": "意大利杯",
+      "country": "Italy"
+    },
+    {
+      "id": 499,
+      "name_en": "Serie A",
+      "name_zh": "意甲",
+      "country": "Italy"
+    },
+    {
+      "id": 77,
+      "name_en": "J1 League",
+      "name_zh": "日职联",
+      "country": "Japan"
+    },
+    {
+      "id": 2,
+      "name_en": "Liga MX",
+      "name_zh": "墨超",
+      "country": "Mexico"
+    },
+    {
+      "id": 437,
+      "name_en": "Eredivisie",
+      "name_zh": "荷甲",
+      "country": "Netherlands"
+    },
+    {
+      "id": 294,
+      "name_en": "Eliteserien",
+      "name_zh": "挪超",
+      "country": "Norway"
+    },
+    {
+      "id": 475,
+      "name_en": "Liga Portugal",
+      "name_zh": "葡超",
+      "country": "Portugal"
+    },
+    {
+      "id": 259,
+      "name_en": "Premiership",
+      "name_zh": "苏超",
+      "country": "Scotland"
+    },
+    {
+      "id": 461,
+      "name_en": "Copa Libertadores",
+      "name_zh": "南美解放者杯",
+      "country": "South America"
+    },
+    {
+      "id": 230,
+      "name_en": "K League 1",
+      "name_zh": "韩K联",
+      "country": "South Korea"
+    },
+    {
+      "id": 730,
+      "name_en": "Copa Del Rey",
+      "name_zh": "国王杯",
+      "country": "Spain"
+    },
+    {
+      "id": 419,
+      "name_en": "La Liga",
+      "name_zh": "西甲",
+      "country": "Spain"
+    },
+    {
+      "id": 255,
+      "name_en": "Allsvenskan",
+      "name_zh": "瑞典超",
+      "country": "Sweden"
+    },
+    {
+      "id": 500,
+      "name_en": "Super League",
+      "name_zh": "瑞士超",
+      "country": "Switzerland"
+    },
+    {
+      "id": 414,
+      "name_en": "Super Lig",
+      "name_zh": "土超",
+      "country": "Türkiye"
+    }
+  ]
+}

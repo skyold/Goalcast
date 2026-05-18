@@ -275,6 +275,7 @@
 
   "nav.mispricing": "错定价",
   "nav.signals": "信号集",
+  "nav.paper_trading": "模拟投注",
 
   "signals.title": "Goalcast 信号集",
   "signals.subtitle": "本站从赔率与模型预测加工的自有信号，按 strength 降序",

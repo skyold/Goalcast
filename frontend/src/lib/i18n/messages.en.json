@@ -275,6 +275,7 @@
 
   "nav.mispricing": "Mispricings",
   "nav.signals": "Signals",
+  "nav.paper_trading": "Paper trading",
 
   "signals.title": "Goalcast Signals",
   "signals.subtitle": "Proprietary derivatives computed from odds and model output, ranked by strength",
