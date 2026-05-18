@@ -173,3 +173,33 @@ async def test_kickoff_waypoint_fires_after_status_transition(db_path):
     # All 5 waypoints already crossed → all 5 captured at once.
     assert sorted(wps) == sorted(["1h", "24h", "48h", "6h", "kickoff"])
     assert inserted == 5
+
+
+@pytest.mark.asyncio
+async def test_signals_snapshot_written_alongside_historical(db_path):
+    """After a snapshot run, signals_snapshot must have a GS-Mispricing row per
+    captured (fixture, waypoint) where both predictions and Pinnacle 1X2 odds
+    are present. Ensures the hook in _capture() actually fires."""
+    from services.snapshot import run_snapshot
+    now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+    await _seed_fixture(db_path, fixture_id=80, kickoff=now + timedelta(hours=20))
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await run_snapshot(db, now=now)
+        async with db.execute(
+            """SELECT signal_type, signal_version, waypoint, scope, value_json, strength
+               FROM signals_snapshot WHERE fixture_id=80 ORDER BY waypoint"""
+        ) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    # 48h + 24h waypoints captured → two GS-Mispricing rows.
+    assert len(rows) == 2
+    assert {r["waypoint"] for r in rows} == {"48h", "24h"}
+    import json
+    for r in rows:
+        assert r["signal_type"] == "GS-Mispricing"
+        assert r["signal_version"] == "v1.0"
+        assert r["scope"] == "public"
+        assert r["strength"] is not None and 0.0 <= r["strength"] <= 1.0
+        v = json.loads(r["value_json"])
+        assert v["selection"] in ("home", "draw", "away")
+        assert isinstance(v["delta_pct"], (int, float))

@@ -29,7 +29,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import logging
+
 import aiosqlite
+
+from services.signals import REGISTERED as SIGNALS
+
+log = logging.getLogger(__name__)
 
 # (waypoint name, hours-from-kickoff threshold)
 WAYPOINTS: list[tuple[str, float]] = [
@@ -155,6 +161,32 @@ async def _capture(db: aiosqlite.Connection, fixture_id: int, waypoint: str, now
              waypoint, o["current"], now.isoformat()),
         )
         wrote = True
+
+    # Compute and persist signals for this (fixture, waypoint). Signal failures
+    # are isolated from the historical_* writes — a buggy signal must not block
+    # the load-bearing snapshot.
+    for signal in SIGNALS:
+        try:
+            result = await signal.compute(db, fixture_id, waypoint)
+            if result is None:
+                continue
+            await db.execute(
+                """INSERT INTO signals_snapshot
+                     (fixture_id, signal_type, signal_version, waypoint,
+                      scope, value_json, strength, captured_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(fixture_id, signal_type, waypoint) DO NOTHING""",
+                (
+                    fixture_id, signal.signal_type, signal.signal_version,
+                    waypoint, signal.scope, result["value_json"],
+                    result.get("strength"), now.isoformat(),
+                ),
+            )
+        except Exception:
+            log.exception(
+                "signal %s failed for fixture=%s waypoint=%s",
+                signal.signal_type, fixture_id, waypoint,
+            )
 
     return wrote
 
