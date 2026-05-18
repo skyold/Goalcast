@@ -250,6 +250,8 @@ export const api = {
       get<SignalListResponse>(`/signals/${encodeURIComponent(type)}`, p as P),
     catalog: (p?: { locale?: 'zh' | 'en' }) =>
       get<SignalCatalogResponse>('/signals/catalog', p as P),
+    backtest: (type: string, body: SignalBacktestRequest) =>
+      post<SignalBacktestResult>(`/signals/${encodeURIComponent(type)}/backtest`, body),
   },
 }
 
@@ -303,6 +305,33 @@ export interface SignalCatalogResponse {
   locale: 'zh' | 'en'
   items: SignalCatalogItem[]
   count: number
+}
+
+// Phase 3 — signal-layer backtest (mirrors backend services/signals/backtest.py).
+export interface SignalBacktestRequest {
+  conditions?: {
+    strength_min?: number
+    filters?: { path: string; op: string; value: unknown }[]
+  }
+  window?: '7d' | '14d' | '30d'
+  match_scope?: 'all' | 'my_leagues'
+}
+
+export interface SignalBacktestEquityPoint {
+  date: string       // YYYY-MM-DD
+  cum_pnl: number
+}
+
+export interface SignalBacktestResult {
+  signal_type: string
+  window: '7d' | '14d' | '30d'
+  match_scope: 'all' | 'my_leagues'
+  considered_count: number
+  settled_count: number
+  roi_pct: number | null
+  hit_rate: number | null
+  max_drawdown_pct: number | null
+  equity_curve: SignalBacktestEquityPoint[]
 }
 
 export interface PaperHouseMetrics {

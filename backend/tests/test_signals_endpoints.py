@@ -229,3 +229,75 @@ async def test_catalog_does_not_shadow_signal_type_route(app):
     body = r.json()
     assert "items" in body and "locale" in body
     assert "signal_type" not in body  # by_type returns top-level signal_type
+
+
+# --- Phase 3 backtest endpoint ------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_backtest_default_window_returns_result_shape(app):
+    """POST returns BacktestResult shape even when nothing settles.
+
+    The app fixture seeds 1 FT fixture (id=99) with a GS-Mispricing snapshot
+    but no historical_odds → considered=1, settled=0 (no Pinnacle odds to
+    settle against). End-to-end arithmetic is covered in test_signals_backtest.py;
+    here we just verify the endpoint plumbing returns the expected shape.
+    """
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["signal_type"] == "GS-Mispricing"
+    assert d["window"] == "30d"
+    assert d["match_scope"] == "all"
+    assert d["considered_count"] == 1
+    assert d["settled_count"] == 0
+    assert d["roi_pct"] is None
+    assert d["equity_curve"] == []
+
+
+@pytest.mark.asyncio
+async def test_backtest_rejects_non_gs_prefix(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/Foo-Bar/backtest", json={})
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_backtest_rejects_invalid_window(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={"window": "60d"})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_backtest_rejects_invalid_match_scope(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={"match_scope": "country"})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_backtest_my_leagues_without_login_401(app):
+    """match_scope='my_leagues' requires login — anon → 401, not silent fall-through."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={"match_scope": "my_leagues"})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_backtest_passes_conditions_to_evaluator(app):
+    """Endpoint forwards conditions intact (smoke test for plumbing —
+    settlement arithmetic already covered in test_signals_backtest.py)."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post(
+            "/api/signals/GS-Mispricing/backtest",
+            json={"conditions": {"strength_min": 0.5}, "window": "7d"},
+        )
+    assert r.status_code == 200
+    assert r.json()["window"] == "7d"

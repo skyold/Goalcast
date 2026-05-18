@@ -1,13 +1,15 @@
 """Unified read endpoints over signals_snapshot.
 
-Three surfaces:
-  GET /api/signals/catalog   — all registered signals with metadata + methodology +
-                               last-7-day aggregate stats (Phase 1 of PRD
-                               signal-catalog-and-subscriptions)
-  GET /api/signals/active    — top-N rows across ALL signals, ranked by strength
-  GET /api/signals/:type     — list one signal's recent rows, with fixture meta
+Four surfaces:
+  GET  /api/signals/catalog        — all registered signals with metadata +
+                                     methodology + last-7-day aggregate stats
+                                     (Phase 1 of PRD signal-catalog-and-subscriptions)
+  GET  /api/signals/active         — top-N rows across ALL signals, ranked by strength
+  GET  /api/signals/:type          — list one signal's recent rows, with fixture meta
+  POST /api/signals/:type/backtest — historical replay of (signal × conditions)
+                                     against FT outcomes (Phase 3)
 
-The first two attach team / competition labels at the SQL boundary so the
+GET endpoints attach team / competition labels at the SQL boundary so the
 frontend renders without secondary fetches. JSON parsing of value_json happens
 here (SQLite stores it as TEXT).
 """
@@ -17,10 +19,12 @@ import json
 from typing import Annotated, Literal, Optional
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from database import get_db
+from services.auth import get_current_user_optional
 from services.signals import REGISTERED
+from services.signals.backtest import run_backtest
 
 router = APIRouter()
 
@@ -197,3 +201,56 @@ async def get_by_type(
         "items": [_row_to_item(r) for r in rows],
         "count": len(rows),
     }
+
+
+@router.post("/signals/{signal_type}/backtest")
+async def post_backtest(
+    signal_type: str,
+    body: Annotated[dict, Body(...)] = ...,  # parsed below for explicit error shapes
+    user: Optional[dict] = Depends(get_current_user_optional),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Replay historical signals_snapshot rows against FT outcomes through the
+    same conditions evaluator used by the forward snapshot worker.
+
+    Body schema (all keys optional with sensible defaults):
+        {
+          "conditions": {"strength_min": 0.5, "filters": [...]},
+          "window":      "7d" | "14d" | "30d",     # default "30d"
+          "match_scope": "all" | "my_leagues"      # default "all"
+        }
+
+    Returns BacktestResult (see services.signals.backtest):
+        {signal_type, window, match_scope, considered_count, settled_count,
+         roi_pct, hit_rate, max_drawdown_pct, equity_curve}
+    """
+    if not signal_type.startswith("GS-"):
+        raise HTTPException(status_code=400, detail="signal_type must start with 'GS-'")
+
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=422, detail="body must be a JSON object")
+
+    conditions = body.get("conditions") or {}
+    if not isinstance(conditions, dict):
+        raise HTTPException(status_code=422, detail="conditions must be an object")
+
+    window = body.get("window", "30d")
+    if window not in ("7d", "14d", "30d"):
+        raise HTTPException(status_code=422, detail="window must be one of '7d','14d','30d'")
+
+    match_scope = body.get("match_scope", "all")
+    if match_scope not in ("all", "my_leagues"):
+        raise HTTPException(status_code=422, detail="match_scope must be 'all' or 'my_leagues'")
+    if match_scope == "my_leagues" and user is None:
+        raise HTTPException(status_code=401, detail="match_scope='my_leagues' requires login")
+
+    user_id = user["id"] if user else None
+    result = await run_backtest(
+        db,
+        signal_type=signal_type,
+        conditions=conditions,
+        window=window,         # type: ignore[arg-type]
+        match_scope=match_scope,  # type: ignore[arg-type]
+        user_id=user_id,
+    )
+    return result

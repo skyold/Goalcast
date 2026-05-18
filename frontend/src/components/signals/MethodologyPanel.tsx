@@ -3,12 +3,16 @@
 // output schema / failure modes) on top, then the markdown body below.
 //
 // Phase 1 of docs/PRD/signal-catalog-and-subscriptions.prd.md.
+// Phase 3 adds the "Backtest" CTA in the header.
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { type SignalCatalogItem } from '../../lib/api'
 import { useT } from '../../lib/i18n'
+import BacktestModal from './BacktestModal'
 
 export default function MethodologyPanel({ item }: { item: SignalCatalogItem }) {
   const t = useT()
+  const [backtestOpen, setBacktestOpen] = useState(false)
   // Strip GS- prefix for display, keeping any sub-namespace (e.g. KEN-).
   const shortName = item.signal_type.replace(/^GS-/, '')
   return (
@@ -26,6 +30,13 @@ export default function MethodologyPanel({ item }: { item: SignalCatalogItem }) 
             {t('signals.scope.member')}
           </span>
         )}
+        <button
+          className="chip active"
+          onClick={() => setBacktestOpen(true)}
+          style={{ marginLeft: 'auto' }}
+        >
+          {t('signals.backtest.open')}
+        </button>
       </header>
 
       <p style={{ margin: '4px 0 16px', color: 'var(--text-mute)', fontSize: 14 }}>
@@ -97,6 +108,13 @@ export default function MethodologyPanel({ item }: { item: SignalCatalogItem }) 
         }}>
           {t('signals.method.updated_at')}: {item.methodology_updated_at.slice(0, 10)}
         </footer>
+      )}
+
+      {backtestOpen && (
+        <BacktestModal
+          signal_type={item.signal_type}
+          onClose={() => setBacktestOpen(false)}
+        />
       )}
     </div>
   )
