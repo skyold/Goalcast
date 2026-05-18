@@ -1,4 +1,4 @@
-"""GS-HT-EV signal — 上半场平手盘 EV 5%~28% 反推香港盘赔率区间.
+"""GS-KEN-HT-EV signal — 上半场平手盘 EV 5%~28% 反推香港盘赔率区间.
 
 Mirrors OA_HT_V2.py (docs/OA_HT_V2.py) — but as a Pure Function on the
 snapshot pipeline.
@@ -210,6 +210,6 @@ async def test_falls_back_to_pinnacle_when_bet365_missing(db, tmp_path):
 async def test_signal_metadata(db):
     from services.signals.gs_ht_ev import GSHtEv
     sig = GSHtEv()
-    assert sig.signal_type == "GS-HT-EV"
+    assert sig.signal_type == "GS-KEN-HT-EV"
     assert sig.signal_version == "v1.0"
     assert sig.scope == "public"

@@ -16,6 +16,7 @@ const TABS = [
   { key: 'GS-Mispricing',   label: 'Mispricing' },
   { key: 'GS-LineMove',     label: 'LineMove' },
   { key: 'GS-SharpSquare',  label: 'SharpSquare' },
+  { key: 'GS-KEN-HT-EV',       label: 'HT-EV' },
 ] as const
 
 const STRENGTH_CHIPS = [0.3, 0.5, 0.7] as const
@@ -145,6 +146,7 @@ function SignalRow({ s, t, onClick }: { s: SignalItem; t: (k: string, v?: any) =
 }
 
 function SignalDetail({ s }: { s: SignalItem }) {
+  const t = useT()
   const v = s.value as Record<string, any>
   const sel = v.selection as string | undefined
   switch (s.signal_type) {
@@ -179,6 +181,17 @@ function SignalDetail({ s }: { s: SignalItem }) {
       return (
         <span>
           {sel} · Pin {pin?.toFixed(1)}% vs 365 {b65?.toFixed(1)}% · {sign}{delta?.toFixed(1)}%
+        </span>
+      )
+    }
+    case 'GS-KEN-HT-EV': {
+      const ahLabel = v.ah_label as string | undefined
+      const hk5  = sel === 'home' ? v.hk_home_5  : v.hk_away_5
+      const hk28 = sel === 'home' ? v.hk_home_28 : v.hk_away_28
+      const ah = ahLabel ? t(`signals.ht_ev.ah.${ahLabel}`) : '—'
+      return (
+        <span>
+          {sel} · {ah} · HK <span style={{ fontWeight: 600 }}>{hk5?.toFixed(2)}→{hk28?.toFixed(2)}</span>
         </span>
       )
     }
