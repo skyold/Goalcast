@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStore } from '../lib/store'
 import { api, type FixtureSummary } from '../lib/api'
 import { POPULAR_LEAGUE_IDS } from '../lib/popularLeagues'
-import { pickZh, useT } from '../lib/i18n'
+import { pickZh, useT, useLocale } from '../lib/i18n'
 import { useAuth } from '../lib/auth'
 import { useMyLeagues } from '../lib/myLeagues'
 import MatchCard from '../components/match/MatchCard'
@@ -37,6 +37,7 @@ const offsetDay = (n: number) => {
 export default function Matches() {
   const nav = useNavigate()
   const t = useT()
+  const locale = useLocale()
   const { selectedLeagues, toggleLeague, selectedDate, setDate } = useStore()
   const { user } = useAuth()
   const { ids: myLeagueIds } = useMyLeagues()
@@ -117,6 +118,7 @@ export default function Matches() {
           <input
             type="date"
             className="date-pick"
+            lang={locale === 'en' ? 'en' : 'zh-CN'}
             value={!isPreset ? selectedDate : ''}
             onChange={(e) => e.target.value && setDate(e.target.value)}
           />
