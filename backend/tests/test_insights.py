@@ -20,7 +20,7 @@ async def app(tmp_path, monkeypatch):
 
     now = "2026-05-17T10:00:00"
     async with aiosqlite.connect(str(tmp_path / "test.db")) as db:
-        # Two fixtures on the same day, different comps.
+        # Three fixtures on the same day, different comps.
         await db.executemany(
             """INSERT INTO fixtures
                (id, competition_id, competition_name, home_team, away_team,
@@ -30,6 +30,8 @@ async def app(tmp_path, monkeypatch):
                 (10, 100, 'League Alpha', 'Alpha FC', 'Alpha United',
                  '2026-05-17T15:00:00', now, now),
                 (20, 200, 'League Beta', 'Beta FC', 'Beta United',
+                 '2026-05-17T15:00:00', now, now),
+                (30, 300, 'League Gamma', 'Gamma FC', 'Gamma United',
                  '2026-05-17T15:00:00', now, now),
             ],
         )
@@ -42,11 +44,14 @@ async def app(tmp_path, monkeypatch):
             [
                 (10, 70, 20, 10, now),   # model: 70/20/10
                 (20, 33, 33, 34, now),   # model: balanced
+                (30, 20, 40, 40, now),   # model under-rates strong home favorite
             ],
         )
         # Bookmaker odds (Pinnacle = 1, market 1x2 = 6).
-        # Fixture 10: market gives near 50/30/20 → big mispricing on home (model 70% vs market ~50%).
-        # Fixture 20: market matches model 33/33/34 → small delta, below default 3% threshold.
+        # Fixture 10: market ~52/29/18 → max |Δ| on home, +17.5% (positive).
+        # Fixture 20: market matches model 33/33/34 → delta ≈ 0, below threshold.
+        # Fixture 30: market ~58/27/15 → max |Δ| on home, -38% (negative — covers
+        # the case where the model under-rates a strong favorite).
         await db.executemany(
             """INSERT INTO bookmaker_odds
                (fixture_id, bookmaker_id, market_id, outcome, opening, current, peak, opening_at, current_at)
@@ -58,6 +63,9 @@ async def app(tmp_path, monkeypatch):
                 (20, 'home', 3.0, 3.0, 3.0, now, now),
                 (20, 'draw', 3.0, 3.0, 3.0, now, now),
                 (20, 'away', 3.0, 3.0, 3.0, now, now),
+                (30, 'home', 1.6, 1.6, 1.6, now, now),
+                (30, 'draw', 3.5, 3.5, 3.5, now, now),
+                (30, 'away', 6.0, 6.0, 6.0, now, now),
             ],
         )
         # odds_snapshots — drop_pct points for fixture 10, last hour.
@@ -138,9 +146,14 @@ async def test_mispricings_returns_high_delta_only(app):
                          params={"date": "2026-05-17", "min_abs_edge": 5})
     assert r.status_code == 200
     items = r.json()["items"]
-    assert all(i["fixture_id"] == 10 for i in items)
-    home_row = next(i for i in items if i["selection"] == "home")
-    assert home_row["delta_pct"] > 10
+    # Each fixture emits at most one row — the selection with the largest |Δ|.
+    # Fixture 20 (delta ≈ 0) is filtered out; fixtures 10 and 30 each appear once.
+    fixture_ids = [i["fixture_id"] for i in items]
+    assert len(fixture_ids) == len(set(fixture_ids))
+    assert 20 not in fixture_ids
+    top10 = next(i for i in items if i["fixture_id"] == 10)
+    assert top10["selection"] == "home"
+    assert top10["delta_pct"] > 10
 
 
 @pytest.mark.asyncio
@@ -149,9 +162,10 @@ async def test_mispricings_includes_negative_delta(app):
         r = await c.get("/api/insights/mispricings",
                          params={"date": "2026-05-17", "min_abs_edge": 5})
     items = r.json()["items"]
-    away_row = next((i for i in items if i["selection"] == "away"), None)
-    assert away_row is not None
-    assert away_row["delta_pct"] < -5
+    # Fixture 30: model under-rates a strong favorite → max |Δ| is negative.
+    top30 = next((i for i in items if i["fixture_id"] == 30), None)
+    assert top30 is not None
+    assert top30["delta_pct"] < -5
 
 
 @pytest.mark.asyncio

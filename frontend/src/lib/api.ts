@@ -231,6 +231,96 @@ export const api = {
     get: () => get<AlertSettings>('/me/alert-settings'),
     put: (s: AlertSettings) => put<AlertSettings>('/me/alert-settings', s),
   },
+  backtest: {
+    summary: (p?: { competition_id?: number; waypoint?: string; min_samples?: number }) =>
+      get<BacktestSummary>('/backtest/summary', p as P),
+    byLeague: (p?: { waypoint?: string; min_samples?: number }) =>
+      get<BacktestByLeague>('/backtest/by-league', p as P),
+    calibration: (p?: { competition_id?: number; waypoint?: string; bins?: number; min_per_bin?: number }) =>
+      get<BacktestCalibration>('/backtest/calibration', p as P),
+  },
+  paperTrading: {
+    house: (p?: { book_type?: string; start_bankroll?: number }) =>
+      get<PaperHouseSummary>('/paper-trading/house', p as P),
+  },
+}
+
+export interface PaperHouseMetrics {
+  roi_pct: number | null
+  win_rate: number | null
+}
+
+export interface PaperHouseBankroll {
+  start: number
+  current: number
+}
+
+export interface PaperHouseTimePoint {
+  settled_at: string
+  bankroll: number
+}
+
+export interface PaperHouseSummary {
+  book_type: string
+  bets_settled: number
+  bets_pending: number
+  bets_voided: number
+  bankroll: PaperHouseBankroll
+  metrics: PaperHouseMetrics
+  timeseries: PaperHouseTimePoint[]
+}
+
+export interface BacktestCalibrationBin {
+  bin_index: number
+  lower: number
+  upper: number
+  n: number
+  predicted_avg: number | null
+  actual_rate: number | null
+  enough: boolean
+}
+
+export interface BacktestCalibration {
+  model_id: string
+  scope: { competition_id: number | null; waypoint: string }
+  bins_count: number
+  min_per_bin: number
+  bins: BacktestCalibrationBin[]
+}
+
+export interface BacktestMetrics {
+  samples: number
+  top1_hit_rate: number | null
+  top1_hit_rate_ci95: [number, number] | null
+  brier: number | null
+}
+
+export interface BacktestSummary {
+  model_id: string
+  signal_version: string | null
+  scope: { competition_id: number | null; waypoint: string }
+  samples: number
+  enough: boolean
+  min_samples: number
+  metrics: BacktestMetrics
+}
+
+export interface BacktestByLeagueItem {
+  competition_id: number
+  competition_name: string | null
+  competition_name_zh: string | null
+  samples: number
+  enough: boolean
+  top1_hit_rate: number | null
+  top1_hit_rate_ci95: [number, number] | null
+  brier: number | null
+}
+
+export interface BacktestByLeague {
+  model_id: string
+  scope: { waypoint: string }
+  min_samples: number
+  items: BacktestByLeagueItem[]
 }
 
 export interface AlertSettings {

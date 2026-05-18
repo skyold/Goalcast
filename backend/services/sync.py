@@ -639,6 +639,44 @@ async def _snapshot_job():
         pass
 
 
+# Paper-trading House Book: three threshold bands run in parallel. ROI of each
+# band is judged separately at paper-trading PRD Phase C (90 days / 500+ bets);
+# weak bands are pruned then. See docs/PRD/paper-trading.prd.md Phasing.
+HOUSE_BOOK_BANDS = [
+    ("house_3pct", 3.0),
+    ("house_5pct", 5.0),
+    ("house_7pct", 7.0),
+]
+
+
+async def _house_book_job():
+    """Per-band virtual order placement against GS-Mispricing signals."""
+    try:
+        import aiosqlite
+        from database import _db_path
+        from services.paper_trading import place_house_bets
+        async with aiosqlite.connect(_db_path()) as db:
+            db.row_factory = aiosqlite.Row
+            for book_type, threshold in HOUSE_BOOK_BANDS:
+                await place_house_bets(db, book_type=book_type, threshold=threshold)
+    except Exception:
+        pass
+
+
+async def _settle_bets_job():
+    """Settle all pending bets whose fixture has gone FT. Polling-based — the
+    snapshot/sync stack has no event bus today (PRD review acknowledged)."""
+    try:
+        import aiosqlite
+        from database import _db_path
+        from services.paper_trading import settle_bets
+        async with aiosqlite.connect(_db_path()) as db:
+            db.row_factory = aiosqlite.Row
+            await settle_bets(db)
+    except Exception:
+        pass
+
+
 scheduler.add_job(sync_dropping_odds, "interval", minutes=5, id="dropping")
 scheduler.add_job(_alerts_scan_job, "interval", minutes=5, id="alerts_scan")
 scheduler.add_job(_snapshot_job, "interval", minutes=15, id="snapshot")
@@ -651,3 +689,5 @@ scheduler.add_job(sync_ah_odds_seed, "interval", hours=12, id="ah_odds_seed")
 scheduler.add_job(sync_predictions, "interval", hours=6, id="predictions")
 scheduler.add_job(sync_competitions, "interval", hours=24, id="competitions")
 scheduler.add_job(sync_teams_meta, "interval", hours=24, id="teams_meta")
+scheduler.add_job(_house_book_job, "interval", minutes=30, id="paper_house_book")
+scheduler.add_job(_settle_bets_job, "interval", minutes=5, id="paper_settle_bets")

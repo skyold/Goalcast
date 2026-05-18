@@ -74,3 +74,5 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/playwright/.cache/
 /*.png
+backend/goalcast.db-shm
+backend/goalcast.db-wal

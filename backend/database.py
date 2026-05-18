@@ -204,6 +204,54 @@ CREATE TABLE IF NOT EXISTS historical_odds (
 """
 CREATE_HISTORICAL_ODDS_IDX = "CREATE INDEX IF NOT EXISTS idx_hist_odds_fix ON historical_odds(fixture_id, waypoint)"
 
+# Goalcast Signals snapshot. One row per (fixture, signal_type, waypoint).
+# Written by services.signals via snapshot.py after historical_* rows for
+# the same (fixture, waypoint) land. See docs/PRD/proprietary-signals.prd.md.
+CREATE_SIGNALS_SNAPSHOT = """
+CREATE TABLE IF NOT EXISTS signals_snapshot (
+    fixture_id     INTEGER NOT NULL,
+    signal_type    TEXT    NOT NULL,
+    signal_version TEXT    NOT NULL,
+    waypoint       TEXT    NOT NULL,
+    scope          TEXT    NOT NULL,
+    value_json     TEXT    NOT NULL,
+    strength       REAL,
+    captured_at    TIMESTAMP NOT NULL,
+    PRIMARY KEY (fixture_id, signal_type, waypoint)
+)
+"""
+CREATE_SIGNALS_SNAPSHOT_IDX_RANK = "CREATE INDEX IF NOT EXISTS idx_ss_type_strength ON signals_snapshot(signal_type, strength DESC)"
+CREATE_SIGNALS_SNAPSHOT_IDX_FIX  = "CREATE INDEX IF NOT EXISTS idx_ss_fixture       ON signals_snapshot(fixture_id)"
+
+# Paper-trading virtual ledger. House Book (user_id=0 sentinel) auto-follows
+# Goalcast signals; Personal Book (user_id>0, future) records manual entries.
+# See docs/PRD/paper-trading.prd.md. user_id is NOT NULL with sentinel 0 because
+# SQLite UNIQUE treats NULL as distinct — using NULL for House Book would let
+# duplicates slip past the unique constraint.
+CREATE_SIMULATED_BETS = """
+CREATE TABLE IF NOT EXISTS simulated_bets (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_type       TEXT    NOT NULL,
+    user_id         INTEGER NOT NULL DEFAULT 0,
+    fixture_id      INTEGER NOT NULL,
+    selection       TEXT    NOT NULL,
+    stake_units     REAL    NOT NULL,
+    entry_odds      REAL    NOT NULL,
+    entry_at        TIMESTAMP NOT NULL,
+    entry_waypoint  TEXT    NOT NULL,
+    signal_type     TEXT,
+    signal_version  TEXT,
+    outcome         TEXT,
+    pnl_units       REAL,
+    settled_at      TIMESTAMP,
+    closing_odds    REAL,
+    UNIQUE (book_type, fixture_id, selection, user_id)
+)
+"""
+CREATE_SB_IDX_BOOK_SETTLED    = "CREATE INDEX IF NOT EXISTS idx_sb_book_settled    ON simulated_bets(book_type, settled_at)"
+CREATE_SB_IDX_USER_SETTLED    = "CREATE INDEX IF NOT EXISTS idx_sb_user_settled    ON simulated_bets(user_id, settled_at)"
+CREATE_SB_IDX_FIXTURE_PENDING = "CREATE INDEX IF NOT EXISTS idx_sb_fixture_pending ON simulated_bets(fixture_id) WHERE outcome IS NULL"
+
 # Speeds up local form5 derivation (scan fixtures by team_id, status='FT', ORDER BY kickoff DESC).
 CREATE_FIXTURES_IDX_HTEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_home_team ON fixtures(home_team_id, kickoff_utc)"
 CREATE_FIXTURES_IDX_ATEAM = "CREATE INDEX IF NOT EXISTS idx_fixtures_away_team ON fixtures(away_team_id, kickoff_utc)"
@@ -239,6 +287,13 @@ async def init_db() -> None:
             CREATE_HISTORICAL_PREDICTIONS_IDX,
             CREATE_HISTORICAL_ODDS,
             CREATE_HISTORICAL_ODDS_IDX,
+            CREATE_SIGNALS_SNAPSHOT,
+            CREATE_SIGNALS_SNAPSHOT_IDX_RANK,
+            CREATE_SIGNALS_SNAPSHOT_IDX_FIX,
+            CREATE_SIMULATED_BETS,
+            CREATE_SB_IDX_BOOK_SETTLED,
+            CREATE_SB_IDX_USER_SETTLED,
+            CREATE_SB_IDX_FIXTURE_PENDING,
         ):
             await db.execute(ddl)
         cur = await db.execute("PRAGMA table_info(fixtures)")
