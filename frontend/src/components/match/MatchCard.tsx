@@ -53,7 +53,7 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
       <div className="mc-body">
         <div className="mc-team home">
           <div className="mc-namerow">
-            <TeamAbbr name={homeName} teamId={homeTeamId} />
+            <TeamAbbr name={homeName} nameZh={fixture.home_team_zh} teamId={homeTeamId} />
             <span className="mc-tname">{homeName}</span>
           </div>
           {(hf || homeRank != null) && (
@@ -82,7 +82,7 @@ export function MatchCard({ fixture, homeTeamId, awayTeamId, onClick }: Props) {
 
         <div className="mc-team away">
           <div className="mc-namerow">
-            <TeamAbbr name={awayName} teamId={awayTeamId} />
+            <TeamAbbr name={awayName} nameZh={fixture.away_team_zh} teamId={awayTeamId} />
             <span className="mc-tname">{awayName}</span>
           </div>
           {(af || awayRank != null) && (

@@ -78,8 +78,15 @@ function shortFor(name: string): string {
   return name.slice(-2);
 }
 
-export function teamMeta(opts: { id?: number | null; name: string }): TeamMeta {
+export function teamMeta(opts: { id?: number | null; name: string; nameZh?: string | null }): TeamMeta {
   if (opts.id != null && BY_ID[opts.id]) return BY_ID[opts.id];
+  // Always look up by zh first when available — BY_NAME is keyed on zh, so this
+  // keeps colour/abbr identical regardless of UI locale. Falls back to whatever
+  // name was passed (typically the locale-resolved display name).
+  if (opts.nameZh && BY_NAME[opts.nameZh]) return BY_NAME[opts.nameZh];
   if (BY_NAME[opts.name]) return BY_NAME[opts.name];
-  return { abbr: shortFor(opts.name), color: hashColor(opts.name) };
+  // Hash on the zh name when we have one, so the fallback colour stays stable
+  // across locales for teams not present in BY_NAME.
+  const hashKey = opts.nameZh && opts.nameZh.trim() ? opts.nameZh : opts.name;
+  return { abbr: shortFor(opts.name), color: hashColor(hashKey) };
 }
