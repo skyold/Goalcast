@@ -4,6 +4,40 @@ import re
 _RE = re.compile(r"^(home|away)_(?:(m|p)?(\d+))$")
 
 
+def make_ah_outcome(side: str, line: float) -> str:
+    """Build the OA-native outcome string for an AH bet on `side` at signed
+    `line` (from side perspective). Inverse of `parse_ah_outcome_line`.
+
+    Examples:
+        make_ah_outcome('home', 0.0)   → 'home_0'
+        make_ah_outcome('home', -0.5)  → 'home_m05'
+        make_ah_outcome('away', 0.25)  → 'away_p025'
+        make_ah_outcome('home', -1.25) → 'home_m125'
+
+    Raises ValueError on unsupported fractional component (only 0 / 0.25 /
+    0.5 / 0.75 are valid for AH).
+    """
+    if side not in ("home", "away"):
+        raise ValueError(f"side must be 'home' or 'away', got {side!r}")
+    if line == 0:
+        return f"{side}_0"
+    sign = "p" if line > 0 else "m"
+    abs_line = abs(line)
+    whole = int(abs_line)
+    frac = round(abs_line - whole, 4)
+    if frac == 0:
+        digits = str(whole)
+    elif frac == 0.5:
+        digits = f"{whole}5"
+    elif frac == 0.25:
+        digits = f"{whole}25"
+    elif frac == 0.75:
+        digits = f"{whole}75"
+    else:
+        raise ValueError(f"Unsupported AH fractional line: {line}")
+    return f"{side}_{sign}{digits}"
+
+
 def parse_ah_outcome_line(outcome: str) -> tuple[str, float] | None:
     """'home_m05' -> ('home', -0.5);  'away_p075' -> ('away', 0.75);
        'home_0'   -> ('home', 0.0);   anything else -> None."""

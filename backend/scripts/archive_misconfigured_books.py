@@ -28,19 +28,18 @@ from datetime import datetime, timezone
 import aiosqlite
 
 from database import _db_path
+from services.paper_trading import SUPPORTED_SETTLE_MARKETS
 from services.signals import REGISTERED
-
-
-_PAPER_TRADING_1X2_MARKET: tuple[int, str] = (6, "1X2")
 
 
 async def archive_misconfigured_books(db: aiosqlite.Connection) -> int:
     """Archive every non-archived simulated_books row bound to a signal whose
-    settle_market != (6, '1X2'). Returns the number of newly-archived rows."""
+    settle_market is not handled by the current settlement dispatcher.
+    Returns the number of newly-archived rows."""
     misconfigured = [
         (s.signal_type, s.signal_version)
         for s in REGISTERED
-        if s.settle_market != _PAPER_TRADING_1X2_MARKET
+        if s.settle_market not in SUPPORTED_SETTLE_MARKETS
     ]
     if not misconfigured:
         return 0

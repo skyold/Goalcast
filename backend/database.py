@@ -330,6 +330,18 @@ CREATE_SB_IDX_BOOK_FIXSEL = (
     "ON simulated_bets(book_id, fixture_id, selection) WHERE book_id IS NOT NULL"
 )
 
+# Phase B (paper-trading-realism) — simulated_bets gains market_id (which
+# market the bet is on) and ah_line (signed AH handicap from the bet's side
+# perspective; NULL for 1X2). Settlement dispatches on market_id.
+# UNIQUE upgrade includes market_id so a single book could theoretically hold
+# bets on different markets for the same fixture without false dedupe.
+ALTER_SB_MARKET_ID = "ALTER TABLE simulated_bets ADD COLUMN market_id INTEGER"
+ALTER_SB_AH_LINE   = "ALTER TABLE simulated_bets ADD COLUMN ah_line REAL"
+CREATE_SB_IDX_BOOK_MARKET_FIXSEL = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sb_book_market_fixsel "
+    "ON simulated_bets(book_id, fixture_id, market_id, selection) WHERE book_id IS NOT NULL"
+)
+
 async def init_db() -> None:
     async with aiosqlite.connect(_db_path()) as db:
         # WAL mode allows concurrent readers + one writer without disk-image
@@ -397,6 +409,14 @@ async def init_db() -> None:
         # Partial UNIQUE index — only enforces where book_id IS NOT NULL,
         # so legacy book_type-only rows don't trip it.
         await db.execute(CREATE_SB_IDX_BOOK_FIXSEL)
+        # Phase B — market_id + ah_line on simulated_bets. Legacy 1X2 rows
+        # (all rows before this migration) get backfilled to market_id=6.
+        if "market_id" not in sb_existing:
+            await db.execute(ALTER_SB_MARKET_ID)
+            await db.execute("UPDATE simulated_bets SET market_id = 6 WHERE market_id IS NULL")
+        if "ah_line" not in sb_existing:
+            await db.execute(ALTER_SB_AH_LINE)
+        await db.execute(CREATE_SB_IDX_BOOK_MARKET_FIXSEL)
         # Same HT columns on the live predictions upsert table (idempotent).
         cur = await db.execute("PRAGMA table_info(predictions)")
         p_existing = {row[1] for row in await cur.fetchall()}
