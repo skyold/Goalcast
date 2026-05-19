@@ -87,11 +87,17 @@ async def db(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_balanced_draw_line_emits_ev_bands(db):
-    """HT 42/28/30 + FT AH line=0 → eff_home≈0.583, hk_home_5≈0.800, hk_home_28≈1.194.
+    """HT 42/28/30 + FT AH line=0 → raw EV math (push-aware).
 
-    Formula (mirrors OA_HT_V2.py 'EV 5%~28%' on HT 平手盘):
-      eff_h = rH / (rH + rA)
-      hk_h_ev = (ev + eff_a) / eff_h
+    Formula (HT-平手盘, line=0; draw outcome is a push, contributes 0):
+        EV(home) = o · P_home - P_away  →  o = (EV + P_away) / P_home
+        EV(away) = o · P_away - P_home  →  o = (EV + P_home) / P_away
+
+    Sanity check (back-substitute):
+        o = 0.833, EV = 0.833·0.42 - 0.30 = 0.05  ✓
+        o = 1.381, EV = 1.381·0.42 - 0.30 = 0.28  ✓
+        o = 1.567, EV = 1.567·0.30 - 0.42 = 0.05  ✓
+        o = 2.333, EV = 2.333·0.30 - 0.42 = 0.28  ✓
     """
     from services.signals.gs_ht_ev import GSHtEv
     sig = GSHtEv()
@@ -101,25 +107,22 @@ async def test_balanced_draw_line_emits_ev_bands(db):
 
     assert v["ah_line"] == pytest.approx(0.0, abs=1e-6)
     assert v["ah_label"] == "draw"
-    assert v["ht_home_pct"] == 42.0
-    assert v["ht_draw_pct"] == 28.0
-    assert v["ht_away_pct"] == 30.0
+    # Raw HT probabilities (0..1), no 2-way de-vig.
+    assert v["p_home_ht"] == pytest.approx(0.42)
+    assert v["p_draw_ht"] == pytest.approx(0.28)
+    assert v["p_away_ht"] == pytest.approx(0.30)
+    # hk_home_5  = (0.05 + 0.30) / 0.42 = 0.833
+    assert v["hk_home_5"] == pytest.approx(0.833, abs=0.005)
+    # hk_home_28 = (0.28 + 0.30) / 0.42 = 1.381
+    assert v["hk_home_28"] == pytest.approx(1.381, abs=0.005)
+    # hk_away_5  = (0.05 + 0.42) / 0.30 = 1.567
+    assert v["hk_away_5"] == pytest.approx(1.567, abs=0.005)
+    # hk_away_28 = (0.28 + 0.42) / 0.30 = 2.333
+    assert v["hk_away_28"] == pytest.approx(2.333, abs=0.005)
 
-    # eff_home = 42 / (42 + 30) = 0.5833
-    assert v["eff_home"] == pytest.approx(0.5833, abs=0.001)
-    assert v["eff_away"] == pytest.approx(0.4167, abs=0.001)
-    # hk_home_5  = (0.05 + 0.4167) / 0.5833 = 0.800
-    assert v["hk_home_5"] == pytest.approx(0.800, abs=0.005)
-    # hk_home_28 = (0.28 + 0.4167) / 0.5833 = 1.194
-    assert v["hk_home_28"] == pytest.approx(1.194, abs=0.005)
-    # hk_away_5  = (0.05 + 0.5833) / 0.4167 = 1.520
-    assert v["hk_away_5"] == pytest.approx(1.520, abs=0.005)
-    # hk_away_28 = (0.28 + 0.5833) / 0.4167 = 2.072
-    assert v["hk_away_28"] == pytest.approx(2.072, abs=0.005)
-
-    assert v["selection"] == "home"
-    # strength = min(2 * |0.5833 - 0.5|, 1.0) = 0.167
-    assert result["strength"] == pytest.approx(0.167, abs=0.005)
+    assert v["selection"] == "home"  # P_home=0.42 ≥ P_away=0.30
+    # strength = min(2 * |0.42 - 0.30|, 1.0) = 0.24
+    assert result["strength"] == pytest.approx(0.24, abs=0.005)
 
 
 @pytest.mark.asyncio
