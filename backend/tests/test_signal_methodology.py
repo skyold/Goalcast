@@ -109,11 +109,16 @@ async def test_seed_methodology_is_idempotent():
 
 @pytest.mark.asyncio
 async def test_methodology_body_contains_expected_section_headings():
-    """Sanity: each seeded body has the canonical sections used by the UI."""
+    """Sanity: each seeded body has the canonical opening section.
+
+    Plain-language rewrite (2026-05-19): zh uses '这个信号在做什么',
+    en uses 'What this signal does'. Old technical headings (计算原理 /
+    How it computes) are deprecated.
+    """
     from scripts.seed_methodology import METHODOLOGY
     for signal_type, locales in METHODOLOGY.items():
         for locale, body_md in locales.items():
             ctx = f"{signal_type}/{locale}"
-            # zh uses '计算原理', en uses 'How it computes'
-            assert ("## 计算原理" in body_md) or ("## How it computes" in body_md), \
+            assert ("## 这个信号在做什么" in body_md) \
+                or ("## What this signal does" in body_md), \
                 f"{ctx}: missing canonical opening section"
