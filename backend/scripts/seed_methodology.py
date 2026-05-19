@@ -277,40 +277,12 @@ selection  = argmax(|delta|)
         "zh": """\
 ## 计算原理
 
-灵感来自 OA_HT_V2 工具,但 **EV 公式已修正**(原脚本由 AI 写时漏掉了
-HT 平局 = 退本/push 的语义)。
+OA_HT_V2 脚本的信号化版本。只在 **FT 主盘 AH 落在 {0, ±0.25, ±0.5}** 区间
+(即"平手 / 平半 / 半球")时触发,利用模型给出的 **HT 1X2 概率**,在
+**2-way de-vigged 概率空间**里反推"上半场平手盘 (line=0)"的 EV 水位赔率。
 
-只在 **FT 主盘 AH 落在 {0, ±0.25, ±0.5}** 区间(即"平手 / 平半 / 半球")
-时触发,利用模型给出的 **HT 1X2 概率**,反推"上半场平手盘"在 EV=5% /
-EV=28% 时的应得 HK 赔率区间。
-
-### 结算规则(决定公式怎么写)
-
-上半场平手盘 (line = 0) 的结算:
-
-- HT 主队领先 → 赌主队赢、赌客队输
-- HT 客队领先 → 赌主队输、赌客队赢
-- **HT 平局 → 退本(push),pnl = 0**
-
-所以 EV 计算时 **HT 平局不参与**(它贡献 0)。
-
-### EV 公式(HK 赔率,1 单位 stake)
-
-```
-EV(赌主队) = o · P_home_HT − P_away_HT   (push 项贡献 0,被消去)
-EV(赌客队) = o · P_away_HT − P_home_HT
-
-反推 EV = X 时所需的 HK 赔率(原始概率,不要 2-way de-vig):
-
-  o_home = (X + P_away_HT) / P_home_HT
-  o_away = (X + P_home_HT) / P_away_HT
-```
-
-> ⚠ **不要做 `eff_h = rH / (rH + rA)` 这种 2-way de-vig**。那等价于"假设
-> 平局不存在",会**低估**所需赔率门槛 — 用户看到 +EV 实际却是 break-even
-> 甚至负 EV,长期亏 vig。原 OA_HT_V2.py:281-288 行有此 bug,本信号已修。
-
-`hk_*_5` = EV=5% 时, `hk_*_28` = EV=28% 时。市场实际 HK 赔率 ≥ 该值 = +EV。
+输出两根**水位线**:**下线 EV=5%**、**上线 EV=28%**,以 HK 赔率表示。
+市场实际报价**落在 hk_*_5 上方**即清下线,**超过 hk_*_28** 即逼近上线。
 
 ### 输入
 
@@ -324,26 +296,40 @@ EV(赌客队) = o · P_away_HT − P_home_HT
 对每个书商,在所有 AH 让球档位中,选两边赔率差最小的那一档作为主盘。
 主盘让球值必须落在 `{0, ±0.25, ±0.5}` 才触发,否则信号不出。
 
+### EV 反推公式
+
+```
+rH, rA  = ht_home_pct / 100, ht_away_pct / 100
+eff_h   = rH / (rH + rA)        # 2-way de-vig (去掉 HT 平局,重归一)
+eff_a   = rA / (rH + rA)
+hk_h_ev = (ev + eff_a) / eff_h  # HT 平手盘主队 EV 对应 HK 赔率
+hk_a_ev = (ev + eff_h) / eff_a  # HT 平手盘客队 EV 对应 HK 赔率
+```
+
+`hk_*_5` = EV=5%(下线), `hk_*_28` = EV=28%(上线)。
+
 ### Strength 归一化
 
-`min(2 · |p_home_ht − p_away_ht|, 1.0)` —— HT 主客概率差距越大 strength
-越高。差距 50pp(例如 70/0/30)封顶 = 1.0。反映模型对 HT 倾向的把握度,
-不是 EV 本身。
+`min(2 * |eff_home - 0.5|, 1.0)` —— de-vigged 2-way 平势 = 0,一边倒 = 1。
+反映模型对 HT 倾向的把握度,不是 EV 本身。
 
 ### 工作示例
 
 HT 1X2 = home 42% / draw 28% / away 30%:
 
-| EV target | HK home odds | HK away odds |
-|---|---|---|
-| 5%  | (0.05 + 0.30) / 0.42 = **0.833** | (0.05 + 0.42) / 0.30 = **1.567** |
-| 28% | (0.28 + 0.30) / 0.42 = **1.381** | (0.28 + 0.42) / 0.30 = **2.333** |
+```
+eff_h = 0.42/(0.42+0.30) = 0.5833
+eff_a = 0.30/(0.42+0.30) = 0.4167
+```
 
-反代验证:o = 0.833 时,EV = 0.833·0.42 − 0.30 = 0.05 ✓
+| EV target | HK home odds(下/上线) | HK away odds |
+|---|---|---|
+| 5% (下线)  | (0.05 + 0.4167) / 0.5833 = **0.800** | (0.05 + 0.5833) / 0.4167 = **1.520** |
+| 28% (上线) | (0.28 + 0.4167) / 0.5833 = **1.194** | (0.28 + 0.5833) / 0.4167 = **2.072** |
 
 ### 何时不使用
 
-- FT 主盘不在 ±0.5 区间内 → 信号不出 (比赛太不均势,EV 公式失真)
+- FT 主盘不在 ±0.5 区间内 → 信号不出 (比赛太不均势,框架失真)
 - HT 1X2 概率任一缺失 → 信号不出
 - 两家主流书商都缺 AH 行 → 信号不出
 - 注意:**只用于 HT 平手盘 (line=0) 这一具体投注品种**,与其他 AH 让球不可
@@ -352,44 +338,15 @@ HT 1X2 = home 42% / draw 28% / away 30%:
         "en": """\
 ## How it computes
 
-Inspired by the OA_HT_V2 script, but with the **EV formula corrected** —
-the original script (AI-written) silently dropped the HT-draw push
-semantic, which underestimates the fair-odds threshold.
+Signal-ified port of the OA_HT_V2 script. Fires only when the **FT main AH
+line** lands in `{0, ±0.25, ±0.5}` (i.e. "draw / draw-half / half-ball"),
+using the model's **HT 1X2 probabilities** to reverse-derive Hong Kong
+odds for the **HT-平手盘 (line=0)** at two **water lines**:
+**lower bound EV=5%** and **upper bound EV=28%**, computed in
+**2-way de-vigged probability space**.
 
-Fires only when the **FT main AH line** lands in `{0, ±0.25, ±0.5}` (i.e.
-"draw / draw-half / half-ball"), using the model's **HT 1X2 probabilities**
-to reverse-derive Hong Kong odds for the **HT-平手盘 (line=0)** at EV=5%
-and EV=28%.
-
-### Settlement (drives the formula)
-
-HT-平手盘 (line=0):
-
-- HT home leads → bet home wins, bet away loses
-- HT away leads → bet home loses, bet away wins
-- **HT draw → push (refund), pnl = 0**
-
-So the HT-draw outcome contributes **0** to EV.
-
-### EV formula (HK odds, 1u stake)
-
-```
-EV(bet home) = o · P_home_HT − P_away_HT   (push term drops out)
-EV(bet away) = o · P_away_HT − P_home_HT
-
-Solving for o at EV = X (raw probs — NO 2-way de-vig):
-
-  o_home = (X + P_away_HT) / P_home_HT
-  o_away = (X + P_home_HT) / P_away_HT
-```
-
-> ⚠ **Do NOT do `eff_h = rH / (rH + rA)` 2-way de-vig.** That implicitly
-> assumes draws don't happen and **underestimates** the required odds
-> threshold — users see "+EV" that's actually break-even or negative,
-> bleeding vig long-term. The original OA_HT_V2.py:281-288 carried this
-> bug; this signal fixes it.
-
-`hk_*_5` = EV 5%, `hk_*_28` = EV 28%. Market HK odds ≥ this value = +EV.
+Read the outputs as bands: market HK above `hk_*_5` clears the lower line;
+beyond `hk_*_28` approaches the upper line.
 
 ### Inputs
 
@@ -404,26 +361,41 @@ For each bookmaker, scan all AH handicaps and pick the one with smallest
 two-side odds gap. The home-perspective line must land in `{0, ±0.25, ±0.5}`
 or no signal fires.
 
+### EV reverse-derivation formula
+
+```
+rH, rA  = ht_home_pct / 100, ht_away_pct / 100
+eff_h   = rH / (rH + rA)        # 2-way de-vig (drop HT draw, renormalise)
+eff_a   = rA / (rH + rA)
+hk_h_ev = (ev + eff_a) / eff_h  # HK odds for HT-draw-AH home at EV
+hk_a_ev = (ev + eff_h) / eff_a  # ...away
+```
+
+`hk_*_5` = EV 5% (lower line); `hk_*_28` = EV 28% (upper line).
+
 ### Strength normalisation
 
-`min(2 · |p_home_ht − p_away_ht|, 1.0)` — wider asymmetry in HT
-probabilities → higher strength. A 50pp gap caps at 1.0. Reflects model
-conviction on the HT outcome direction, not EV itself.
+`min(2 * |eff_home - 0.5|, 1.0)` — de-vigged 2-way coin flip = 0,
+dominant side = 1. Reflects model conviction on HT direction, not the
+EV itself.
 
 ### Worked example
 
 HT 1X2 = home 42% / draw 28% / away 30%:
 
-| EV target | HK home odds | HK away odds |
-|---|---|---|
-| 5%  | (0.05 + 0.30) / 0.42 = **0.833** | (0.05 + 0.42) / 0.30 = **1.567** |
-| 28% | (0.28 + 0.30) / 0.42 = **1.381** | (0.28 + 0.42) / 0.30 = **2.333** |
+```
+eff_h = 0.42/(0.42+0.30) = 0.5833
+eff_a = 0.30/(0.42+0.30) = 0.4167
+```
 
-Back-substitution check: o = 0.833 → EV = 0.833·0.42 − 0.30 = 0.05 ✓
+| EV target | HK home odds (lower/upper) | HK away odds |
+|---|---|---|
+| 5% (lower)  | (0.05 + 0.4167) / 0.5833 = **0.800** | (0.05 + 0.5833) / 0.4167 = **1.520** |
+| 28% (upper) | (0.28 + 0.4167) / 0.5833 = **1.194** | (0.28 + 0.5833) / 0.4167 = **2.072** |
 
 ### When NOT to use
 
-- FT main AH outside ±0.5 — match too lopsided, EV framing breaks down
+- FT main AH outside ±0.5 — match too lopsided, framing breaks down
 - Any HT 1X2 column NULL → no signal
 - Both major books missing AH rows → no signal
 - Note: applies **only to the HT-draw AH (line=0)** specifically; do not
