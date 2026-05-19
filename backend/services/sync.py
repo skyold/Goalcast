@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 import aiosqlite
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -7,6 +8,7 @@ from database import _db_path
 from services.oddalerts import oddalerts_client
 
 scheduler = AsyncIOScheduler()
+log = logging.getLogger(__name__)
 
 # Concurrency cap for OddAlerts HTTP calls inside sync jobs.
 # OddAlerts publishes no rate limit; 5 is a conservative starting value that
@@ -676,17 +678,30 @@ HOUSE_BOOK_BANDS = [
 
 
 async def _house_book_job():
-    """Per-band virtual order placement against GS-Mispricing signals."""
+    """Per-book virtual order placement against all REGISTERED signals.
+
+    Phase 4b switch: replaces the legacy per-band GS-Mispricing-only loop
+    (`place_house_bets`) with the generic `place_bets_for_books` which
+    iterates rows from `simulated_books`. The 3 legacy bands
+    (`house_3pct`/`house_5pct`/`house_7pct`) are preserved as 3 dedicated
+    House Books that produce identical bets to the old loop — see
+    services/signals/books.py:migrate_legacy_book_types.
+
+    14-day observation period after deploy: expect total `simulated_bets`
+    insert rate within ±5% of pre-switch baseline. PRD success metric.
+    """
     try:
         import aiosqlite
         from database import _db_path
-        from services.paper_trading import place_house_bets
+        from services.paper_trading import place_bets_for_books
         async with aiosqlite.connect(_db_path()) as db:
             db.row_factory = aiosqlite.Row
-            for book_type, threshold in HOUSE_BOOK_BANDS:
-                await place_house_bets(db, book_type=book_type, threshold=threshold)
+            await place_bets_for_books(db)
     except Exception:
-        pass
+        # 14-day baseline observation period depends on bugs being visible.
+        # Bare `pass` here would silently hide eval_conditions / odds-lookup
+        # regressions during the per-book switchover.
+        log.exception("paper-trading: house_book_job failed")
 
 
 async def _settle_bets_job():
@@ -700,7 +715,7 @@ async def _settle_bets_job():
             db.row_factory = aiosqlite.Row
             await settle_bets(db)
     except Exception:
-        pass
+        log.exception("paper-trading: settle_bets_job failed")
 
 
 scheduler.add_job(sync_dropping_odds, "interval", minutes=5, id="dropping")

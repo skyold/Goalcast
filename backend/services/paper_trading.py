@@ -155,6 +155,8 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
 
     # Pre-fetch signals_snapshot rows for all (signal_type, signal_version)
     # combos in one pass — avoid N book-scoped queries.
+    # The f-string `placeholders` interpolation only emits `?` markers (no user
+    # data); the actual values go through the parameterized `flat` list.
     sig_versions = {(b["signal_type"], b["signal_version"]) for b in books}
     placeholders = ",".join("(?,?)" for _ in sig_versions)
     flat: list = []
@@ -174,6 +176,29 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
     by_sig: dict[tuple[str, str], list[dict]] = {}
     for r in rows:
         by_sig.setdefault((r["signal_type"], r["signal_version"]), []).append(r)
+
+    # Batch-fetch all Pinnacle 1X2 odds for the (fixture_id, waypoint) pairs
+    # touched by any candidate row. Avoids N×M single-row SELECTs in the inner
+    # loop (review finding M1). Keyed by (fixture_id, waypoint, outcome).
+    odds_by_key: dict[tuple[int, str, str], float] = {}
+    if rows:
+        fw_pairs = {(r["fixture_id"], r["waypoint"]) for r in rows}
+        odds_placeholders = ",".join("(?,?)" for _ in fw_pairs)
+        odds_flat: list = []
+        for fid, wp in fw_pairs:
+            odds_flat.extend([fid, wp])
+        odds_sql = f"""
+            SELECT fixture_id, waypoint, outcome, odds
+            FROM historical_odds
+            WHERE bookmaker_id = 1 AND market_id = 6
+              AND outcome IN ('home','draw','away')
+              AND (fixture_id, waypoint) IN (VALUES {odds_placeholders})
+        """
+        async with db.execute(odds_sql, odds_flat) as cur:
+            for r in await cur.fetchall():
+                if r["odds"] is None:
+                    continue
+                odds_by_key[(r["fixture_id"], r["waypoint"], r["outcome"])] = float(r["odds"])
 
     total_inserted = 0
     for book in books:
@@ -209,17 +234,12 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
             selection = value.get("selection")
             if selection not in ("home", "draw", "away"):
                 continue
-            # Pinnacle 1X2 odds at this waypoint for the selected side.
-            async with db.execute(
-                """SELECT odds FROM historical_odds
-                   WHERE fixture_id=? AND waypoint=? AND bookmaker_id=1
-                     AND market_id=6 AND outcome=?""",
-                (r["fixture_id"], r["waypoint"], selection),
-            ) as cur:
-                odds_row = await cur.fetchone()
-            if odds_row is None or odds_row["odds"] is None:
+            # Pinnacle 1X2 odds for this selection at this waypoint — sourced
+            # from the pre-fetched dict (single batch query above) instead of
+            # a per-(book × candidate) SELECT.
+            entry_odds = odds_by_key.get((r["fixture_id"], r["waypoint"], selection))
+            if entry_odds is None:
                 continue
-            entry_odds = odds_row["odds"]
             res = await db.execute(
                 """INSERT OR IGNORE INTO simulated_bets
                      (book_id, book_type, user_id, fixture_id, selection,
@@ -239,6 +259,77 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
     if total_inserted:
         await db.commit()
     return total_inserted
+
+
+async def book_summary(
+    db: aiosqlite.Connection,
+    *,
+    book_id: int,
+    starting_units: float = 100.0,
+) -> dict:
+    """Aggregated view of one Book (House or Personal) keyed by book_id.
+
+    Same metrics as `house_book_summary` (ROI / win_rate / pending / voided /
+    bankroll timeseries) but addresses the Book by its primary key instead
+    of the legacy `book_type` string. Phase 4b of signal-catalog PRD.
+
+    Defaults `starting_units=100.0` to align with `simulated_books.starting_units`
+    default, so per-book ROI curves on the multi-curve chart use a consistent
+    baseline — the **whole point** of "信号即账户 + 统一起始资金".
+    """
+    async with db.execute(
+        """SELECT COUNT(*) AS n FROM simulated_bets
+           WHERE book_id=? AND outcome IS NULL""",
+        (book_id,),
+    ) as cur:
+        pending = (await cur.fetchone())["n"]
+
+    async with db.execute(
+        """SELECT stake_units, pnl_units, outcome, settled_at
+           FROM simulated_bets
+           WHERE book_id=? AND outcome IS NOT NULL
+           ORDER BY settled_at ASC, id ASC""",
+        (book_id,),
+    ) as cur:
+        settled_rows = [dict(r) for r in await cur.fetchall()]
+
+    n_settled = len(settled_rows)
+    n_voided  = sum(1 for b in settled_rows if b["outcome"] == "void")
+
+    if n_settled == 0:
+        return {
+            "book_id":      book_id,
+            "bets_settled": 0,
+            "bets_pending": pending,
+            "bets_voided":  0,
+            "bankroll":     {"start": starting_units, "current": starting_units},
+            "metrics":      {"roi_pct": None, "win_rate": None},
+            "timeseries":   [],
+        }
+
+    graded = [b for b in settled_rows if b["outcome"] in ("win", "loss")]
+    graded_stake = sum(b["stake_units"] for b in graded)
+    graded_pnl   = sum(b["pnl_units"]   for b in graded)
+    wins         = sum(1 for b in graded if b["outcome"] == "win")
+
+    running = starting_units
+    timeseries = []
+    for b in settled_rows:
+        running += b["pnl_units"]  # void contributes 0 → bankroll unchanged
+        timeseries.append({"settled_at": b["settled_at"], "bankroll": round(running, 2)})
+
+    return {
+        "book_id":      book_id,
+        "bets_settled": n_settled,
+        "bets_pending": pending,
+        "bets_voided":  n_voided,
+        "bankroll":     {"start": starting_units, "current": round(running, 2)},
+        "metrics": {
+            "roi_pct":  round(graded_pnl / graded_stake * 100, 2) if graded_stake else None,
+            "win_rate": round(wins / len(graded), 4) if graded else None,
+        },
+        "timeseries": timeseries,
+    }
 
 
 async def house_book_summary(
