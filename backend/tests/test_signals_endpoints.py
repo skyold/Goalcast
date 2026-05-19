@@ -115,3 +115,189 @@ async def test_active_only_upcoming_can_be_disabled(app):
                          params={"only_upcoming": "false", "min_strength": 0.0})
     fids = {it["fixture_id"] for it in r.json()["items"]}
     assert 99 in fids
+
+
+# --- Phase 1 of signal-catalog-and-subscriptions PRD --------------------------
+
+@pytest.mark.asyncio
+async def test_catalog_lists_every_registered_signal_with_metadata(app):
+    """Catalog returns one row per REGISTERED signal with full ClassVar metadata."""
+    from httpx import AsyncClient, ASGITransport
+    from services.signals import REGISTERED
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/signals/catalog", params={"locale": "zh"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["locale"] == "zh"
+    types_returned = {it["signal_type"] for it in d["items"]}
+    types_registered = {s.signal_type for s in REGISTERED}
+    assert types_returned == types_registered
+    for it in d["items"]:
+        # ClassVar contract pass-through
+        assert it["description"]
+        assert it["output_schema"]
+        assert it["strength_formula"]
+        assert it["failure_modes"]
+        # signal-version + scope present
+        assert it["signal_version"]
+        assert it["scope"] in ("public", "member")
+        # forward-compat null until Phase 4
+        assert it["house_book"] is None
+
+
+@pytest.mark.asyncio
+async def test_catalog_includes_methodology_after_seed(app):
+    """After seed_methodology(), each item has methodology_md + updated_at populated."""
+    from httpx import AsyncClient, ASGITransport
+    from scripts.seed_methodology import seed_methodology
+    await seed_methodology()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r_zh = await c.get("/api/signals/catalog", params={"locale": "zh"})
+        r_en = await c.get("/api/signals/catalog", params={"locale": "en"})
+    for d in (r_zh.json(), r_en.json()):
+        for it in d["items"]:
+            assert it["methodology_md"] is not None, f"{it['signal_type']}: no methodology"
+            assert it["methodology_updated_at"] is not None
+    # Body is locale-specific — zh body must differ from en body.
+    z = {it["signal_type"]: it["methodology_md"] for it in r_zh.json()["items"]}
+    e = {it["signal_type"]: it["methodology_md"] for it in r_en.json()["items"]}
+    for st in z:
+        assert z[st] != e[st], f"{st}: zh body == en body (locale routing broken)"
+
+
+@pytest.mark.asyncio
+async def test_catalog_methodology_null_when_not_seeded(app):
+    """Without running seed, methodology fields are None but item still appears."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/signals/catalog")
+    for it in r.json()["items"]:
+        assert it["methodology_md"] is None
+        assert it["methodology_updated_at"] is None
+        # Metadata from ClassVars must still be present.
+        assert it["description"]
+
+
+@pytest.mark.asyncio
+async def test_catalog_includes_7d_stats_from_signals_snapshot(app):
+    """stats_7d reflects actual signals_snapshot rows (the app fixture seeded
+    5 rows across 3 signal types)."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/signals/catalog")
+    by_type = {it["signal_type"]: it for it in r.json()["items"]}
+
+    misp = by_type["GS-Mispricing"]["stats_7d"]
+    assert misp is not None
+    # 3 GS-Mispricing rows seeded: strengths 0.80, 0.50, 0.90.
+    assert misp["triggered"] == 3
+    assert misp["max_strength"] == pytest.approx(0.90)
+    assert misp["avg_strength"] == pytest.approx((0.80 + 0.50 + 0.90) / 3, abs=0.001)
+
+    # GS-KEN-HT-EV is registered but has no signals_snapshot rows → stats_7d is None.
+    ht_ev = by_type["GS-KEN-HT-EV"]
+    assert ht_ev["stats_7d"] is None
+
+
+@pytest.mark.asyncio
+async def test_catalog_default_locale_is_zh(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/signals/catalog")
+    assert r.json()["locale"] == "zh"
+
+
+@pytest.mark.asyncio
+async def test_catalog_rejects_invalid_locale(app):
+    """FastAPI Literal[zh|en] enforces this — anything else 422."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/signals/catalog", params={"locale": "fr"})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_catalog_does_not_shadow_signal_type_route(app):
+    """Critical: /signals/catalog must NOT be matched by /signals/{signal_type}.
+    If route order was wrong, GET /signals/catalog would hit get_by_type with
+    signal_type='catalog' and return a 400 (must start with GS-)."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/api/signals/catalog")
+    assert r.status_code == 200
+    # And the shape is the catalog shape, not the by_type shape:
+    body = r.json()
+    assert "items" in body and "locale" in body
+    assert "signal_type" not in body  # by_type returns top-level signal_type
+
+
+# --- Phase 3 backtest endpoint ------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_backtest_default_window_returns_result_shape(app):
+    """POST returns BacktestResult shape even when nothing settles.
+
+    The app fixture seeds 1 FT fixture (id=99) with a GS-Mispricing snapshot
+    but no historical_odds → considered=1, settled=0 (no Pinnacle odds to
+    settle against). End-to-end arithmetic is covered in test_signals_backtest.py;
+    here we just verify the endpoint plumbing returns the expected shape.
+    """
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["signal_type"] == "GS-Mispricing"
+    assert d["window"] == "30d"
+    assert d["match_scope"] == "all"
+    assert d["considered_count"] == 1
+    assert d["settled_count"] == 0
+    assert d["roi_pct"] is None
+    assert d["equity_curve"] == []
+
+
+@pytest.mark.asyncio
+async def test_backtest_rejects_non_gs_prefix(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/Foo-Bar/backtest", json={})
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_backtest_rejects_invalid_window(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={"window": "60d"})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_backtest_rejects_invalid_match_scope(app):
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={"match_scope": "country"})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_backtest_my_leagues_without_login_401(app):
+    """match_scope='my_leagues' requires login — anon → 401, not silent fall-through."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/api/signals/GS-Mispricing/backtest", json={"match_scope": "my_leagues"})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_backtest_passes_conditions_to_evaluator(app):
+    """Endpoint forwards conditions intact (smoke test for plumbing —
+    settlement arithmetic already covered in test_signals_backtest.py)."""
+    from httpx import AsyncClient, ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post(
+            "/api/signals/GS-Mispricing/backtest",
+            json={"conditions": {"strength_min": 0.5}, "window": "7d"},
+        )
+    assert r.status_code == 200
+    assert r.json()["window"] == "7d"

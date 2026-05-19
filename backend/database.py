@@ -204,6 +204,21 @@ CREATE TABLE IF NOT EXISTS historical_odds (
 """
 CREATE_HISTORICAL_ODDS_IDX = "CREATE INDEX IF NOT EXISTS idx_hist_odds_fix ON historical_odds(fixture_id, waypoint)"
 
+# Catalog methodology text per signal × locale. Consumed by
+# /api/signals/catalog. Decoupling文案 from code so that markdown bodies can be
+# updated without redeploying (seed via scripts/seed_methodology.py). See
+# docs/PRD/signal-catalog-and-subscriptions.prd.md Q1 — chose DB over static
+# constants to match the competitions.name_zh "DB-as-translation" pattern.
+CREATE_SIGNAL_METHODOLOGY = """
+CREATE TABLE IF NOT EXISTS signal_methodology (
+    signal_type  TEXT NOT NULL,
+    locale       TEXT NOT NULL,
+    body_md      TEXT NOT NULL,
+    updated_at   TIMESTAMP NOT NULL,
+    PRIMARY KEY (signal_type, locale)
+)
+"""
+
 # Goalcast Signals snapshot. One row per (fixture, signal_type, waypoint).
 # Written by services.signals via snapshot.py after historical_* rows for
 # the same (fixture, waypoint) land. See docs/PRD/proprietary-signals.prd.md.
@@ -222,6 +237,32 @@ CREATE TABLE IF NOT EXISTS signals_snapshot (
 """
 CREATE_SIGNALS_SNAPSHOT_IDX_RANK = "CREATE INDEX IF NOT EXISTS idx_ss_type_strength ON signals_snapshot(signal_type, strength DESC)"
 CREATE_SIGNALS_SNAPSHOT_IDX_FIX  = "CREATE INDEX IF NOT EXISTS idx_ss_fixture       ON signals_snapshot(fixture_id)"
+
+# Per-signal Book catalogue. Phase 4 of signal-catalog-and-subscriptions PRD —
+# "信号即账户": each REGISTERED signal gets a row with user_id=0 ("House Book"),
+# users can fork to their own user_id>0 row. One book ↔ one signal binding;
+# conditions_json filters which signal_snapshot rows that book trades on.
+#
+# Backward compat: simulated_bets keeps `book_type TEXT` column (legacy unique
+# constraint still in force). New writes set both book_type AND book_id; legacy
+# rows are backfilled on init.
+CREATE_SIMULATED_BOOKS = """
+CREATE TABLE IF NOT EXISTS simulated_books (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL,
+    name            TEXT    NOT NULL,
+    signal_type     TEXT    NOT NULL,
+    signal_version  TEXT    NOT NULL,
+    conditions_json TEXT    NOT NULL DEFAULT '{}',
+    starting_units  REAL    NOT NULL DEFAULT 100.0,
+    match_scope     TEXT    NOT NULL DEFAULT 'all',
+    created_at      TIMESTAMP NOT NULL,
+    archived_at     TIMESTAMP,
+    UNIQUE (user_id, name)
+)
+"""
+CREATE_SB_BOOKS_IDX_USER   = "CREATE INDEX IF NOT EXISTS idx_sb_books_user   ON simulated_books(user_id, archived_at)"
+CREATE_SB_BOOKS_IDX_SIGNAL = "CREATE INDEX IF NOT EXISTS idx_sb_books_signal ON simulated_books(signal_type, signal_version)"
 
 # Paper-trading virtual ledger. House Book (user_id=0 sentinel) auto-follows
 # Goalcast signals; Personal Book (user_id>0, future) records manual entries.
@@ -276,6 +317,15 @@ ALTER_PRED_HT_HOME = "ALTER TABLE predictions ADD COLUMN home_win_ht_pct REAL"
 ALTER_PRED_HT_DRAW = "ALTER TABLE predictions ADD COLUMN draw_ht_pct     REAL"
 ALTER_PRED_HT_AWAY = "ALTER TABLE predictions ADD COLUMN away_win_ht_pct REAL"
 
+# Phase 4 — simulated_bets gains book_id (FK to simulated_books) alongside the
+# legacy book_type column. UNIQUE on (book_id, fixture_id, selection) lives in
+# a partial index below so legacy rows (book_id IS NULL) don't violate it.
+ALTER_SB_BOOK_ID = "ALTER TABLE simulated_bets ADD COLUMN book_id INTEGER"
+CREATE_SB_IDX_BOOK_FIXSEL = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sb_book_fixsel "
+    "ON simulated_bets(book_id, fixture_id, selection) WHERE book_id IS NOT NULL"
+)
+
 async def init_db() -> None:
     async with aiosqlite.connect(_db_path()) as db:
         # WAL mode allows concurrent readers + one writer without disk-image
@@ -301,9 +351,13 @@ async def init_db() -> None:
             CREATE_HISTORICAL_PREDICTIONS_IDX,
             CREATE_HISTORICAL_ODDS,
             CREATE_HISTORICAL_ODDS_IDX,
+            CREATE_SIGNAL_METHODOLOGY,
             CREATE_SIGNALS_SNAPSHOT,
             CREATE_SIGNALS_SNAPSHOT_IDX_RANK,
             CREATE_SIGNALS_SNAPSHOT_IDX_FIX,
+            CREATE_SIMULATED_BOOKS,
+            CREATE_SB_BOOKS_IDX_USER,
+            CREATE_SB_BOOKS_IDX_SIGNAL,
             CREATE_SIMULATED_BETS,
             CREATE_SB_IDX_BOOK_SETTLED,
             CREATE_SB_IDX_USER_SETTLED,
@@ -331,6 +385,14 @@ async def init_db() -> None:
             await db.execute(ALTER_HIST_PRED_HT_DRAW)
         if "away_win_ht_pct" not in hp_existing:
             await db.execute(ALTER_HIST_PRED_HT_AWAY)
+        # book_id column on simulated_bets (Phase 4 — links bets to simulated_books).
+        cur = await db.execute("PRAGMA table_info(simulated_bets)")
+        sb_existing = {row[1] for row in await cur.fetchall()}
+        if "book_id" not in sb_existing:
+            await db.execute(ALTER_SB_BOOK_ID)
+        # Partial UNIQUE index — only enforces where book_id IS NOT NULL,
+        # so legacy book_type-only rows don't trip it.
+        await db.execute(CREATE_SB_IDX_BOOK_FIXSEL)
         # Same HT columns on the live predictions upsert table (idempotent).
         cur = await db.execute("PRAGMA table_info(predictions)")
         p_existing = {row[1] for row in await cur.fetchall()}

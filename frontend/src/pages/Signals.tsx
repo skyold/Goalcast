@@ -1,79 +1,192 @@
-// Unified Goalcast Signals view — single landing for all proprietary
-// derivatives (mispricing / line move / sharp-square disagreement etc.).
+// /insights/signals — master-detail layout.
 //
-// Tab "All" calls /signals/active (ranked across types). Other tabs filter
-// to a specific signal_type. All views default to upcoming fixtures only;
-// strength threshold tunable via chips.
+// Left pane: signal catalog (one card per REGISTERED signal + a "全部" entry
+//            for the cross-signal active feed).
+// Right pane: selected signal's MethodologyPanel + matching fixtures table.
+//
+// Phase 1 of docs/PRD/signal-catalog-and-subscriptions.prd.md.
+// Phase 2 will add a "compare mode" toggle that lays catalog cards out side
+// by side; Phase 3 adds a "Backtest" CTA; Phase 4 adds "Fork to my book".
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api, type SignalItem } from '../lib/api'
+import { api, type SignalItem, type SignalCatalogItem } from '../lib/api'
 import { fmtKickoff } from '../lib/format'
-import { pickZh, useT } from '../lib/i18n'
+import { pickZh, useLocale, useT } from '../lib/i18n'
+import MethodologyPanel from '../components/signals/MethodologyPanel'
+import CompareTable from '../components/signals/CompareTable'
 
-const TABS = [
-  { key: 'all',             label: 'All' },
-  { key: 'GS-Mispricing',   label: 'Mispricing' },
-  { key: 'GS-LineMove',     label: 'LineMove' },
-  { key: 'GS-SharpSquare',  label: 'SharpSquare' },
-  { key: 'GS-KEN-HT-EV',       label: 'HT-EV' },
-] as const
+type Selection = 'all' | string  // 'all' for cross-signal feed; otherwise signal_type
+type Mode = 'detail' | 'compare'
 
 const STRENGTH_CHIPS = [0.3, 0.5, 0.7] as const
 
 export default function Signals() {
   const t = useT()
-  const [tab, setTab] = useState<typeof TABS[number]['key']>('all')
+  const locale = useLocale()
+  const [mode, setMode] = useState<Mode>('detail')
+  const [selected, setSelected] = useState<Selection>('all')
   const [minStrength, setMinStrength] = useState<number>(0.5)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['signals', tab, minStrength],
+  const catalogQ = useQuery({
+    queryKey: ['signals.catalog', locale],
+    queryFn: () => api.signals.catalog({ locale }),
+    staleTime: 5 * 60_000,
+  })
+  const catalog = catalogQ.data?.items ?? []
+
+  const fixturesQ = useQuery({
+    queryKey: ['signals.fixtures', selected, minStrength],
     queryFn: () =>
-      tab === 'all'
+      selected === 'all'
         ? api.signals.active({ min_strength: minStrength, limit: 100 })
-        : api.signals.byType(tab, { min_strength: minStrength, limit: 100 }),
+        : api.signals.byType(selected, { min_strength: minStrength, limit: 100 }),
     staleTime: 60_000,
   })
-  const items = data?.items ?? []
+  const fixtures = fixturesQ.data?.items ?? []
+
+  const selectedItem: SignalCatalogItem | null =
+    selected === 'all' ? null : (catalog.find(c => c.signal_type === selected) ?? null)
 
   return (
     <>
       <div className="ph">
         <div>
           <div className="ph-title">{t('signals.title')}</div>
-          <div className="ph-sub">{t('signals.subtitle')} · {items.length}</div>
+          <div className="ph-sub">
+            {mode === 'compare' ? t('signals.compare.subtitle') : t('signals.subtitle')}
+            {mode === 'detail' && ` · ${fixtures.length}`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            className={`chip${mode === 'detail' ? ' active' : ''}`}
+            onClick={() => setMode('detail')}
+          >{t('signals.mode.detail')}</button>
+          <button
+            className={`chip${mode === 'compare' ? ' active' : ''}`}
+            onClick={() => setMode('compare')}
+          >{t('signals.mode.compare')}</button>
         </div>
       </div>
 
-      <div className="filters">
-        <div className="filter-grp">
-          <span className="filter-lbl">{t('signals.filter.type')}</span>
-          {TABS.map(tb => (
-            <button key={tb.key}
-              className={`chip${tab === tb.key ? ' active' : ''}`}
-              onClick={() => setTab(tb.key)}
-            >{t(`signals.tab.${tb.key === 'all' ? 'all' : tb.key.replace('GS-', '').toLowerCase()}`)}</button>
-          ))}
+      {mode === 'compare' && (
+        <div className="page">
+          {catalogQ.isLoading && <div className="empty">{t('signals.loading')}</div>}
+          {!catalogQ.isLoading && (
+            <CompareTable
+              items={catalog}
+              onSelect={(st) => { setSelected(st); setMode('detail') }}
+            />
+          )}
         </div>
-        <div className="filter-grp">
-          <span className="filter-lbl">{t('signals.filter.min_strength')}</span>
-          {STRENGTH_CHIPS.map(v => (
-            <button key={v}
-              className={`chip${minStrength === v ? ' active' : ''}`}
-              onClick={() => setMinStrength(v)}
-            >≥ {(v * 100).toFixed(0)}%</button>
-          ))}
-        </div>
-      </div>
+      )}
 
-      <div className="page">
-        {isLoading && <div className="empty">{t('signals.loading')}</div>}
-        {!isLoading && items.length === 0 && (
-          <div className="empty">{t('signals.empty')}</div>
-        )}
-        {items.length > 0 && <SignalsTable items={items} t={t} />}
+      {mode === 'detail' && (
+      <div className="page" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
+        {/* ─── LEFT: catalog ─── */}
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <CatalogCard
+            active={selected === 'all'}
+            title={t('signals.tab.all')}
+            description={t('signals.catalog.all_subtitle')}
+            scope={null}
+            stats={null}
+            onClick={() => setSelected('all')}
+          />
+          {catalog.map(c => (
+            <CatalogCard
+              key={c.signal_type}
+              active={selected === c.signal_type}
+              title={c.signal_type.replace(/^GS-/, '')}
+              description={c.description}
+              scope={c.scope}
+              stats={c.stats_7d}
+              versionLabel={c.signal_version}
+              onClick={() => setSelected(c.signal_type)}
+            />
+          ))}
+          {catalogQ.isLoading && (
+            <div className="empty" style={{ padding: 12 }}>{t('signals.loading')}</div>
+          )}
+        </aside>
+
+        {/* ─── RIGHT: methodology + fixtures ─── */}
+        <main style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {selectedItem && <MethodologyPanel item={selectedItem} />}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="filter-lbl">{t('signals.filter.min_strength')}</span>
+            {STRENGTH_CHIPS.map(v => (
+              <button key={v}
+                className={`chip${minStrength === v ? ' active' : ''}`}
+                onClick={() => setMinStrength(v)}
+              >≥ {(v * 100).toFixed(0)}%</button>
+            ))}
+          </div>
+
+          {fixturesQ.isLoading && <div className="empty">{t('signals.loading')}</div>}
+          {!fixturesQ.isLoading && fixtures.length === 0 && (
+            <div className="empty">{t('signals.empty')}</div>
+          )}
+          {fixtures.length > 0 && <SignalsTable items={fixtures} t={t} />}
+        </main>
       </div>
+      )}
     </>
+  )
+}
+
+function CatalogCard({
+  active, title, description, scope, stats, versionLabel, onClick,
+}: {
+  active: boolean
+  title: string
+  description: string
+  scope: 'public' | 'member' | null
+  stats: SignalCatalogItem['stats_7d']
+  versionLabel?: string
+  onClick: () => void
+}) {
+  const t = useT()
+  return (
+    <button
+      onClick={onClick}
+      className="card"
+      style={{
+        padding: 12,
+        textAlign: 'left',
+        cursor: 'pointer',
+        border: active ? '1.5px solid var(--acc)' : '1px solid var(--border)',
+        background: active ? 'var(--bg-mute)' : 'var(--bg)',
+        width: '100%',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontWeight: 600 }}>{title}</span>
+        {versionLabel && (
+          <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-mute)' }}>{versionLabel}</span>
+        )}
+        {scope === 'member' && (
+          <span style={{
+            marginLeft: 'auto',
+            padding: '0 6px', fontSize: 'var(--fs-xs)',
+            border: '1px solid var(--text-mute)', borderRadius: 999, color: 'var(--text-mute)',
+          }}>{t('signals.scope.member')}</span>
+        )}
+      </div>
+      <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-mute)', marginBottom: stats ? 6 : 0 }}>
+        {description}
+      </div>
+      {stats && (
+        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-mute)' }}>
+          {t('signals.catalog.stats_7d_label')}: {stats.triggered}{' '}
+          {stats.avg_strength != null && (
+            <>· avg {Math.round(stats.avg_strength * 100)}%</>
+          )}
+        </div>
+      )}
+    </button>
   )
 }
 

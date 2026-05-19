@@ -28,6 +28,19 @@ class GSLineMove(BaseSignal):
     signal_type: ClassVar[str] = "GS-LineMove"
     signal_version: ClassVar[str] = "v1.0"
     scope: ClassVar[str] = "member"
+    description: ClassVar[str] = "Pinnacle 1X2 赔率从开盘 waypoint 到当前的最大百分比漂移"
+    output_schema: ClassVar[dict[str, str]] = {
+        "selection":    "home|draw|away — 漂移幅度最大那一面",
+        "move_pct":     "float, signed; +X% / -X% 相对开盘的赔率变动",
+        "open_odds":    "float, 最早 waypoint 的 Pinnacle 赔率",
+        "current_odds": "float, 当前 waypoint 的 Pinnacle 赔率",
+    }
+    strength_formula: ClassVar[str] = "min(|move_pct| / 20.0, 1.0)"
+    failure_modes: ClassVar[list[str]] = [
+        "找不到一个比当前 waypoint 更早的、三档完整的开盘 waypoint → 不出信号",
+        "当前 waypoint 三档赔率任一缺失 → 不出信号",
+        "开盘 waypoint == 当前 waypoint (信号要求至少跨一个 waypoint) → 不出信号",
+    ]
 
     async def compute(
         self,

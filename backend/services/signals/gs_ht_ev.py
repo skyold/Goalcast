@@ -87,6 +87,28 @@ class GSHtEv(BaseSignal):
     signal_type: ClassVar[str] = "GS-KEN-HT-EV"
     signal_version: ClassVar[str] = "v1.0"
     scope: ClassVar[str] = "public"
+    description: ClassVar[str] = "上半场平手盘 EV 5%~28% 反推香港盘赔率区间"
+    output_schema: ClassVar[dict[str, str]] = {
+        "ah_line":     "float, FT 主盘从主队视角",
+        "ah_label":    "draw|draw_half_home|draw_half_away|half_home|half_away",
+        "ht_home_pct": "float, OA 模型 HT 主胜概率 (0-100)",
+        "ht_draw_pct": "float, OA 模型 HT 平局概率 (0-100)",
+        "ht_away_pct": "float, OA 模型 HT 客胜概率 (0-100)",
+        "eff_home":    "float, 2-way de-vig 后主胜概率 = home/(home+away)",
+        "eff_away":    "float, 2-way de-vig 后客胜概率 = away/(home+away)",
+        "hk_home_5":   "float, 主队 EV=5% 时应得 HK 赔率",
+        "hk_home_28":  "float, 主队 EV=28% 时应得 HK 赔率",
+        "hk_away_5":   "float, 客队 EV=5% 时应得 HK 赔率",
+        "hk_away_28":  "float, 客队 EV=28% 时应得 HK 赔率",
+        "selection":   "home|away — 2-way de-vig 后概率更高那一面",
+    }
+    strength_formula: ClassVar[str] = "min(2 * |eff_home - 0.5|, 1.0)"
+    failure_modes: ClassVar[list[str]] = [
+        "FT 主盘 AH 不在 {0, ±0.25, ±0.5} 区间 → 不出信号",
+        "historical_predictions HT 1X2 任一列 NULL → 不出信号",
+        "BET365 (id=2) 与 Pinnacle (id=1) 都缺 AH market_id=51 行 → 不出信号",
+        "HT 主胜或客胜概率 ≤ 0 (脏数据) → 不出信号",
+    ]
 
     async def compute(
         self,
