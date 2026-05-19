@@ -30,11 +30,19 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
+from services.signals import REGISTERED
 from services.signals.conditions import eval_conditions
 
 DEFAULT_SIGNAL_TYPE = "GS-Mispricing"
 HOUSE_USER_ID = 0
 DEFAULT_STAKE = 1.0
+
+# Phase A of paper-trading-realism PRD: place_bets_for_books only places bets
+# on signals whose settle_market matches the 1X2-only settlement path implemented
+# below. Non-1X2 signals (e.g. GS-KEN-HT-EV which trades HT AH) are gated out
+# here to prevent contaminating their Books with FT 1X2 outcomes. Phase B adds
+# the AH settlement path and removes the gate.
+_PAPER_TRADING_1X2_MARKET: tuple[int, str] = (6, "1X2")
 
 # Map of book.name → legacy book_type string. New bets on these specific Books
 # preserve the legacy `book_type` value so the existing `/api/paper-trading/house`
@@ -150,6 +158,18 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
            FROM simulated_books WHERE archived_at IS NULL"""
     ) as cur:
         books = [dict(r) for r in await cur.fetchall()]
+    if not books:
+        return 0
+
+    # Phase A gate: drop books whose signal is unregistered or settles on a
+    # non-1X2 market. The downstream lookup path is hard-wired to Pinnacle
+    # market_id=6 / outcome ∈ {home, draw, away}, so a non-1X2 book would
+    # either insert nothing or — worse — insert with wrong-market odds.
+    settle_by_sig = {(s.signal_type, s.signal_version): s.settle_market for s in REGISTERED}
+    books = [
+        b for b in books
+        if settle_by_sig.get((b["signal_type"], b["signal_version"])) == _PAPER_TRADING_1X2_MARKET
+    ]
     if not books:
         return 0
 
