@@ -2,7 +2,11 @@ import os
 import aiosqlite
 
 def _db_path() -> str:
-    return os.getenv("GOALCAST_DB_PATH", "goalcast.db")
+    # Default aligned with docker-compose.yml + .github/workflows/ci.yml +
+    # config.py::Settings.goalcast_db_path so local CLI scripts (seed,
+    # backfill) write into the same SQLite file the running backend reads,
+    # not a phantom backend/goalcast.db sibling.
+    return os.getenv("GOALCAST_DB_PATH", "data/goalcast.db")
 
 CREATE_FIXTURES = """
 CREATE TABLE IF NOT EXISTS fixtures (
