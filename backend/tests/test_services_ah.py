@@ -1,5 +1,5 @@
 import pytest
-from services.ah import derive_main_ah_line, parse_ah_outcome_line
+from services.ah import derive_main_ah_line, make_ah_outcome, parse_ah_outcome_line
 
 def test_parse_home_minus_05():
     assert parse_ah_outcome_line("home_m05") == ("home", -0.5)
@@ -37,3 +37,41 @@ def test_derive_skips_other_bookmakers():
         {"market_id": 51, "outcome": "away_p05", "current": 1.95, "bookmaker_id": 2},
     ]
     assert derive_main_ah_line(rows, bookmaker_id=1) is None
+
+
+# ---------- make_ah_outcome (Phase B paper-trading-realism) ----------
+
+@pytest.mark.parametrize("side, line, expected", [
+    ("home",  0.0,   "home_0"),
+    ("away",  0.0,   "away_0"),
+    ("home", -0.5,   "home_m05"),
+    ("home",  0.5,   "home_p05"),
+    ("home", -0.25,  "home_m025"),
+    ("away",  0.25,  "away_p025"),
+    ("home", -0.75,  "home_m075"),
+    ("away",  0.75,  "away_p075"),
+    ("home", -1.0,   "home_m1"),
+    ("home",  1.0,   "home_p1"),
+    ("home", -1.25,  "home_m125"),
+    ("home",  1.5,   "home_p15"),
+])
+def test_make_ah_outcome_format(side, line, expected):
+    assert make_ah_outcome(side, line) == expected
+
+
+@pytest.mark.parametrize("side, line", [
+    ("home", 0.0), ("home", -0.25), ("home", -0.5), ("home", -0.75), ("home", -1.0),
+    ("home", 0.25), ("home", 0.5),  ("home", 0.75),  ("home", 1.0), ("home", -1.25),
+    ("away", 0.0), ("away", -0.25), ("away", 0.25),  ("away", 0.5),
+])
+def test_make_ah_outcome_roundtrip(side, line):
+    """make_ah_outcome is the inverse of parse_ah_outcome_line."""
+    s = make_ah_outcome(side, line)
+    assert parse_ah_outcome_line(s) == (side, line)
+
+
+def test_make_ah_outcome_rejects_invalid():
+    with pytest.raises(ValueError):
+        make_ah_outcome("draw", 0.0)
+    with pytest.raises(ValueError):
+        make_ah_outcome("home", 0.1)  # not a quarter line

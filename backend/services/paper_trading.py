@@ -30,6 +30,8 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
+from services.ah import make_ah_outcome
+from services.paper_trading_ah import settle_ah
 from services.signals import REGISTERED
 from services.signals.conditions import eval_conditions
 
@@ -37,12 +39,16 @@ DEFAULT_SIGNAL_TYPE = "GS-Mispricing"
 HOUSE_USER_ID = 0
 DEFAULT_STAKE = 1.0
 
-# Phase A of paper-trading-realism PRD: place_bets_for_books only places bets
-# on signals whose settle_market matches the 1X2-only settlement path implemented
-# below. Non-1X2 signals (e.g. GS-KEN-HT-EV which trades HT AH) are gated out
-# here to prevent contaminating their Books with FT 1X2 outcomes. Phase B adds
-# the AH settlement path and removes the gate.
+# Phase B of paper-trading-realism PRD: settlement / placement dispatchers
+# know how to handle these two markets. Any registered signal whose
+# settle_market is not in this set is gated out of place_bets_for_books and
+# settle_bets. Add to this set as new market settlement paths are wired up.
 _PAPER_TRADING_1X2_MARKET: tuple[int, str] = (6, "1X2")
+_PAPER_TRADING_FT_AH_MARKET: tuple[int, str] = (51, "FT_AH")
+SUPPORTED_SETTLE_MARKETS: frozenset[tuple[int, str]] = frozenset({
+    _PAPER_TRADING_1X2_MARKET,
+    _PAPER_TRADING_FT_AH_MARKET,
+})
 
 # Map of book.name → legacy book_type string. New bets on these specific Books
 # preserve the legacy `book_type` value so the existing `/api/paper-trading/house`
@@ -161,14 +167,12 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
     if not books:
         return 0
 
-    # Phase A gate: drop books whose signal is unregistered or settles on a
-    # non-1X2 market. The downstream lookup path is hard-wired to Pinnacle
-    # market_id=6 / outcome ∈ {home, draw, away}, so a non-1X2 book would
-    # either insert nothing or — worse — insert with wrong-market odds.
+    # Drop books whose signal is unregistered or settles on a market the
+    # dispatcher below doesn't support (currently 1X2 + FT AH).
     settle_by_sig = {(s.signal_type, s.signal_version): s.settle_market for s in REGISTERED}
     books = [
         b for b in books
-        if settle_by_sig.get((b["signal_type"], b["signal_version"])) == _PAPER_TRADING_1X2_MARKET
+        if settle_by_sig.get((b["signal_type"], b["signal_version"])) in SUPPORTED_SETTLE_MARKETS
     ]
     if not books:
         return 0
@@ -242,6 +246,7 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
         # at INSERT time elsewhere; defensively allow all here if user_id=0.
 
         book_type = _book_type_for(book)
+        book_sm = settle_by_sig[(book["signal_type"], book["signal_version"])]
         for r in candidates:
             if allowed_competitions is not None and r["competition_id"] not in allowed_competitions:
                 continue
@@ -251,24 +256,53 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
                 value = json.loads(r["value_json"]) if r["value_json"] else {}
             except (TypeError, ValueError):
                 continue
-            selection = value.get("selection")
-            if selection not in ("home", "draw", "away"):
+
+            # Per-market dispatch — resolve (entry_odds, market_id, selection, ah_line).
+            if book_sm == _PAPER_TRADING_1X2_MARKET:
+                selection = value.get("selection")
+                if selection not in ("home", "draw", "away"):
+                    continue
+                entry_odds = odds_by_key.get((r["fixture_id"], r["waypoint"], selection))
+                if entry_odds is None:
+                    continue
+                bet_market_id, bet_selection, bet_ah_line = 6, selection, None
+            elif book_sm == _PAPER_TRADING_FT_AH_MARKET:
+                side = value.get("selection")
+                if side not in ("home", "away"):
+                    continue
+                home_line = value.get("ah_line")
+                if home_line is None:
+                    continue
+                # `ah_line` in value_json is from the home team's perspective;
+                # flip the sign when betting the away side.
+                line_from_side = float(home_line) if side == "home" else -float(home_line)
+                try:
+                    outcome_str = make_ah_outcome(side, line_from_side)
+                except ValueError:
+                    continue
+                async with db.execute(
+                    """SELECT odds FROM historical_odds
+                       WHERE fixture_id=? AND waypoint=? AND bookmaker_id=1
+                         AND market_id=51 AND outcome=?""",
+                    (r["fixture_id"], r["waypoint"], outcome_str),
+                ) as cur:
+                    odds_row = await cur.fetchone()
+                if not odds_row or odds_row["odds"] is None:
+                    continue
+                entry_odds = float(odds_row["odds"])
+                bet_market_id, bet_selection, bet_ah_line = 51, side, line_from_side
+            else:
                 continue
-            # Pinnacle 1X2 odds for this selection at this waypoint — sourced
-            # from the pre-fetched dict (single batch query above) instead of
-            # a per-(book × candidate) SELECT.
-            entry_odds = odds_by_key.get((r["fixture_id"], r["waypoint"], selection))
-            if entry_odds is None:
-                continue
+
             res = await db.execute(
                 """INSERT OR IGNORE INTO simulated_bets
-                     (book_id, book_type, user_id, fixture_id, selection,
+                     (book_id, book_type, user_id, fixture_id, market_id, ah_line, selection,
                       stake_units, entry_odds, entry_at, entry_waypoint,
                       signal_type, signal_version)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     book["id"], book_type, book["user_id"],
-                    r["fixture_id"], selection,
+                    r["fixture_id"], bet_market_id, bet_ah_line, bet_selection,
                     DEFAULT_STAKE, entry_odds,
                     r["captured_at"], r["waypoint"],
                     r["signal_type"], r["signal_version"],
@@ -314,7 +348,9 @@ async def book_summary(
         settled_rows = [dict(r) for r in await cur.fetchall()]
 
     n_settled = len(settled_rows)
-    n_voided  = sum(1 for b in settled_rows if b["outcome"] == "void")
+    # Both 'void' (fixture cancelled) and 'push' (AH adjusted score = 0) are
+    # refunds — neither contributes to ROI denominator or win_rate.
+    n_voided  = sum(1 for b in settled_rows if b["outcome"] in ("void", "push"))
 
     if n_settled == 0:
         return {
@@ -327,10 +363,16 @@ async def book_summary(
             "timeseries":   [],
         }
 
-    graded = [b for b in settled_rows if b["outcome"] in ("win", "loss")]
+    # Graded outcomes include AH half_win / half_loss — they have real signed
+    # pnl on a real (half-) stake, so excluding them would understate volume.
+    graded = [b for b in settled_rows if b["outcome"] in ("win", "loss", "half_win", "half_loss")]
     graded_stake = sum(b["stake_units"] for b in graded)
     graded_pnl   = sum(b["pnl_units"]   for b in graded)
-    wins         = sum(1 for b in graded if b["outcome"] == "win")
+    # win_rate counts half_win at 0.5 — partial AH wins are partial victories.
+    wins         = sum(1.0 if b["outcome"] == "win"
+                       else 0.5 if b["outcome"] == "half_win"
+                       else 0.0
+                       for b in graded)
 
     running = starting_units
     timeseries = []
@@ -383,7 +425,8 @@ async def house_book_summary(
         settled_rows = [dict(r) for r in await cur.fetchall()]
 
     n_settled = len(settled_rows)
-    n_voided  = sum(1 for b in settled_rows if b["outcome"] == "void")
+    # Both 'void' and 'push' are refunds — see book_summary().
+    n_voided  = sum(1 for b in settled_rows if b["outcome"] in ("void", "push"))
 
     if n_settled == 0:
         return {
@@ -396,10 +439,13 @@ async def house_book_summary(
             "timeseries": [],
         }
 
-    graded = [b for b in settled_rows if b["outcome"] in ("win", "loss")]
+    graded = [b for b in settled_rows if b["outcome"] in ("win", "loss", "half_win", "half_loss")]
     graded_stake = sum(b["stake_units"] for b in graded)
     graded_pnl   = sum(b["pnl_units"]   for b in graded)
-    wins         = sum(1 for b in graded if b["outcome"] == "win")
+    wins         = sum(1.0 if b["outcome"] == "win"
+                       else 0.5 if b["outcome"] == "half_win"
+                       else 0.0
+                       for b in graded)
 
     running = start_bankroll
     timeseries = []
@@ -433,19 +479,39 @@ PENDING_STATUSES = frozenset({"NS", "TBD", "LIVE", "1H", "HT", "2H", "ET", "P"})
 
 
 def _desired_outcome(
-    fixture_status: str, score_home, score_away, selection: str, stake_units: float, entry_odds: float
+    fixture_status: str,
+    score_home, score_away,
+    selection: str,
+    stake_units: float,
+    entry_odds: float,
+    market_id: int | None,
+    ah_line: float | None,
 ) -> tuple[str | None, float | None]:
     """Resolve the (outcome, pnl_units) that the bet SHOULD have right now,
-    given the fixture's current status/score. Returns (None, None) for pending."""
-    if fixture_status == "FT" and score_home is not None and score_away is not None:
-        actual = _actual_outcome(score_home, score_away)
-        won = (selection == actual)
-        pnl = stake_units * (entry_odds - 1) if won else -stake_units
-        return ("win" if won else "loss", pnl)
+    given the fixture's current status/score. Returns (None, None) for pending.
+
+    Dispatches by ``market_id``:
+      • 6  or NULL (legacy) → 1X2 settlement (win/loss only)
+      • 51                  → Asian Handicap via services.paper_trading_ah.settle_ah
+                              (outcomes may include push / half_win / half_loss)
+    """
     if fixture_status in VOID_STATUSES:
         return ("void", 0.0)
-    # PENDING_STATUSES, unknown, or FT-but-no-score: treat as pending.
-    return (None, None)
+    if fixture_status != "FT" or score_home is None or score_away is None:
+        return (None, None)
+
+    if market_id == 51:
+        if ah_line is None or selection not in ("home", "away"):
+            return ("void", 0.0)
+        return settle_ah(
+            float(ah_line), score_home, score_away, selection,
+            stake_units, entry_odds,
+        )
+    # 1X2 (market_id == 6 or legacy NULL).
+    actual = _actual_outcome(score_home, score_away)
+    won = (selection == actual)
+    pnl = stake_units * (entry_odds - 1) if won else -stake_units
+    return ("win" if won else "loss", pnl)
 
 
 async def settle_bets(db: aiosqlite.Connection) -> int:
@@ -463,7 +529,7 @@ async def settle_bets(db: aiosqlite.Connection) -> int:
     """
     sql = """
         SELECT b.id, b.selection, b.stake_units, b.entry_odds, b.fixture_id,
-               b.outcome, b.pnl_units,
+               b.market_id, b.ah_line, b.outcome, b.pnl_units,
                f.status, f.score_home, f.score_away
         FROM simulated_bets b
         JOIN fixtures f ON f.id = b.fixture_id
@@ -477,6 +543,7 @@ async def settle_bets(db: aiosqlite.Connection) -> int:
         desired_outcome, desired_pnl = _desired_outcome(
             r["status"], r["score_home"], r["score_away"],
             r["selection"], r["stake_units"], r["entry_odds"],
+            r["market_id"], r["ah_line"],
         )
 
         # Compare against stored state with float tolerance to avoid spurious churn.
@@ -498,16 +565,28 @@ async def settle_bets(db: aiosqlite.Connection) -> int:
                 (r["id"],),
             )
         else:
-            # Capture closing_odds from historical_odds at kickoff waypoint
-            # (only meaningful for win/loss; void keeps it but it's informational).
-            async with db.execute(
-                """SELECT odds FROM historical_odds
-                   WHERE fixture_id=? AND waypoint='kickoff'
-                     AND bookmaker_id=1 AND market_id=6 AND outcome=?""",
-                (r["fixture_id"], r["selection"]),
-            ) as cur:
-                co_row = await cur.fetchone()
-            closing_odds = co_row["odds"] if co_row and co_row["odds"] is not None else None
+            # Capture closing_odds from historical_odds at kickoff waypoint —
+            # query market_id + outcome by the bet's own market binding so AH
+            # bets use the AH closing line and 1X2 bets use the 1X2 line.
+            co_market_id = r["market_id"] if r["market_id"] is not None else 6
+            if co_market_id == 51 and r["ah_line"] is not None and r["selection"] in ("home", "away"):
+                try:
+                    co_outcome = make_ah_outcome(r["selection"], float(r["ah_line"]))
+                except ValueError:
+                    co_outcome = None
+            else:
+                co_outcome = r["selection"]
+            closing_odds: float | None = None
+            if co_outcome is not None:
+                async with db.execute(
+                    """SELECT odds FROM historical_odds
+                       WHERE fixture_id=? AND waypoint='kickoff'
+                         AND bookmaker_id=1 AND market_id=? AND outcome=?""",
+                    (r["fixture_id"], co_market_id, co_outcome),
+                ) as cur:
+                    co_row = await cur.fetchone()
+                if co_row and co_row["odds"] is not None:
+                    closing_odds = co_row["odds"]
 
             await db.execute(
                 """UPDATE simulated_bets
