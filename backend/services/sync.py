@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 import aiosqlite
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -7,6 +8,7 @@ from database import _db_path
 from services.oddalerts import oddalerts_client
 
 scheduler = AsyncIOScheduler()
+log = logging.getLogger(__name__)
 
 # Concurrency cap for OddAlerts HTTP calls inside sync jobs.
 # OddAlerts publishes no rate limit; 5 is a conservative starting value that
@@ -696,7 +698,10 @@ async def _house_book_job():
             db.row_factory = aiosqlite.Row
             await place_bets_for_books(db)
     except Exception:
-        pass
+        # 14-day baseline observation period depends on bugs being visible.
+        # Bare `pass` here would silently hide eval_conditions / odds-lookup
+        # regressions during the per-book switchover.
+        log.exception("paper-trading: house_book_job failed")
 
 
 async def _settle_bets_job():
@@ -710,7 +715,7 @@ async def _settle_bets_job():
             db.row_factory = aiosqlite.Row
             await settle_bets(db)
     except Exception:
-        pass
+        log.exception("paper-trading: settle_bets_job failed")
 
 
 scheduler.add_job(sync_dropping_odds, "interval", minutes=5, id="dropping")

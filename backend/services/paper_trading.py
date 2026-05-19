@@ -155,6 +155,8 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
 
     # Pre-fetch signals_snapshot rows for all (signal_type, signal_version)
     # combos in one pass — avoid N book-scoped queries.
+    # The f-string `placeholders` interpolation only emits `?` markers (no user
+    # data); the actual values go through the parameterized `flat` list.
     sig_versions = {(b["signal_type"], b["signal_version"]) for b in books}
     placeholders = ",".join("(?,?)" for _ in sig_versions)
     flat: list = []
@@ -174,6 +176,29 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
     by_sig: dict[tuple[str, str], list[dict]] = {}
     for r in rows:
         by_sig.setdefault((r["signal_type"], r["signal_version"]), []).append(r)
+
+    # Batch-fetch all Pinnacle 1X2 odds for the (fixture_id, waypoint) pairs
+    # touched by any candidate row. Avoids N×M single-row SELECTs in the inner
+    # loop (review finding M1). Keyed by (fixture_id, waypoint, outcome).
+    odds_by_key: dict[tuple[int, str, str], float] = {}
+    if rows:
+        fw_pairs = {(r["fixture_id"], r["waypoint"]) for r in rows}
+        odds_placeholders = ",".join("(?,?)" for _ in fw_pairs)
+        odds_flat: list = []
+        for fid, wp in fw_pairs:
+            odds_flat.extend([fid, wp])
+        odds_sql = f"""
+            SELECT fixture_id, waypoint, outcome, odds
+            FROM historical_odds
+            WHERE bookmaker_id = 1 AND market_id = 6
+              AND outcome IN ('home','draw','away')
+              AND (fixture_id, waypoint) IN (VALUES {odds_placeholders})
+        """
+        async with db.execute(odds_sql, odds_flat) as cur:
+            for r in await cur.fetchall():
+                if r["odds"] is None:
+                    continue
+                odds_by_key[(r["fixture_id"], r["waypoint"], r["outcome"])] = float(r["odds"])
 
     total_inserted = 0
     for book in books:
@@ -209,17 +234,12 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
             selection = value.get("selection")
             if selection not in ("home", "draw", "away"):
                 continue
-            # Pinnacle 1X2 odds at this waypoint for the selected side.
-            async with db.execute(
-                """SELECT odds FROM historical_odds
-                   WHERE fixture_id=? AND waypoint=? AND bookmaker_id=1
-                     AND market_id=6 AND outcome=?""",
-                (r["fixture_id"], r["waypoint"], selection),
-            ) as cur:
-                odds_row = await cur.fetchone()
-            if odds_row is None or odds_row["odds"] is None:
+            # Pinnacle 1X2 odds for this selection at this waypoint — sourced
+            # from the pre-fetched dict (single batch query above) instead of
+            # a per-(book × candidate) SELECT.
+            entry_odds = odds_by_key.get((r["fixture_id"], r["waypoint"], selection))
+            if entry_odds is None:
                 continue
-            entry_odds = odds_row["odds"]
             res = await db.execute(
                 """INSERT OR IGNORE INTO simulated_bets
                      (book_id, book_type, user_id, fixture_id, selection,
