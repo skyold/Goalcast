@@ -1,31 +1,41 @@
 """GS-KEN-HT-EV — 上半场平手盘 EV 5%~28% 反推香港盘赔率区间.
 
-Mirrors docs/OA_HT_V2.py — but as a Pure Function on the snapshot pipeline.
+Inspired by docs/OA_HT_V2.py — but with the EV formula corrected to honour
+the HT-draw-AH (line=0) push semantic. The reference script's formula
+(`eff_h = rH / (rH + rA)`, then `hk = (ev + eff_a) / eff_h`) silently
+2-way de-vigged the HT-draw probability, which gives the wrong fair-odds
+threshold. We use the **raw** HT 1X2 probabilities directly because the
+draw outcome is a refund (push), contributing 0 to EV.
+
+Settlement (HT-平手盘, line=0):
+    - HT home leads → bet home wins, bet away loses
+    - HT away leads → bet home loses, bet away wins
+    - HT draw → push (stake refunded, pnl = 0)
+
+EV math (HK odds, 1u stake):
+    EV(bet home) = o · P_home_HT - 1 · P_away_HT + 0 · P_draw_HT
+                 = o · P_home_HT - P_away_HT
+    Setting EV = X and solving for o:
+        o_home = (X + P_away_HT) / P_home_HT
+        o_away = (X + P_home_HT) / P_away_HT
+    (No draw term — push contributes 0.)
 
 The signal fires only when the FT main AH line sits in {0, ±0.25, ±0.5}
 (平手 / 平半 / 半球, i.e. the script's "上半场自动筛选" band), because the
-EV-on-draw-AH framing assumes a near-balanced match. Output reports the
-香港 odds bands for betting the HT 平手盘 (draw, line=0) at EV=5% and EV=28%,
-derived from the de-vigged 2-way HT 1X2 probabilities.
-
-Math (verbatim from OA_HT_V2.py):
-    rH, rA  = ht_home_pct / 100, ht_away_pct / 100
-    eff_h   = rH / (rH + rA)                  # de-vig: drop draw, renormalise
-    eff_a   = rA / (rH + rA)
-    hk_h_ev = (ev + eff_a) / eff_h            # HK odds for HT-draw-AH home at EV
-    hk_a_ev = (ev + eff_h) / eff_a            # HK odds for HT-draw-AH away at EV
+EV-on-draw-AH framing assumes a near-balanced match.
 
 value_json schema:
     {"ah_line":      float,
      "ah_label":     "draw" | "draw_half_home" | "draw_half_away"
                                 | "half_home" | "half_away",
-     "ht_home_pct":  float, "ht_draw_pct": float, "ht_away_pct": float,
-     "eff_home":     float, "eff_away":    float,
+     "p_home_ht":    float, "p_draw_ht": float, "p_away_ht": float,
+                                                # raw HT 1X2 probabilities (0..1)
      "hk_home_5":    float, "hk_home_28":  float,
      "hk_away_5":    float, "hk_away_28":  float,
-     "selection":    "home" | "away"}
+     "selection":    "home" | "away"}   # model's stronger HT side
 
-strength = min(2 * |eff_home - 0.5|, 1.0).
+strength = min(|p_home_ht - p_away_ht| · 2, 1.0) — asymmetry of HT
+probabilities, normalised so a 50pp gap caps at 1.0.
 """
 from __future__ import annotations
 
@@ -89,20 +99,18 @@ class GSHtEv(BaseSignal):
     scope: ClassVar[str] = "public"
     description: ClassVar[str] = "上半场平手盘 EV 5%~28% 反推香港盘赔率区间"
     output_schema: ClassVar[dict[str, str]] = {
-        "ah_line":     "float, FT 主盘从主队视角",
-        "ah_label":    "draw|draw_half_home|draw_half_away|half_home|half_away",
-        "ht_home_pct": "float, OA 模型 HT 主胜概率 (0-100)",
-        "ht_draw_pct": "float, OA 模型 HT 平局概率 (0-100)",
-        "ht_away_pct": "float, OA 模型 HT 客胜概率 (0-100)",
-        "eff_home":    "float, 2-way de-vig 后主胜概率 = home/(home+away)",
-        "eff_away":    "float, 2-way de-vig 后客胜概率 = away/(home+away)",
-        "hk_home_5":   "float, 主队 EV=5% 时应得 HK 赔率",
-        "hk_home_28":  "float, 主队 EV=28% 时应得 HK 赔率",
-        "hk_away_5":   "float, 客队 EV=5% 时应得 HK 赔率",
-        "hk_away_28":  "float, 客队 EV=28% 时应得 HK 赔率",
-        "selection":   "home|away — 2-way de-vig 后概率更高那一面",
+        "ah_line":    "float, FT 主盘从主队视角",
+        "ah_label":   "draw|draw_half_home|draw_half_away|half_home|half_away",
+        "p_home_ht": "float (0..1), OA 模型 HT 主胜概率(原始,未 de-vig)",
+        "p_draw_ht": "float (0..1), OA 模型 HT 平局概率(EV 计算时 = push 贡献 0)",
+        "p_away_ht": "float (0..1), OA 模型 HT 客胜概率(原始)",
+        "hk_home_5":  "float, 主队 HT 平手盘 EV=5% 应得 HK 赔率: (0.05 + p_away_ht) / p_home_ht",
+        "hk_home_28": "float, 主队 HT 平手盘 EV=28% 应得 HK 赔率: (0.28 + p_away_ht) / p_home_ht",
+        "hk_away_5":  "float, 客队 HT 平手盘 EV=5% 应得 HK 赔率: (0.05 + p_home_ht) / p_away_ht",
+        "hk_away_28": "float, 客队 HT 平手盘 EV=28% 应得 HK 赔率: (0.28 + p_home_ht) / p_away_ht",
+        "selection":  "home|away — 原始 HT 概率较高的一面",
     }
-    strength_formula: ClassVar[str] = "min(2 * |eff_home - 0.5|, 1.0)"
+    strength_formula: ClassVar[str] = "min(2 * |p_home_ht - p_away_ht|, 1.0)"
     failure_modes: ClassVar[list[str]] = [
         "FT 主盘 AH 不在 {0, ±0.25, ±0.5} 区间 → 不出信号",
         "historical_predictions HT 1X2 任一列 NULL → 不出信号",
@@ -154,30 +162,32 @@ class GSHtEv(BaseSignal):
         if ah_line not in _AH_LABEL_BY_LINE:
             return None
 
+        # RAW HT 1X2 probabilities (no 2-way de-vig). The HT-平手盘 push
+        # contributes 0 to EV, so we don't drop the draw probability.
         rH = ht_h / 100.0
+        rD = ht_d / 100.0
         rA = ht_a / 100.0
-        eff_h = rH / (rH + rA)
-        eff_a = rA / (rH + rA)
 
         def _hk(side_prob: float, opp_prob: float, ev: float) -> float:
+            """HK fair odds for `EV(side) = side · o - opp = ev` → o = (ev + opp) / side.
+            See module docstring §"EV math" for derivation."""
             return (ev + opp_prob) / side_prob
 
         value = {
-            "ah_line":     ah_line,
-            "ah_label":    _AH_LABEL_BY_LINE[ah_line],
-            "ht_home_pct": round(ht_h, 2),
-            "ht_draw_pct": round(ht_d, 2),
-            "ht_away_pct": round(ht_a, 2),
-            "eff_home":    round(eff_h, 4),
-            "eff_away":    round(eff_a, 4),
-            "hk_home_5":   round(_hk(eff_h, eff_a, 0.05), 3),
-            "hk_home_28":  round(_hk(eff_h, eff_a, 0.28), 3),
-            "hk_away_5":   round(_hk(eff_a, eff_h, 0.05), 3),
-            "hk_away_28":  round(_hk(eff_a, eff_h, 0.28), 3),
-            "selection":   "home" if eff_h >= eff_a else "away",
+            "ah_line":    ah_line,
+            "ah_label":   _AH_LABEL_BY_LINE[ah_line],
+            "p_home_ht":  round(rH, 4),
+            "p_draw_ht":  round(rD, 4),
+            "p_away_ht":  round(rA, 4),
+            "hk_home_5":  round(_hk(rH, rA, 0.05), 3),
+            "hk_home_28": round(_hk(rH, rA, 0.28), 3),
+            "hk_away_5":  round(_hk(rA, rH, 0.05), 3),
+            "hk_away_28": round(_hk(rA, rH, 0.28), 3),
+            "selection":  "home" if rH >= rA else "away",
         }
 
         return {
             "value_json": json.dumps(value, separators=(",", ":")),
-            "strength":   min(2.0 * abs(eff_h - 0.5), 1.0),
+            # asymmetry of raw HT probabilities; 50pp gap → strength=1.0
+            "strength":   min(2.0 * abs(rH - rA), 1.0),
         }
