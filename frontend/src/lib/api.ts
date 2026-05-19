@@ -186,6 +186,33 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch('/api' + path, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${detail || path}`)
+  }
+  return res.json()
+}
+
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch('/api' + path, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${detail || path}`)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
+
 export const api = {
   fixtures: (p: { date?: string; days_ahead?: number; leagues?: string; limit?: number; status?: string; predictability?: string; min_drop?: number; has_ai?: boolean; ignore_prefs?: boolean }) =>
     get<{ fixtures: FixtureSummary[]; total: number; cached_at: string | null }>('/fixtures', p),
@@ -244,6 +271,12 @@ export const api = {
       get<PaperHouseSummary>('/paper-trading/house', p as P),
     books: (p?: { include_archived?: boolean }) =>
       get<BookListResponse>('/paper-trading/books', p as P),
+    createBook: (body: BookCreateBody) =>
+      post<Book>('/paper-trading/books', body),
+    updateBook: (id: number, body: BookUpdateBody) =>
+      patch<Book>(`/paper-trading/books/${id}`, body),
+    archiveBook: (id: number) =>
+      del<Book>(`/paper-trading/books/${id}`),
   },
   signals: {
     active: (p?: { waypoint?: string; min_strength?: number; limit?: number; only_upcoming?: boolean }) =>
@@ -365,6 +398,25 @@ export interface Book {
 export interface BookListResponse {
   items: Book[]
   count: number
+}
+
+// Phase 4c — CRUD bodies.
+export interface BookCreateBody {
+  name: string
+  // Provide either fork_from OR (signal_type + signal_version):
+  fork_from?: number
+  signal_type?: string
+  signal_version?: string
+  conditions?: Record<string, any>
+  starting_units?: number
+  match_scope?: 'all' | 'my_leagues'
+}
+
+export interface BookUpdateBody {
+  name?: string
+  conditions?: Record<string, any>
+  starting_units?: number
+  match_scope?: 'all' | 'my_leagues'
 }
 
 export interface PaperHouseMetrics {

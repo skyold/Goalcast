@@ -12,10 +12,11 @@
 // Routing intentionally omits this from the sidebar; surface broadens in
 // Phase B once ROI is statistically meaningful.
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Book, type PaperHouseSummary } from '../lib/api'
 import { useT } from '../lib/i18n'
 import MultiBookRoiChart from '../components/signals/MultiBookRoiChart'
+import BookEditor from '../components/signals/BookEditor'
 
 const BANDS = [
   { key: 'house_3pct', label: '≥ 3%' },
@@ -24,6 +25,11 @@ const BANDS = [
 ]
 
 type View = 'books' | 'bands'
+
+type EditorMode =
+  | { kind: 'fork'; from: Book }
+  | { kind: 'edit'; book: Book }
+  | null
 
 export default function PaperTrading() {
   const t = useT()
@@ -57,31 +63,65 @@ export default function PaperTrading() {
 }
 
 function BooksView({ t }: { t: (k: string, v?: any) => string }) {
+  const qc = useQueryClient()
+  const [editor, setEditor] = useState<EditorMode>(null)
   const { data, isLoading } = useQuery({
     queryKey: ['paper.books'],
     queryFn: () => api.paperTrading.books(),
     staleTime: 30_000,
   })
+  const archiveMut = useMutation({
+    mutationFn: (id: number) => api.paperTrading.archiveBook(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['paper.books'] }),
+  })
+
   if (isLoading) return <div className="empty">{t('paper.loading')}</div>
   const books = data?.items ?? []
   if (books.length === 0) {
     return <div className="empty">{t('paper.books.no_books')}</div>
+  }
+  const onArchive = (book: Book) => {
+    if (window.confirm(t('paper.books.archive.confirm', { name: book.name }))) {
+      archiveMut.mutate(book.id)
+    }
   }
   return (
     <>
       <MultiBookRoiChart books={books} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                      gap: 12, marginTop: 16 }}>
-        {books.map(b => <BookCard key={b.id} book={b} t={t} />)}
+        {books.map(b => (
+          <BookCard
+            key={b.id}
+            book={b}
+            t={t}
+            onFork={() => setEditor({ kind: 'fork', from: b })}
+            onEdit={() => setEditor({ kind: 'edit', book: b })}
+            onArchive={() => onArchive(b)}
+          />
+        ))}
       </div>
+      {editor && (
+        <BookEditor
+          mode={editor}
+          onClose={() => setEditor(null)}
+        />
+      )}
     </>
   )
 }
 
-function BookCard({ book, t }: { book: Book; t: (k: string, v?: any) => string }) {
+function BookCard({ book, t, onFork, onEdit, onArchive }: {
+  book: Book
+  t: (k: string, v?: any) => string
+  onFork: () => void
+  onEdit: () => void
+  onArchive: () => void
+}) {
   const s = book.summary
   const roi = s.metrics.roi_pct
   const roiColor = roi == null ? 'var(--text)' : (roi >= 0 ? 'var(--acc)' : 'var(--neg)')
+  const isHouse = book.scope === 'house'
   return (
     <div className="card" style={{ padding: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
@@ -93,13 +133,13 @@ function BookCard({ book, t }: { book: Book; t: (k: string, v?: any) => string }
                         fontSize: 'var(--fs-xs)',
                         border: '1px solid var(--text-mute)', borderRadius: 999,
                         color: 'var(--text-mute)' }}>
-          {book.scope === 'house' ? t('paper.books.scope.house') : t('paper.books.scope.personal')}
+          {isHouse ? t('paper.books.scope.house') : t('paper.books.scope.personal')}
         </span>
       </div>
       <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-mute)', marginBottom: 8 }}>
         {book.signal_type.replace(/^GS-/, '')} · {t(`paper.books.match.${book.match_scope}`)}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
         <Metric label="ROI"
                 value={roi == null ? '—' : `${roi.toFixed(1)}%`}
                 color={roiColor} />
@@ -111,6 +151,19 @@ function BookCard({ book, t }: { book: Book; t: (k: string, v?: any) => string }
         <Metric label={t('paper.metric.bets')}
                 value={`${s.bets_settled}`}
                 sub={s.bets_pending > 0 ? `+ ${s.bets_pending} pending` : ''} />
+      </div>
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        {isHouse ? (
+          <button className="chip" onClick={onFork}>{t('paper.books.action.fork')}</button>
+        ) : (
+          <>
+            <button className="chip" onClick={onEdit}>{t('paper.books.action.edit')}</button>
+            <button className="chip" onClick={onArchive}
+                    style={{ color: 'var(--neg)' }}>
+              {t('paper.books.action.archive')}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
