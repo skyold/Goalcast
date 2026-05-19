@@ -13,24 +13,21 @@
 // Phase B once ROI is statistically meaningful.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type PaperHouseSummary } from '../lib/api'
+import { api, type Book, type PaperHouseSummary } from '../lib/api'
 import { useT } from '../lib/i18n'
+import MultiBookRoiChart from '../components/signals/MultiBookRoiChart'
 
-const BOOKS = [
+const BANDS = [
   { key: 'house_3pct', label: '≥ 3%' },
   { key: 'house_5pct', label: '≥ 5%' },
   { key: 'house_7pct', label: '≥ 7%' },
 ]
 
+type View = 'books' | 'bands'
+
 export default function PaperTrading() {
   const t = useT()
-  const [book, setBook] = useState('house_5pct')
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['paper-house', book],
-    queryFn: () => api.paperTrading.house({ book_type: book, start_bankroll: 1000 }),
-    staleTime: 30_000,
-  })
+  const [view, setView] = useState<View>('books')
 
   return (
     <>
@@ -39,20 +36,11 @@ export default function PaperTrading() {
           <div className="ph-title">{t('paper.title')}</div>
           <div className="ph-sub">{t('paper.subtitle')}</div>
         </div>
-      </div>
-
-      <div className="filters">
-        <div className="filter-grp">
-          <span className="filter-lbl">{t('paper.band_label')}</span>
-          {BOOKS.map(b => (
-            <button
-              key={b.key}
-              className={`chip${book === b.key ? ' active' : ''}`}
-              onClick={() => setBook(b.key)}
-            >
-              {b.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className={`chip${view === 'books' ? ' active' : ''}`}
+                  onClick={() => setView('books')}>{t('paper.view.books')}</button>
+          <button className={`chip${view === 'bands' ? ' active' : ''}`}
+                  onClick={() => setView('bands')}>{t('paper.view.bands')}</button>
         </div>
       </div>
 
@@ -62,9 +50,94 @@ export default function PaperTrading() {
                        borderRadius: 6, marginBottom: 12 }}>
           {t('paper.disclaimer')}
         </div>
-        {isLoading && <div className="empty">{t('paper.loading')}</div>}
-        {data && <HouseCard d={data} t={t} />}
+        {view === 'books' ? <BooksView t={t} /> : <BandsView t={t} />}
       </div>
+    </>
+  )
+}
+
+function BooksView({ t }: { t: (k: string, v?: any) => string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['paper.books'],
+    queryFn: () => api.paperTrading.books(),
+    staleTime: 30_000,
+  })
+  if (isLoading) return <div className="empty">{t('paper.loading')}</div>
+  const books = data?.items ?? []
+  if (books.length === 0) {
+    return <div className="empty">{t('paper.books.no_books')}</div>
+  }
+  return (
+    <>
+      <MultiBookRoiChart books={books} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                     gap: 12, marginTop: 16 }}>
+        {books.map(b => <BookCard key={b.id} book={b} t={t} />)}
+      </div>
+    </>
+  )
+}
+
+function BookCard({ book, t }: { book: Book; t: (k: string, v?: any) => string }) {
+  const s = book.summary
+  const roi = s.metrics.roi_pct
+  const roiColor = roi == null ? 'var(--text)' : (roi >= 0 ? 'var(--acc)' : 'var(--neg)')
+  return (
+    <div className="card" style={{ padding: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+        <span style={{ fontWeight: 600 }}>{book.name.replace(/^House-GS-/, '')}</span>
+        <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-mute)' }}>
+          {book.signal_version}
+        </span>
+        <span style={{ marginLeft: 'auto', padding: '0 6px',
+                        fontSize: 'var(--fs-xs)',
+                        border: '1px solid var(--text-mute)', borderRadius: 999,
+                        color: 'var(--text-mute)' }}>
+          {book.scope === 'house' ? t('paper.books.scope.house') : t('paper.books.scope.personal')}
+        </span>
+      </div>
+      <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-mute)', marginBottom: 8 }}>
+        {book.signal_type.replace(/^GS-/, '')} · {t(`paper.books.match.${book.match_scope}`)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+        <Metric label="ROI"
+                value={roi == null ? '—' : `${roi.toFixed(1)}%`}
+                color={roiColor} />
+        <Metric label={t('paper.metric.win_rate')}
+                value={s.metrics.win_rate == null ? '—' : `${Math.round(s.metrics.win_rate * 100)}%`} />
+        <Metric label={t('paper.metric.bankroll')}
+                value={`${s.bankroll.current.toFixed(1)}u`}
+                sub={`start ${s.bankroll.start.toFixed(0)}u`} />
+        <Metric label={t('paper.metric.bets')}
+                value={`${s.bets_settled}`}
+                sub={s.bets_pending > 0 ? `+ ${s.bets_pending} pending` : ''} />
+      </div>
+    </div>
+  )
+}
+
+function BandsView({ t }: { t: (k: string, v?: any) => string }) {
+  const [book, setBook] = useState('house_5pct')
+  const { data, isLoading } = useQuery({
+    queryKey: ['paper-house', book],
+    queryFn: () => api.paperTrading.house({ book_type: book, start_bankroll: 1000 }),
+    staleTime: 30_000,
+  })
+  return (
+    <>
+      <div className="filters" style={{ marginBottom: 12 }}>
+        <div className="filter-grp">
+          <span className="filter-lbl">{t('paper.band_label')}</span>
+          {BANDS.map(b => (
+            <button key={b.key}
+              className={`chip${book === b.key ? ' active' : ''}`}
+              onClick={() => setBook(b.key)}
+            >{b.label}</button>
+          ))}
+        </div>
+      </div>
+      {isLoading && <div className="empty">{t('paper.loading')}</div>}
+      {data && <HouseCard d={data} t={t} />}
     </>
   )
 }

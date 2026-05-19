@@ -242,6 +242,8 @@ export const api = {
   paperTrading: {
     house: (p?: { book_type?: string; start_bankroll?: number }) =>
       get<PaperHouseSummary>('/paper-trading/house', p as P),
+    books: (p?: { include_archived?: boolean }) =>
+      get<BookListResponse>('/paper-trading/books', p as P),
   },
   signals: {
     active: (p?: { waypoint?: string; min_strength?: number; limit?: number; only_upcoming?: boolean }) =>
@@ -332,6 +334,37 @@ export interface SignalBacktestResult {
   hit_rate: number | null
   max_drawdown_pct: number | null
   equity_curve: SignalBacktestEquityPoint[]
+}
+
+// Phase 4b — per-book list with per-book summary (multi-curve ROI chart source).
+export interface BookSummary {
+  book_id:      number
+  bets_settled: number
+  bets_pending: number
+  bets_voided:  number
+  bankroll:     { start: number; current: number }
+  metrics:      { roi_pct: number | null; win_rate: number | null }
+  timeseries:   { settled_at: string; bankroll: number }[]
+}
+
+export interface Book {
+  id:             number
+  user_id:        number
+  name:           string
+  signal_type:    string
+  signal_version: string
+  conditions:     Record<string, any>
+  starting_units: number
+  match_scope:    'all' | 'my_leagues'
+  scope:          'house' | 'personal'
+  created_at:     string
+  archived_at:    string | null
+  summary:        BookSummary
+}
+
+export interface BookListResponse {
+  items: Book[]
+  count: number
 }
 
 export interface PaperHouseMetrics {

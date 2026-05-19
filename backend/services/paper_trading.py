@@ -241,6 +241,77 @@ async def place_bets_for_books(db: aiosqlite.Connection) -> int:
     return total_inserted
 
 
+async def book_summary(
+    db: aiosqlite.Connection,
+    *,
+    book_id: int,
+    starting_units: float = 100.0,
+) -> dict:
+    """Aggregated view of one Book (House or Personal) keyed by book_id.
+
+    Same metrics as `house_book_summary` (ROI / win_rate / pending / voided /
+    bankroll timeseries) but addresses the Book by its primary key instead
+    of the legacy `book_type` string. Phase 4b of signal-catalog PRD.
+
+    Defaults `starting_units=100.0` to align with `simulated_books.starting_units`
+    default, so per-book ROI curves on the multi-curve chart use a consistent
+    baseline — the **whole point** of "信号即账户 + 统一起始资金".
+    """
+    async with db.execute(
+        """SELECT COUNT(*) AS n FROM simulated_bets
+           WHERE book_id=? AND outcome IS NULL""",
+        (book_id,),
+    ) as cur:
+        pending = (await cur.fetchone())["n"]
+
+    async with db.execute(
+        """SELECT stake_units, pnl_units, outcome, settled_at
+           FROM simulated_bets
+           WHERE book_id=? AND outcome IS NOT NULL
+           ORDER BY settled_at ASC, id ASC""",
+        (book_id,),
+    ) as cur:
+        settled_rows = [dict(r) for r in await cur.fetchall()]
+
+    n_settled = len(settled_rows)
+    n_voided  = sum(1 for b in settled_rows if b["outcome"] == "void")
+
+    if n_settled == 0:
+        return {
+            "book_id":      book_id,
+            "bets_settled": 0,
+            "bets_pending": pending,
+            "bets_voided":  0,
+            "bankroll":     {"start": starting_units, "current": starting_units},
+            "metrics":      {"roi_pct": None, "win_rate": None},
+            "timeseries":   [],
+        }
+
+    graded = [b for b in settled_rows if b["outcome"] in ("win", "loss")]
+    graded_stake = sum(b["stake_units"] for b in graded)
+    graded_pnl   = sum(b["pnl_units"]   for b in graded)
+    wins         = sum(1 for b in graded if b["outcome"] == "win")
+
+    running = starting_units
+    timeseries = []
+    for b in settled_rows:
+        running += b["pnl_units"]  # void contributes 0 → bankroll unchanged
+        timeseries.append({"settled_at": b["settled_at"], "bankroll": round(running, 2)})
+
+    return {
+        "book_id":      book_id,
+        "bets_settled": n_settled,
+        "bets_pending": pending,
+        "bets_voided":  n_voided,
+        "bankroll":     {"start": starting_units, "current": round(running, 2)},
+        "metrics": {
+            "roi_pct":  round(graded_pnl / graded_stake * 100, 2) if graded_stake else None,
+            "win_rate": round(wins / len(graded), 4) if graded else None,
+        },
+        "timeseries": timeseries,
+    }
+
+
 async def house_book_summary(
     db: aiosqlite.Connection,
     *,
