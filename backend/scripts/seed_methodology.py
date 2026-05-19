@@ -293,7 +293,14 @@ OA_HT_V2 脚本的信号化版本。只在 **FT 主盘 AH 落在 {0, ±0.25, ±0
 
 ### AH 主盘选择
 
-对每个书商,在所有 AH 让球档位中,选两边赔率差最小的那一档作为主盘。
+对每个书商,主盘选择按以下两步:
+
+1. **候选过滤**:只保留两边赔率**都落在 `[0.6, 2.5]` 区间**的让球档位
+   (过滤掉 home_-2 / away_+2 这类极端让球,赔率会跑到 5.0+ 或 0.3- 不
+   应当主盘看)。
+2. **候选中选差最小**:剩下候选里,挑两边赔率差(`|h - a|`)最小的那一档
+   作为主盘。
+
 主盘让球值必须落在 `{0, ±0.25, ±0.5}` 才触发,否则信号不出。
 
 ### EV 反推公式
@@ -357,9 +364,15 @@ beyond `hk_*_28` approaches the upper line.
 
 ### Main AH line selection
 
-For each bookmaker, scan all AH handicaps and pick the one with smallest
-two-side odds gap. The home-perspective line must land in `{0, ±0.25, ±0.5}`
-or no signal fires.
+Per bookmaker, the main line is chosen in two steps:
+
+1. **Candidate filter**: keep only handicap lines whose **both** sides have
+   odds in `[0.6, 2.5]` (excludes extreme handicaps like home_-2 / away_+2
+   whose odds explode to 5.0+ or collapse to 0.3-).
+2. **Closest-odds pick**: among the surviving candidates, choose the line
+   with the smallest two-side odds gap (`|h - a|`).
+
+The home-perspective line must land in `{0, ±0.25, ±0.5}` or no signal fires.
 
 ### EV reverse-derivation formula
 
