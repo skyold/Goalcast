@@ -101,6 +101,10 @@ class GSHtEv(BaseSignal):
     signal_type: ClassVar[str] = "GS-KEN-HT-EV"
     signal_version: ClassVar[str] = "v1.0"
     scope: ClassVar[str] = "public"
+    # Settles on AH market_id=51 at HT 平手盘 (line=0), not FT 1X2 (market_id=6).
+    # Phase A of paper-trading-realism PRD: this gates the signal out of the
+    # 1X2-only place_bets_for_books loop until Phase B adds AH settlement.
+    settle_market: ClassVar[tuple[int, str]] = (51, "AH_0_HT")
     description: ClassVar[str] = "上半场平手盘 EV 5%~28% 反推香港盘赔率区间"
     output_schema: ClassVar[dict[str, str]] = {
         "ah_line":     "float, FT 主盘从主队视角",

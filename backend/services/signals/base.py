@@ -35,6 +35,15 @@ class BaseSignal(ABC):
     signal_version: ClassVar[str]   # semver-ish, e.g. 'v1.0'
     scope: ClassVar[str]            # 'public' | 'member'
 
+    # Settlement binding. `(market_id, outcome_type)`:
+    #   market_id    — Pinnacle historical_odds.market_id used to look up the
+    #                  selection's entry/closing odds (6 = FT 1X2, 51 = AH, ...).
+    #   outcome_type — short tag the settlement dispatcher routes on:
+    #                  '1X2' / 'AH_0_HT' / etc.
+    # Phase A of paper-trading-realism PRD: anything other than (6, '1X2') is
+    # gated out of place_bets_for_books until Phase B's AH settlement lands.
+    settle_market: ClassVar[tuple[int, str]] = (6, "1X2")
+
     # User-facing catalog metadata. Defaults are intentionally empty so that
     # the abstract base + existing concrete signals continue to import; each
     # subclass SHOULD override these to populate the catalog endpoint.
